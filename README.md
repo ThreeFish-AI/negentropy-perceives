@@ -191,7 +191,7 @@ graph TD
 - [开发指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/development.md)
 - [测试指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/testing.md)
 - [配置系统](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/configuration.md)
-- [常用指令](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/commands.md)
+- [用户指南（含命令速查）](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md#开发者命令速查)
 - [版本里程](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/CHANGELOG.md)
 
 ## 🤝 Contribution

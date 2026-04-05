@@ -84,5 +84,4 @@
 - [开发指南](docs/development.md)
 - [测试指南](docs/testing.md)
 - [配置系统](docs/configuration.md)
-- [常用指令](docs/commands.md)
 - [用户指南](docs/user-guide.md)
