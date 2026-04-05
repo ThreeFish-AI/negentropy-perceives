@@ -48,9 +48,9 @@ curl http://localhost:3000/tools
 
 > **更多信息**
 >
-> - 系统要求与开发环境搭建 -> [开发指南](./2-Development.md#环境配置)
-> - 环境变量与配置系统详解 -> [配置系统](./4-Configuration.md)
-> - 完整命令速查与版本管理 -> [常用命令](./5-Commands.md)
+> - 系统要求与开发环境搭建 -> [开发指南](./development.md#环境配置)
+> - 环境变量与配置系统详解 -> [配置系统](./configuration.md)
+> - 完整命令速查与版本管理 -> [常用命令](./commands.md)
 
 ## MCP Server 配置
 
@@ -1529,7 +1529,7 @@ NEGENTROPY_PERCEIVES_HTTP_CORS_ORIGINS="http://localhost:3000,https://yourdomain
 使用数据抓取工具时，请遵守以下合规要求：
 
 - **遵守 robots.txt**：抓取前使用 `check_robots_txt` 工具检查网站爬虫规则
-- **合理请求频率**：通过环境变量设置适当的请求间隔和并发限制，详见 [配置系统](./4-Configuration.md)
+- **合理请求频率**：通过环境变量设置适当的请求间隔和并发限制，详见 [配置系统](./configuration.md)
 - **数据隐私保护**：不记录敏感信息（密码、个人信息等），遵守数据保护法规（GDPR、CCPA 等）
 - **身份标识**：使用明确的 User-Agent，避免伪装身份
 
@@ -1537,8 +1537,8 @@ NEGENTROPY_PERCEIVES_HTTP_CORS_ORIGINS="http://localhost:3000,https://yourdomain
 
 | 文档 | 内容 | 适用读者 |
 |------|------|---------|
-| [架构设计](./1-Framework.md) | 系统架构与设计原则 | 架构师 / 贡献者 |
-| [开发指南](./2-Development.md) | 环境搭建、编码规范、性能优化 | 开发者 |
-| [测试指南](./3-Testing.md) | 测试体系与执行方法 | 开发者 / QA |
-| [配置系统](./4-Configuration.md) | 环境变量与配置管理 | 运维 / 开发者 |
-| [常用命令](./5-Commands.md) | 命令速查 | 所有用户 |
+| [架构设计](./framework.md) | 系统架构与设计原则 | 架构师 / 贡献者 |
+| [开发指南](./development.md) | 环境搭建、编码规范、性能优化 | 开发者 |
+| [测试指南](./testing.md) | 测试体系与执行方法 | 开发者 / QA |
+| [配置系统](./configuration.md) | 环境变量与配置管理 | 运维 / 开发者 |
+| [常用命令](./commands.md) | 命令速查 | 所有用户 |

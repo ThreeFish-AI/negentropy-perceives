@@ -16,7 +16,7 @@ tags:
 
 Negentropy Perceives 采用基于 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) 的分层配置系统，按优先级从高到低：
 
-1. **运行时参数** - 函数调用时直接传递（详见[用户指南 - 数据提取配置](./6-User-Guide.md)）
+1. **运行时参数** - 函数调用时直接传递（详见[用户指南 - 数据提取配置](./user-guide.md)）
 2. **环境变量** - `NEGENTROPY_PERCEIVES_` 前缀的环境变量
 3. **环境文件** - `.env` 系列文件（详见下方搜索路径）
 4. **默认配置** - [`NegentropyPerceivesSettings`](../src/negentropy/perceives/config.py) 中定义的默认值

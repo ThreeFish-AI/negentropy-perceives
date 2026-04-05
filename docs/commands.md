@@ -15,7 +15,7 @@ tags:
 
 ## 环境设置与安装
 
-→ 完整环境配置指南见 [开发指南 · 环境配置](./2-Development.md#环境配置)
+→ 完整环境配置指南见 [开发指南 · 环境配置](./development.md#环境配置)
 
 ## 服务器启动
 
@@ -43,11 +43,11 @@ uv run --env NEGENTROPY_PERCEIVES_ENABLE_JAVASCRIPT=true \
           negentropy-perceives
 ```
 
-> 全部环境变量配置项见 [配置系统](./4-Configuration.md)
+> 全部环境变量配置项见 [配置系统](./configuration.md)
 
 ## 代码质量检查
 
-→ 基础 Ruff / MyPy / Pre-commit 命令见 [开发指南 · 代码质量保障](./2-Development.md#代码质量保障)
+→ 基础 Ruff / MyPy / Pre-commit 命令见 [开发指南 · 代码质量保障](./development.md#代码质量保障)
 
 ### 高级用法
 
@@ -64,7 +64,7 @@ uv run mypy src/negentropy/perceives/ --html-report mypy-report
 
 ## 测试执行
 
-→ 完整测试脚本与 pytest 命令见 [测试指南 · 测试执行](./3-Testing.md#-测试执行)
+→ 完整测试脚本与 pytest 命令见 [测试指南 · 测试执行](./testing.md#-测试执行)
 
 ## 项目依赖管理
 
@@ -126,7 +126,7 @@ find . -type f -name "*.pyc" -delete
 
 ### 构建与发布
 
-→ 完整构建发布流程见 [开发指南 · 发布流程](./2-Development.md#发布流程)
+→ 完整构建发布流程见 [开发指南 · 发布流程](./development.md#发布流程)
 
 ## 系统调试与诊断
 

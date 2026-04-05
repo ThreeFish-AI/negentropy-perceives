@@ -1,4 +1,4 @@
-"""docs/4-Configuration.md 文档完整性测试。"""
+"""docs/configuration.md 文档完整性测试。"""
 
 import re
 
@@ -12,7 +12,7 @@ from tests.unit.doc_contracts import (
     read_doc,
 )
 
-CONFIG_DOC = "4-Configuration.md"
+CONFIG_DOC = "configuration.md"
 
 # NegentropyPerceivesSettings 中非配置元字段（model_config 等不映射为环境变量）
 _EXCLUDED_FIELDS = {"model_config"}
@@ -35,7 +35,7 @@ class TestDocExists:
     """文档文件存在性验证。"""
 
     def test_configuration_doc_exists(self):
-        """4-Configuration.md 文件存在。"""
+        """configuration.md 文件存在。"""
         assert_doc_exists(CONFIG_DOC)
 
 

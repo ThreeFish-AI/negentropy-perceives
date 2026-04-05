@@ -1,4 +1,4 @@
-"""docs/6-User-Guide.md 文档完整性测试。"""
+"""docs/user-guide.md 文档完整性测试。"""
 
 import re
 
@@ -10,7 +10,7 @@ from tests.unit.doc_contracts import (
     read_doc,
 )
 
-USER_GUIDE_DOC = "6-User-Guide.md"
+USER_GUIDE_DOC = "user-guide.md"
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +23,7 @@ class TestDocExists:
     """文档文件存在性验证。"""
 
     def test_user_guide_doc_exists(self):
-        """6-User-Guide.md 文件存在。"""
+        """user-guide.md 文件存在。"""
         assert_doc_exists(USER_GUIDE_DOC)
 
 
@@ -89,31 +89,31 @@ class TestOrthogonalityConstraints:
     def test_no_dev_install_commands(self, doc_content: str):
         """文档不包含开发依赖安装命令。"""
         assert "uv sync --group dev" not in doc_content, (
-            "User Guide 不应包含开发依赖安装命令，应链接到 2-Development.md"
+            "User Guide 不应包含开发依赖安装命令，应链接到 development.md"
         )
 
     def test_no_git_clone_instructions(self, doc_content: str):
         """文档不包含 git clone 安装说明。"""
         assert "git clone" not in doc_content, (
-            "User Guide 不应包含从源码克隆的安装说明，应链接到 2-Development.md"
+            "User Guide 不应包含从源码克隆的安装说明，应链接到 development.md"
         )
 
     def test_has_cross_reference_to_development(self, doc_content: str):
         """文档包含到开发指南的交叉引用链接。"""
-        assert "2-Development.md" in doc_content, (
-            "缺少到 2-Development.md 的交叉引用链接"
+        assert "development.md" in doc_content, (
+            "缺少到 development.md 的交叉引用链接"
         )
 
     def test_has_cross_reference_to_configuration(self, doc_content: str):
         """文档包含到配置系统的交叉引用链接。"""
-        assert "4-Configuration.md" in doc_content, (
-            "缺少到 4-Configuration.md 的交叉引用链接"
+        assert "configuration.md" in doc_content, (
+            "缺少到 configuration.md 的交叉引用链接"
         )
 
     def test_has_cross_reference_to_commands(self, doc_content: str):
         """文档包含到常用命令的交叉引用链接。"""
-        assert "5-Commands.md" in doc_content, (
-            "缺少到 5-Commands.md 的交叉引用链接"
+        assert "commands.md" in doc_content, (
+            "缺少到 commands.md 的交叉引用链接"
         )
 
 

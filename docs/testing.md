@@ -257,6 +257,6 @@ def test_extract_data():
 
 ### CI 集成
 
-CI/CD 工作流的完整文档参见 [开发指南 > CI/CD 与版本管理](./2-Development.md#ci-cd-与版本管理)。
+CI/CD 工作流的完整文档参见 [开发指南 > CI/CD 与版本管理](./development.md#ci-cd-与版本管理)。
 
 覆盖率报告自动上传至 Codecov，具体配置参见 [`ci.yml`](../.github/workflows/ci.yml) 中的 `coverage` 步骤。

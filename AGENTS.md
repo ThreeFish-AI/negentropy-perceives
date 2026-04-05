@@ -80,10 +80,9 @@
 
 ## Knowledge Map (知识索引)
 
-- [架构设计](docs/1-Framework.md)
-- [开发指南](docs/2-Development.md)
-
-- [测试指南](docs/3-Testing.md)
-- [配置系统](docs/4-Configuration.md)
-- [常用指令](docs/5-Commands.md)
-- [用户指南](docs/6-User-Guide.md)
+- [架构设计](docs/framework.md)
+- [开发指南](docs/development.md)
+- [测试指南](docs/testing.md)
+- [配置系统](docs/configuration.md)
+- [常用指令](docs/commands.md)
+- [用户指南](docs/user-guide.md)

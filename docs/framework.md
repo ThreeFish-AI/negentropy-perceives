@@ -257,7 +257,7 @@ graph TD
 
 `NegentropyPerceivesSettings` 使用 `NEGENTROPY_PERCEIVES_` 前缀自动映射环境变量，支持 `.env` 文件，实例冻结（immutable）。配置层级（优先级递增）：代码默认值 → `.env` 文件 → 环境变量。
 
-**主要配置组**：服务器、传输（STDIO/HTTP/SSE + host/port/path/CORS）、抓取、限速/重试/缓存、浏览器、User-Agent、代理、日志、LLM 集成、硬件加速（MPS/CUDA/XPU）、PDF 引擎开关（Docling/MinerU/Marker）。详细配置项参见 [配置系统文档](./4-Configuration.md)。
+**主要配置组**：服务器、传输（STDIO/HTTP/SSE + host/port/path/CORS）、抓取、限速/重试/缓存、浏览器、User-Agent、代理、日志、LLM 集成、硬件加速（MPS/CUDA/XPU）、PDF 引擎开关（Docling/MinerU/Marker）。详细配置项参见 [配置系统文档](./configuration.md)。
 
 ## SDK 层
 

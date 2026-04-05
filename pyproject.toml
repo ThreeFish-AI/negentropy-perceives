@@ -19,6 +19,7 @@ requires-python = ">=3.13"
 authors = [{ name = "ThreeFish-AI", email = "threefish.ai@gmail.com" }]
 license = "MIT"
 keywords = ["mcp", "web-crawler", "scrapy", "pdf", "markdown"]
+
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -50,6 +51,11 @@ dependencies = [
     # --- 运行时基础设施 ---
     "setuptools>=82.0.0",  # undetected-chromedriver 依赖 distutils（Python 3.12+ 已移除）
 ]
+
+[project.urls]
+"Source Code" = "https://github.com/ThreeFish-AI/negentropy-perceives"
+"User Guide" = "https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md"
+"Bug Tracker" = "https://github.com/ThreeFish-AI/negentropy-perceives/issues"
 
 [project.optional-dependencies]
 formula = [

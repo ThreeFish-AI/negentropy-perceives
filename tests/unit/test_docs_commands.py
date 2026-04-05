@@ -1,4 +1,4 @@
-"""docs/5-Commands.md 文档完整性测试。"""
+"""docs/commands.md 文档完整性测试。"""
 
 import re
 
@@ -11,7 +11,7 @@ from tests.unit.doc_contracts import (
     read_doc,
 )
 
-COMMANDS_DOC = "5-Commands.md"
+COMMANDS_DOC = "commands.md"
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +29,7 @@ class TestDocExists:
     """文档文件存在性验证。"""
 
     def test_commands_doc_exists(self):
-        """5-Commands.md 文件存在。"""
+        """commands.md 文件存在。"""
         assert_doc_exists(COMMANDS_DOC)
 
 
@@ -86,28 +86,28 @@ class TestNoRedundancy:
         """环境设置命令应由 Development.md 覆盖。"""
         for block in _extract_bash_blocks(doc_content):
             assert "./scripts/dev/setup.sh" not in block, (
-                "文档不应包含 ./scripts/dev/setup.sh 执行命令（已由 2-Development.md 覆盖）"
+                "文档不应包含 ./scripts/dev/setup.sh 执行命令（已由 development.md 覆盖）"
             )
 
     def test_no_pytest_commands(self, doc_content: str):
         """pytest 命令应由 Testing.md 覆盖。"""
         for block in _extract_bash_blocks(doc_content):
             assert "uv run pytest" not in block, (
-                "文档不应包含 pytest 命令（已由 3-Testing.md 覆盖）"
+                "文档不应包含 pytest 命令（已由 testing.md 覆盖）"
             )
 
     def test_no_uv_sync_commands(self, doc_content: str):
         """uv sync 命令应由 Development.md 覆盖。"""
         for block in _extract_bash_blocks(doc_content):
             assert "uv sync" not in block, (
-                "文档不应包含 uv sync 命令（已由 2-Development.md 覆盖）"
+                "文档不应包含 uv sync 命令（已由 development.md 覆盖）"
             )
 
     def test_no_uv_build_command(self, doc_content: str):
         """构建命令应由 Development.md 覆盖。"""
         for block in _extract_bash_blocks(doc_content):
             assert "uv build" not in block, (
-                "文档不应包含 uv build 命令（已由 2-Development.md 覆盖）"
+                "文档不应包含 uv build 命令（已由 development.md 覆盖）"
             )
 
 
@@ -125,7 +125,7 @@ class TestRequiredSections:
         """文档包含必需章节: {heading}。"""
         assert heading in doc_content, f"文档缺少必需章节: '{heading}'"
 
-    AUTHORITY_DOCS = ["2-Development.md", "3-Testing.md"]
+    AUTHORITY_DOCS = ["development.md", "testing.md"]
 
     @pytest.mark.parametrize("doc_name", AUTHORITY_DOCS)
     def test_has_authority_link(self, doc_content: str, doc_name: str):

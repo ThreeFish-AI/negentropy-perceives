@@ -250,11 +250,11 @@ async def scrape_webpage(
 
 - **错误处理**：验证输入参数，使用 `_registry.py` 中的 `validate_url()` 和 `_support.py` 中的辅助函数，返回结构化错误信息
 - **性能优化**：使用异步编程（`async/await`），利用 `infra/resilience.py` 限速、`_observability.py` 计时装饰器
-- **架构参考**：系统性能设计详见 [架构设计](./1-Framework.md)
+- **架构参考**：系统性能设计详见 [架构设计](./framework.md)
 
 ## 编码规范
 
-遵循 PEP 8 和 PEP 257 标准。代码质量工具的使用详见 [常用指令](./5-Commands.md)。
+遵循 PEP 8 和 PEP 257 标准。代码质量工具的使用详见 [常用指令](./commands.md)。
 
 ### 类型注解与文档字符串
 
@@ -286,7 +286,7 @@ async def scrape_webpage(
 
 ### 代码质量保障
 
-项目使用以下工具链保障代码质量，详见 [常用指令 > 代码质量检查](./5-Commands.md#代码质量检查)：
+项目使用以下工具链保障代码质量，详见 [常用指令 > 代码质量检查](./commands.md#代码质量检查)：
 
 | 工具 | 用途 | 配置位置 |
 |------|------|---------|
@@ -524,7 +524,7 @@ uv run negentropy-perceives --help
 uv run python -c "from negentropy.perceives import __version__; print(__version__)"
 ```
 
-更多构建与发布命令详见 [常用指令 > 构建与发布](./5-Commands.md#构建与发布)。
+更多构建与发布命令详见 [常用指令 > 构建与发布](./commands.md#构建与发布)。
 
 ## 调试与故障排除
 
@@ -620,7 +620,7 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 | Pre-Release 后 workflow 停滞 | 正常行为——需在 GitHub Actions 页面手动审批 production 环境 |
 | PyPI 发布失败（Phase 2） | Pre-Release 已转为正式 Release；可手动 re-run pypi job 或联系 PyPI support |
 
-更多调试命令详见 [常用指令](./5-Commands.md)，测试故障排除详见 [测试指南](./3-Testing.md#故障排除)。
+更多调试命令详见 [常用指令](./commands.md)，测试故障排除详见 [测试指南](./testing.md#故障排除)。
 
 ## 开发资源
 
@@ -642,8 +642,8 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 
 | 文档 | 说明 |
 |------|------|
-| [架构设计](./1-Framework.md) | 系统架构、设计模式、性能策略 |
-| [测试指南](./3-Testing.md) | 测试架构、执行方法、质量保障 |
-| [配置系统](./4-Configuration.md) | 环境变量、配置模板 |
-| [常用指令](./5-Commands.md) | 命令速查手册 |
-| [用户指南](./6-User-Guide.md) | 完整使用指南、API 参考 |
+| [架构设计](./framework.md) | 系统架构、设计模式、性能策略 |
+| [测试指南](./testing.md) | 测试架构、执行方法、质量保障 |
+| [配置系统](./configuration.md) | 环境变量、配置模板 |
+| [常用指令](./commands.md) | 命令速查手册 |
+| [用户指南](./user-guide.md) | 完整使用指南、API 参考 |
