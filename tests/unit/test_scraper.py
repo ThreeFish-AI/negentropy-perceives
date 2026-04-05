@@ -3,7 +3,7 @@ Unit tests for WebScraper core functionality.
 
 ## WebScraper 引擎测试 (`test_scraper.py`)
 
-### DataExtractor 类测试
+### BeautifulSoup CSS 选择器提取测试
 
 测试基本 CSS 选择器数据提取、多元素提取、元素属性(href、src)提取和不存在选择器的处理。
 
@@ -20,9 +20,9 @@ from bs4 import BeautifulSoup
 from negentropy.perceives.scraping import WebScraper
 
 
-class TestDataExtractor:
+class TestCSSSelectorExtraction:
     """
-    DataExtractor 类测试
+    BeautifulSoup CSS 选择器提取测试
 
     - **简单选择器提取**: 测试基本 CSS 选择器数据提取
     - **多元素提取**: 测试 `multiple: true` 配置的多元素提取

@@ -536,8 +536,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DataExtractorService:
-    async def extract_data(self, url: str):
+class NegentropyPerceivesService:
+    async def process_content(self, url: str):
         logger.info(f"Starting extraction for URL: {url}")
         # ...
         logger.info("Extraction completed successfully")
