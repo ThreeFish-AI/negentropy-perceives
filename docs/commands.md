@@ -132,7 +132,7 @@ find . -type f -name "*.pyc" -delete
 
 ```bash
 # 检查 Negentropy Perceives 相关的环境变量
-printenv | grep DATA_EXTRACTOR
+printenv | grep NEGENTROPY_PERCEIVES
 
 # 验证配置文件的正确性
 uv run python -c "from negentropy.perceives.config import settings; print(settings.model_dump())"
