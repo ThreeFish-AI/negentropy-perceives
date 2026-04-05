@@ -82,7 +82,7 @@
 
 - [架构设计](docs/1-Framework.md)
 - [开发指南](docs/2-Development.md)
-- [GitHub Actions 工作流](docs/2.1-Workflows.md)
+
 - [测试指南](docs/3-Testing.md)
 - [配置系统](docs/4-Configuration.md)
 - [常用指令](docs/5-Commands.md)
