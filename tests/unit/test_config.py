@@ -15,8 +15,15 @@ from negentropy.perceives import __version__
 from negentropy.perceives.config import (
     NegentropyPerceivesSettings,
     _PROJECT_ROOT,
+    _config_path_override,
+    _get_user_config_path,
+    _load_bundled_yaml,
+    _load_yaml_file,
     _resolve_env_files,
+    build_settings,
+    deep_merge,
     describe_config_sources,
+    reload_settings,
     settings,
 )
 
@@ -373,7 +380,7 @@ class TestConfigurationEdgeCases:
 
 
 class TestEnvFileResolution:
-    """测试 .env 文件路径解析逻辑"""
+    """测试 .env 文件路径解析逻辑（向后兼容）"""
 
     def test_resolve_env_files_includes_project_root(self):
         """验证项目根目录 .env 路径在返回元组中"""
@@ -437,17 +444,283 @@ class TestEnvFileResolution:
 class TestDescribeConfigSources:
     """测试启动诊断信息"""
 
-    def test_describe_config_sources_no_env_files(self):
-        """无 .env 文件时返回默认提示"""
-        with patch.object(Path, "is_file", return_value=False):
-            result = describe_config_sources()
-            assert "No .env files loaded" in result
-
     def test_describe_config_sources_returns_string(self):
         """诊断信息始终返回字符串"""
         result = describe_config_sources()
         assert isinstance(result, str)
         assert len(result) > 0
+
+    def test_describe_config_sources_contains_bundled_default(self):
+        """诊断信息应包含默认配置相关描述"""
+        result = describe_config_sources()
+        # 无外部配置源时，应提及默认值或环境变量
+        assert "default" in result.lower() or "environment" in result.lower()
+
+    def test_describe_config_sources_with_custom_path(self):
+        """显式指定配置路径时应在诊断信息中体现"""
+        result = describe_config_sources(config_path="/tmp/my-config.yaml")
+        assert "custom-config" in result
+        assert "/tmp/my-config.yaml" in result
+
+
+# ============================================================
+# Deep Merge 工具函数测试
+# ============================================================
+class TestDeepMerge:
+    """测试 deep_merge 工具函数。"""
+
+    def test_scalar_override(self):
+        """标量值覆盖：override 直接替换 base 的同名标量。"""
+        base = {"a": 1, "b": 2}
+        override = {"a": 10}
+        result = deep_merge(base, override)
+        assert result == {"a": 10, "b": 2}
+
+    def test_nested_dict_merge(self):
+        """嵌套字典递归合并：仅覆盖差异键，保留未提及的 base 键。"""
+        base = {"server": {"host": "localhost", "port": 8080}, "debug": False}
+        override = {"server": {"port": 9000}}
+        result = deep_merge(base, override)
+        assert result["server"]["host"] == "localhost"  # 来自 base
+        assert result["server"]["port"] == 9000       # 来自 override
+        assert result["debug"] is False               # 来自 base
+
+    def test_list_replacement(self):
+        """列表值整体替换：不逐元素合并。"""
+        base = {"items": ["a", "b"]}
+        override = {"items": ["c"]}
+        result = deep_merge(base, override)
+        assert result["items"] == ["c"]
+
+    def test_none_skips_base(self):
+        """override 中值为 None 的键：跳过，保留 base 原值。"""
+        base = {"a": 1, "b": 2}
+        override = {"a": None, "c": 3}
+        result = deep_merge(base, override)
+        assert result["a"] == 1   # base 值保留
+        assert result["b"] == 2   # base 值保留
+        assert result["c"] == 3   # 新增键正常
+
+    def test_empty_override_returns_base_copy(self):
+        """空 override 返回 base 的浅拷贝。"""
+        base = {"a": 1, "b": 2}
+        result = deep_merge(base, {})
+        assert result == base
+        assert result is not base  # 确保是拷贝
+
+    def test_empty_base_with_override(self):
+        """空 base 被 override 完全填充。"""
+        result = deep_merge({}, {"a": 1, "nested": {"x": 2}})
+        assert result == {"a": 1, "nested": {"x": 2}}
+
+    def test_deeply_nested_structure(self):
+        """三层以上嵌套结构的正确合并。"""
+        base = {"level1": {"level2": {"level3_a": "old", "level3_b": "keep"}}}
+        override = {"level1": {"level2": {"level3_a": "new"}}}
+        result = deep_merge(base, override)
+        assert result["level1"]["level2"]["level3_a"] == "new"
+        assert result["level1"]["level2"]["level3_b"] == "keep"
+
+    def test_new_keys_added(self):
+        """override 中 base 不存在的键被添加到结果中。"""
+        base = {"a": 1}
+        override = {"b": 2, "c": 3}
+        result = deep_merge(base, override)
+        assert result == {"a": 1, "b": 2, "c": 3}
+
+    def test_original_dicts_not_mutated(self):
+        """deep_merge 不修改原始字典（纯函数语义）。"""
+        base = {"a": {"b": 1}}
+        override = {"a": {"c": 2}}
+        _ = deep_merge(base, override)
+        assert base == {"a": {"b": 1}}      # base 未变
+        assert override == {"a": {"c": 2}}   # override 未变
+
+
+# ============================================================
+# YAML 配置加载测试
+# ============================================================
+class TestYamlConfigLoading:
+    """测试 YAML 配置文件加载功能。"""
+
+    def test_load_bundled_yaml_returns_dict(self):
+        """内置默认 YAML 可正常加载并返回字典。"""
+        data = _load_bundled_yaml()
+        assert isinstance(data, dict)
+        assert data["server_name"] == "negentropy-perceives"
+        assert "server_version" not in data  # 版本号不在 YAML 中
+
+    def test_load_bundled_yaml_contains_all_sections(self):
+        """内置默认 YAML 包含所有主要配置分区。"""
+        data = _load_bundled_yaml()
+        # 验证关键配置项存在
+        expected_keys = [
+            "transport_mode",
+            "http_port",
+            "concurrent_requests",
+            "log_level",
+            "accelerator_device",
+            "docling_enabled",
+            "mineru_enabled",
+            "marker_enabled",
+        ]
+        for key in expected_keys:
+            assert key in data, f"Missing key: {key}"
+
+    def test_load_missing_yaml_returns_none(self):
+        """不存在的 YAML 文件返回 None。"""
+        result = _load_yaml_file(Path("/nonexistent/path/config.yaml"))
+        assert result is None
+
+    def test_load_valid_yaml_file(self, tmp_path):
+        """有效 YAML 文件可正确解析。"""
+        yaml_file = tmp_path / "test.yaml"
+        yaml_file.write_text("transport_mode: stdio\nhttp_port: 9999\n", encoding="utf-8")
+        result = _load_yaml_file(yaml_file)
+        assert result is not None
+        assert result["transport_mode"] == "stdio"
+        assert result["http_port"] == 9999
+
+    def test_load_invalid_yaml_returns_none(self, tmp_path):
+        """无效 YAML 文件返回 None 并记录警告（不抛异常）。"""
+        yaml_file = tmp_path / "broken.yaml"
+        yaml_file.write_text("{invalid: [yaml: content:", encoding="utf-8")
+        result = _load_yaml_file(yaml_file)
+        assert result is None  # 解析失败时回退到 None
+
+    def test_user_config_path_is_negentropy_home(self):
+        """用户配置路径位于 ~/.negentropy/ 目录下。"""
+        path = _get_user_config_path()
+        assert path.name == "perceives.config.yaml"
+        assert ".negentropy" in str(path)
+        assert str(path).startswith(str(Path.home()))
+
+
+# ============================================================
+# build_settings 编排函数测试
+# ============================================================
+class TestBuildSettings:
+    """测试 build_settings 配置构建函数。"""
+
+    def test_build_with_defaults_only(self):
+        """仅使用内置默认构建配置，所有字段有合理默认值。"""
+        cfg = build_settings()
+        assert cfg.server_name == "negentropy-perceives"
+        assert cfg.transport_mode == "http"
+        assert cfg.http_port == 8081
+        assert cfg.concurrent_requests == 16
+        assert cfg.log_level == "INFO"
+
+    def test_build_with_custom_yaml(self, tmp_path):
+        """自定义 YAML 覆盖默认值（显式 -c 配置优先级高于环境变量）。"""
+        yaml_content = "transport_mode: stdio\nhttp_port: 9999\n"
+        yaml_file = tmp_path / "custom.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.transport_mode == "stdio"
+        assert cfg.http_port == 9999
+        # 未覆盖的字段仍使用默认值
+        assert cfg.server_name == "negentropy-perceives"
+        assert cfg.concurrent_requests == 16
+
+    def test_build_yaml_plus_env_var_priority(self, tmp_path):
+        """环境变量优先级高于显式 YAML 配置（-c）。
+
+        pydantic-settings 内部优先级：env_settings > init_settings(kwargs)。
+        这确保运维环境变量始终能覆盖配置文件，符合 12-factor 应用原则。
+        """
+        yaml_content = "transport_mode: sse\n"
+        yaml_file = tmp_path / "custom.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        with patch.dict(
+            os.environ, {"NEGENTROPY_PERCEIVES_TRANSPORT_MODE": "http"}
+        ):
+            cfg = build_settings(config_path=str(yaml_file))
+            # 环境变量优先于显式配置文件（pydantic-settings 内部行为）
+            assert cfg.transport_mode == "http"  # env var wins
+
+    def test_build_deep_merge_partial_override(self, tmp_path):
+        """深度合并：显式配置部分覆盖，未指定字段保持默认。"""
+        # 仅覆盖并发请求数
+        yaml_content = "concurrent_requests: 99\n"
+        yaml_file = tmp_path / "partial.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.concurrent_requests == 99
+        # 未指定的抓取引擎字段保持默认
+        assert cfg.download_delay == 1.0
+        assert cfg.autothrottle_enabled is True
+
+    def test_reload_settings_updates_global(self, tmp_path):
+        """reload_settings 正确更新全局单例并通过模块属性可访问。"""
+        import negentropy.perceives.config as config_module
+
+        original_port = config_module.settings.http_port
+
+        yaml_content = f"http_port: {original_port + 1}\n"
+        yaml_file = tmp_path / "reload-test.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        new_cfg = reload_settings(config_path=str(yaml_file))
+        assert new_cfg.http_port == original_port + 1
+        # 通过模块属性访问（而非 from import 绑定）验证全局已更新
+        assert config_module.settings.http_port == original_port + 1
+
+        # 清理：恢复原始设置
+        reload_settings()
+
+
+# ============================================================
+# CLI 参数解析集成测试
+# ============================================================
+class TestCliIntegration:
+    """测试 CLI 参数与配置系统的集成。"""
+
+    def test_parse_config_arg(self):
+        """-c/--config 参数正确解析。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["--config", "/tmp/test.yaml"])
+        assert args.config == "/tmp/test.yaml"
+
+    def test_parse_short_config_arg(self):
+        """-c 短参数正确解析。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["-c", "/tmp/test.yaml"])
+        assert args.config == "/tmp/test.yaml"
+
+    def test_parse_no_config_arg(self):
+        """不带 -c 参数时 config_path 为 None。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args([])
+        assert args.config is None
+
+    def test_parse_init_config_flag(self):
+        """--init-config flag 正确解析。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["--init-config"])
+        assert args.init_config is True
+
+    def test_parse_no_init_config_flag(self):
+        """不带 --init-config 时 init_config 为 False。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args([])
+        assert args.init_config is False
+
+    def test_parse_combined_args(self):
+        """同时使用 -c 和 --init-config。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["-c", "/tmp/x.yaml", "--init-config"])
+        assert args.config == "/tmp/x.yaml"
+        assert args.init_config is True
 
 
 # ============================================================

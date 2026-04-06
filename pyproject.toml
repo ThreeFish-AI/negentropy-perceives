@@ -10,6 +10,9 @@ where = ["src"]
 include = ["negentropy*"]
 exclude = ["tests*", "reports*", "htmlcov*", "scripts*"]
 
+[tool.setuptools.package-data]
+"negentropy.perceives" = ["config.default.yaml"]
+
 [project]
 name = "negentropy-perceives"
 version = "0.2.0"
@@ -47,6 +50,8 @@ dependencies = [
     # --- 数据模型与配置 ---
     "pydantic>=2.12.0",
     "pydantic-settings>=2.13.0",
+    "pyyaml>=6.0",              # YAML 配置文件解析
+    "platformdirs>=4.0",        # 跨平台用户配置目录定位
     # --- 运行时基础设施 ---
     "setuptools>=82.0.0",  # undetected-chromedriver 依赖 distutils（Python 3.12+ 已移除）
 ]

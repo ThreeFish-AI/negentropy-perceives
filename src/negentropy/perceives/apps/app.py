@@ -1,10 +1,20 @@
 """FastMCP application entry point for Negentropy Perceives."""
 
+import argparse
 import logging
-from pathlib import Path
 import sys
+from pathlib import Path
 
-from ..config import describe_config_sources, settings
+import yaml
+
+from ..config import (
+    _get_user_config_path,
+    _load_bundled_yaml,
+    build_settings,
+    describe_config_sources,
+    reload_settings,
+    settings,
+)
 from .._logging import build_uvicorn_log_config, setup_logging
 
 logger = logging.getLogger(__name__)
@@ -16,12 +26,81 @@ def _active_cli_name() -> str:
     return Path(argv0).name or "negentropy-perceives"
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """解析命令行参数。
+
+    Args:
+        argv: 参数列表，默认使用 sys.argv[1:]
+
+    Returns:
+        解析后的参数命名空间
+    """
+    parser = argparse.ArgumentParser(
+        prog="negentropy-perceives",
+        description="Negentropy Perceives MCP Server — 商业级 Web 内容与 PDF 提取服务",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="指定自定义 YAML 配置文件路径（优先级高于用户配置）",
+    )
+    parser.add_argument(
+        "--init-config",
+        action="store_true",
+        default=False,
+        help="将默认配置复制到用户配置目录后退出",
+    )
+    return parser.parse_args(argv)
+
+
+def _ensure_user_config() -> None:
+    """确保用户配置文件存在，首次运行时从内置默认复制。
+
+    若 ~/.negentropy/perceives.config.yaml 不存在，则从内置默认配置
+    生成一份副本供用户修改。
+    """
+    user_path = _get_user_config_path()
+    if user_path.exists():
+        return
+
+    try:
+        bundled_dict = _load_bundled_yaml()
+        user_path.parent.mkdir(parents=True, exist_ok=True)
+        with user_path.open("w", encoding="utf-8") as f:
+            yaml.dump(
+                bundled_dict,
+                f,
+                default_flow_style=False,
+                allow_unicode=True,
+                sort_keys=False,
+            )
+        logger.info("已生成用户配置文件: %s", user_path)
+    except OSError as exc:
+        logger.warning("无法创建用户配置文件 %s: %s", user_path, exc)
+
+
+def main(argv: list[str] | None = None) -> None:
     """Run the MCP server."""
-    # ── 步骤 1：初始化日志体系（必须在导入 tools 之前） ──
+    # ── 步骤 0：解析 CLI 参数 ──
+    args = _parse_args(argv)
+
+    # --init-config 模式：生成配置文件后退出
+    if args.init_config:
+        _ensure_user_config()
+        print(f"用户配置已生成至: {_get_user_config_path()}")
+        sys.exit(0)
+
+    # ── 步骤 1：构建配置（必须在其他操作之前） ──
+    reload_settings(config_path=args.config)
+    _ensure_user_config()
+
+    # ── 步骤 2：初始化日志体系（必须在导入 tools 之前） ──
     setup_logging(settings.log_level)
 
-    # ── 步骤 2：延迟导入 tools（触发 @app.tool 注册，此时 logger 已就绪） ──
+    # ── 步骤 3：延迟导入 tools（触发 @app.tool 注册，此时 logger 已就绪） ──
     from ..tools import app  # noqa: E402
 
     cli_name = _active_cli_name()
@@ -80,7 +159,7 @@ def main() -> None:
 
         logger.info("CORS origins: %s", settings.http_cors_origins)
 
-        # ── 步骤 3：构建 Uvicorn 日志配置并启动 ──
+        # ── 步骤 4：构建 Uvicorn 日志配置并启动 ──
         uvicorn_log_config = build_uvicorn_log_config(settings.log_level)
 
         app.run(
