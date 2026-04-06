@@ -42,7 +42,6 @@ class TestRuntimeDependencies:
         "module_name",
         [
             "fastmcp",
-            "scrapy",
             "aiohttp",
             "bs4",
             "requests",
@@ -70,6 +69,7 @@ class TestRemovedDependencies:
             ("httpx", "项目使用 requests + aiohttp，httpx 未被使用"),
             ("lxml", "BeautifulSoup 全部使用 html.parser"),
             ("dotenv", "python-dotenv 为 pydantic-settings 的传递依赖，无需显式声明"),
+            ("scrapy", "scrapy 方法已降级为 http_scraper，不再需要 Scrapy 框架依赖"),
         ],
     )
     def test_removed_package_not_imported(
