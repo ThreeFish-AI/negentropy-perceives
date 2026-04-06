@@ -18,7 +18,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 authors = [{ name = "ThreeFish-AI", email = "threefish.ai@gmail.com" }]
 license = "MIT"
-keywords = ["mcp", "web-crawler", "scrapy", "pdf", "markdown"]
+keywords = ["mcp", "web-crawler", "pdf", "markdown"]
 
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -34,7 +34,6 @@ dependencies = [
     "beautifulsoup4>=4.14.0",
     "fake-useragent>=2.2.0",
     "requests>=2.33.0",
-    "scrapy>=2.14.0",
     # --- 浏览器自动化 ---
     "playwright>=1.58.0",
     "selenium>=4.41.0",
@@ -43,8 +42,8 @@ dependencies = [
     "markitdown>=0.1.5",
     "pymupdf>=1.27.0",
     "pypdf>=6.9.2",  # 修复 CVE-2026-33699
-    # --- GPU 加速 PDF 处理 (Docling) ---
-    "docling>=2.15.0",  # GPU 加速 PDF 处理，支持 MPS (Apple Silicon) / CUDA (NVIDIA)
+    # --- PDF 引擎 ---
+    "docling>=2.70.0",  # PDF 处理引擎 (GPU 加速)
     # --- 数据模型与配置 ---
     "pydantic>=2.12.0",
     "pydantic-settings>=2.13.0",
@@ -58,22 +57,13 @@ dependencies = [
 "Bug Tracker" = "https://github.com/ThreeFish-AI/negentropy-perceives/issues"
 
 [project.optional-dependencies]
-formula = [
-    "docling>=2.70.0",
-]
 docling = [
     "docling>=2.70.0",
 ]
 llm = [
     "litellm>=1.70.0",
 ]
-# ── 可选 PDF 引擎 ──
-# 三引擎可通过 optional-dependencies 统一安装:
-#   uv sync --extra all-engines    # 全部三引擎
-#   uv sync --extra mineru         # MinerU (Apache 2.0, 最佳 LaTeX 公式)
-#   uv sync --extra marker         # Marker (GPL-3.0, 注意商业许可)
-# Pillow 版本冲突已通过 [tool.uv] override-dependencies 解决，详见文件末尾。
-# 安装后代码通过 is_available() 自动检测，无需额外配置。
+# 可选 PDF 引擎（安装后通过 is_available() 自动检测）
 mineru = [
     "mineru>=3.0.1",
 ]
@@ -127,7 +117,6 @@ omit = [
     "tests/*",
     "venv/*",
     ".venv/*",
-    "setup.py"
 ]
 branch = true
 parallel = true
@@ -166,10 +155,7 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [tool.uv]
-# surya-ocr 0.17.x 使用 pillow ^10.2.0（即 <11），与 MinerU 的 pillow>=11 冲突。
-# 上游已提交修复 PR (datalab-to/surya#489)，尚未发布。
-# Marker/surya 对 PIL 仅使用 Image.size/Image.save 等核心稳定 API，Pillow 12.x 兼容。
-# 参考：https://github.com/datalab-to/marker/issues/942
+# Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
 override-dependencies = ["pillow>=12.0.0"]
 
 [dependency-groups]

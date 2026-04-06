@@ -20,7 +20,6 @@ _THIRD_PARTY_OVERRIDES: dict[str, str] = {
     "httpx": "WARNING",
     "selenium": "WARNING",
     "undetected_chromedriver": "WARNING",
-    "scrapy": "WARNING",
     "playwright": "WARNING",
     "mcp.server.lowlevel": "WARNING",
     "mcp.server.lowlevel.server": "WARNING",
