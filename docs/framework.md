@@ -255,7 +255,7 @@ graph TD
 
 [`src/negentropy/perceives/config.py`](../src/negentropy/perceives/config.py) 基于 `pydantic-settings` 的 `BaseSettings` 实现：
 
-`NegentropyPerceivesSettings` 使用 `NEGENTROPY_PERCEIVES_` 前缀自动映射环境变量，支持 `.env` 文件，实例冻结（immutable）。配置层级（优先级递增）：代码默认值 → `.env` 文件 → 环境变量。
+`NegentropyPerceivesSettings` 使用 `NEGENTROPY_PERCEIVES_` 前缀自动映射环境变量，实例冻结（immutable）。配置层级（优先级递增）：内置默认(config.default.yaml) → 用户 YAML(~/.negentropy/) → 环境变量 → -c 显式配置(最高)。
 
 **主要配置组**：服务器、传输（STDIO/HTTP/SSE + host/port/path/CORS）、抓取、限速/重试/缓存、浏览器、User-Agent、代理、日志、LLM 集成、硬件加速（MPS/CUDA/XPU）、PDF 引擎开关（Docling/MinerU/Marker）。详细配置项参见 [配置系统文档](./configuration.md)。
 
