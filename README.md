@@ -1,134 +1,170 @@
-**Negentropy Perceives is a commercial-grade MCP Server built on FastMCP, offering robust capabilities to read, extract, and localize (into Markdown) content from web pages and PDFs with both text and images. It is purpose-built for long-term deployment in enterprise environments.**
+<h1 align="center">Negentropy Perceives</h1>
 
-## 🐍 Python SDK 快速上手
+<p align="center">
+  <strong>商业级 MCP Server</strong> — 给 AI Agent 装上一双能看懂网页和 PDF 的眼睛，而且这双眼睛会隐身。
+</p>
+
+<p align="center">
+  <a href="#快速开始"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
+  <a href="https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
+  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/pypi/v/negentropy-perceives?color=orange" alt="PyPI" /></a>
+  <a href="https://github.com/ThreeFish-AI/negentropy-perceives/stargazers"><img src="https://img.shields.io/github/stars/ThreeFish-AI/negentropy-perceives?style=social" alt="Stars" /></a>
+</p>
+
+<p align="center">
+  <b>14 个专业工具</b> · <b>5 引擎 PDF 处理</b> · <b>反检测抓取</b> · <b>LLM 智能编排</b>
+</p>
+
+<br />
+
+## ✨ 为什么选择 Negentropy Perceives？
+
+| 🧠 Smart 模式 | 🥷 反检测抓取 | ⚡ 五引擎降级 |
+|:---|:---|:---|
+| **LLM 编排多引擎并行处理**<br/>自动分析文档特征 → 并行调度 Docling / PyMuPDF → 择优融合最佳输出。学术论文、财报、技术手册，一个 `method="smart"` 搞定。 | **Selenium + Playwright 双引擎隐身**<br/>随机 UA 轮换、浏览器指纹隐藏、人类行为模拟（鼠标轨迹、滚动延迟）。绕过 Cloudflare、reCAPTCHA 等主流反爬系统。 | **Docling → MinerU → Marker → PyMuPDF → PyPDF**<br/>自动降级链确保零宕机。未安装的引擎自动跳过，最小依赖集即可运行。GPU 加速（CUDA / MPS / XPU）可选开启。 |
+
+<details>
+<summary>📖 更多企业级特性</summary>
+
+- 🔒 **合规优先**: 内置 `check_robots_txt` 工具，抓取前自动检查爬虫规则
+- 🚀 **并发批处理**: `scrape_multiple_webpages` / `batch_convert_pdfs_to_markdown` 支持 asyncio 并发
+- 📊 **可观测性**: 内置请求计量、执行计时、错误分类 (`get_server_metrics`)
+- 🔄 **弹性保障**: 指数退避重试、频率限速、内存缓存三层防护
+- 🎯 **结构化提取**: CSS 选择器映射 + 6 种数据类型模板（contact / social / content / products / addresses）
+- 🖼️ **深度内容提取**: 表格识别、LaTeX 公式保持、图像 base64 嵌入
+- ⚙️ **YAML 三层配置**: 代码默认值 → `.env` 文件 → 环境变量，优先级清晰
+
+</details>
+
+## 🚀 快速开始
 
 ### 安装
 
 ```bash
-# 安装（需要 Python >=3.13）
 uv add negentropy-perceives
 ```
 
-### Web Page 转 Markdown
+> 需要 [uv](https://docs.astral.sh/uv/) 包管理器和 **Python >= 3.13**。
 
-自动识别正文区域并转换为标准 Markdown，适用于内容本地化与知识库归档：
+### Hello World
 
 ```python
-import asyncio
 from negentropy.perceives.sdk import NegentropyPerceivesClient
 
 async with NegentropyPerceivesClient() as client:
-    markdown = await client.convert_webpage_to_markdown(
-        url="https://example.com/blog/post-1",
-        extract_main_content=True,   # 过滤导航栏、页脚等噪声区域
-        embed_images=False,          # True 则将图片内联为 base64 data URI
-    )
-
-asyncio.run(main())
+    markdown = await client.convert_webpage_to_markdown("https://example.com")
 ```
 
-### PDF 转 Markdown
+### 启动 MCP Server
 
-`call_tool` 泛型接口可调用全部 14 个 MCP 工具，此处以 PDF 转换为例：
+```bash
+negentropy-perceives   # 默认 STDIO 模式，通过环境变量切换 HTTP / SSE
+```
+
+<details>
+<summary>⌨️ 更多示例：PDF 转换 · CSS 选择器提取 · 反检测抓取</summary>
+
+#### PDF 转 Markdown
 
 ```python
 async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool(
-        "convert_pdf_to_markdown",
-        {
-            "pdf_source": "https://example.com/report.pdf",
-            "method": "auto",         # auto / pymupdf / pypdf / docling / smart
-            "page_range": "1-10",
-            "output_format": "markdown",
+    result = await client.call_tool("convert_pdf_to_markdown", {
+        "pdf_source": "report.pdf",
+        "method": "smart",           # auto / pymupdf / pypdf / docling / smart
+        "page_range": "1-10",
+    })
+```
+
+#### CSS 选择器精准提取
+
+```python
+async with NegentropyPerceivesClient() as client:
+    result = await client.scrape_webpage(
+        url="https://shop.example.com/product/123",
+        extract_config={
+            "title":  {"selector": "h1",              "attr": "text"},
+            "price":  {"selector": ".price",          "attr": "text"},
+            "images": {"selector": ".gallery img",    "attr": "src", "multiple": True},
         },
     )
 ```
 
-### CSS 选择器精准提取
-
-通过 `extract_config` 声明字段与 CSS 选择器的映射，对目标页面进行结构化提取：
+#### 反检测抓取
 
 ```python
-async def main() -> None:
-    async with NegentropyPerceivesClient() as client:
-        result = await client.scrape_webpage(
-            url="https://example.com/products/123",
-            extract_config={
-                "title":  {"selector": "h1.product-title", "attr": "text", "multiple": False},
-                "price":  {"selector": ".price",           "attr": "text", "multiple": False},
-                "images": {"selector": ".gallery img",     "attr": "src",  "multiple": True},
-            },
-        )
-        print(result)
+async with NegentropyPerceivesClient() as client:
+    result = await client.call_tool("scrape_with_stealth", {
+        "url": "https://protected-site.com",
+        "method": "selenium",         # selenium / playwright
+        "scroll_page": True,
+    })
 ```
 
-> 完整 API 参考与高级用法（批量并发、反检测抓取、表单自动化等）详见[用户指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md)。
+完整 API 参考与高级用法详见 [用户指南](docs/user-guide.md)。
 
-## 🛠️ MCP Server
+</details>
 
-```bash
-# 启动 MCP Server 模式，默认端口 8081
-uv run negentropy-perceives
+## 🛠️ 工具全景 (14 个专业 MCP 工具)
+
+### 🕷️ 网页抓取 (10 工具)
+
+| 工具 | 一句话 | 核心能力 |
+|:---|:---|:---|
+| `scrape_webpage` | 单页抓取 | auto / simple / selenium 方法自动选择 |
+| `scrape_multiple_webpages` | 批量并发 | asyncio.gather 并发处理 URL 列表 |
+| `scrape_with_stealth` | **反检测隐身** | Selenium / Playwright + UA 轮换 + 行为模拟 |
+| `fill_and_submit_form` | 表单自动化 | 自动填写 + 提交，支持所有表单元素 |
+| `extract_links` | 链接提取 | 域名过滤、内外链分类 |
+| `extract_structured_data` | 结构化数据 | contact / social / content / products / addresses |
+| `get_page_info` | 页面侦察 | 标题、状态码、元数据一键获取 |
+| `check_robots_txt` | 合规检查 | robots.txt 解析 + 爬取权限判断 |
+| `convert_webpage_to_markdown` | **页面 → MD** | 主内容提取 + 格式化选项 + 图片嵌入 |
+| `batch_convert_webpages_to_markdown` | 批量转 MD | 多 URL 并发转换 |
+
+### 📄 PDF 处理 (2 工具)
+
+| 工具 | 一句话 | 核心能力 |
+|:---|:---|:---|
+| `convert_pdf_to_markdown` | **PDF → MD** | 5 引擎降级链 + 图像 / 表格 / 公式提取 + Smart 模式 |
+| `batch_convert_pdfs_to_markdown` | 批量 PDF | 多文档并发 + 统计摘要 |
+
+<details>
+<summary>🔧 PDF 引擎降级链详情</summary>
+
+```
+Docling (MIT, 最佳整体质量)
+  └─→ MinerU (Apache 2.0, 最佳 LaTeX 公式)
+       └─→ Marker (GPL-3.0, 最高准确率 95.67%)
+            └─→ PyMuPDF (快速纯文本)
+                 └─→ PyPDF (基础兜底)
 ```
 
-Negentropy Perceives 提供了 14 个专业的 MCP 工具，按功能分为四大类别：
+各引擎均为**可选依赖** — 未安装时自动跳过，确保最小依赖集下仍可运行。
 
-### Web Page
+**Smart 模式** (`method="smart"`): LLM 三阶段编排 — 分析文档特征 → 并行调度多引擎 → 择优融合输出。需安装 `litellm` 并配置 API Key。
 
-| 工具名称                               | 功能描述           | 主要参数                                                                                            |
-| -------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------- |
-| **scrape_webpage**                     | 单页面抓取         | `url`, `method`(自动选择), `extract_config`(选择器配置), `wait_for_element`(CSS 选择器)             |
-| **scrape_multiple_webpages**           | 批量页面抓取       | `urls`(列表), `method`(统一方法), `extract_config`(全局配置)                                        |
-| **scrape_with_stealth**                | 反检测抓取         | `url`, `method`(selenium/playwright), `scroll_page`(滚动加载), `wait_for_element`                   |
-| **fill_and_submit_form**               | 表单自动化         | `url`, `form_data`(选择器:值), `submit`(是否提交), `submit_button_selector`                         |
-| **extract_links**                      | 专业链接提取       | `url`, `filter_domains`(域名过滤), `exclude_domains`(排除域名), `internal_only`(仅内部)             |
-| **extract_structured_data**            | 结构化数据提取     | `url`, `data_type`(all/contact/social/content/products/addresses)                                   |
-| **get_page_info**                      | 页面信息获取       | `url`(目标 URL) - 返回标题、状态码、元数据                                                          |
-| **check_robots_txt**                   | 爬虫规则检查       | `url`(域名 URL) - 检查 robots.txt 规则                                                              |
-| **convert_webpage_to_markdown**        | 页面转 Markdown    | `url`, `method`, `extract_main_content`(提取主内容), `embed_images`(嵌入图片), `formatting_options` |
-| **batch_convert_webpages_to_markdown** | 批量 Markdown 转换 | `urls`(列表), `method`, `extract_main_content`, `embed_images`, `embed_options`                     |
+</details>
 
-### PDF Document
+### 📡 服务管理 (2 工具)
 
-| 工具名称                           | 功能描述        | 主要参数                                                                            |
-| ---------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
-| **convert_pdf_to_markdown**        | PDF 转 Markdown | `pdf_source`(URL/路径), `method`(auto/pymupdf/pypdf), `page_range`, `output_format` |
-| **batch_convert_pdfs_to_markdown** | 批量 PDF 转换   | `pdf_sources`(列表), `method`, `page_range`, `output_format`, `include_metadata`    |
+| 工具 | 功能 |
+|:---|:---|
+| `get_server_metrics` | 请求统计、性能指标、缓存命中率 |
+| `clear_cache` | 一键清空内存缓存 |
 
-**PDF 深度提取**
+### 🔄 传输模式
 
-- **图像提取**：从 PDF 页面提取图像元素，支持本地存储或 base64 嵌入
-- **表格识别**：智能识别各种格式表格，转换为标准 Markdown 表格
-- **数学公式提取**：识别 LaTeX 格式数学公式，保持原始格式完整性
-- **结构化输出**：自动生成包含提取资源的结构化 Markdown 文档
+| 模式 | 适用场景 | 推荐度 |
+|:---|:---|:---:|
+| **STDIO** (默认) | 本地开发、Claude Desktop | ⭐⭐⭐ |
+| **HTTP** | 生产环境、远程访问、多客户端 | ⭐⭐⭐⭐⭐ |
+| **SSE** | 遗留系统兼容 | ⭐⭐ |
 
-**Markdown 高级转换**
+> 详细配置（host / port / CORS / 认证）参见 [配置系统](docs/configuration.md) 与 [用户指南 - MCP Server 配置](docs/user-guide.md#mcp-server-配置)。
 
-- **智能内容提取**：自动识别主要内容区域
-- **高级格式化**：表格对齐、代码语言检测、智能排版
-- **图片嵌入**：支持 data URI 形式嵌入远程图片
-- **批量处理**：并发处理多个 URL 或 PDF 文档
+## 🏗️ 架构一览
 
-### Service Management
-
-| 工具名称               | 功能描述     | 主要参数                                  |
-| ---------------------- | ------------ | ----------------------------------------- |
-| **get_server_metrics** | 性能指标监控 | 无参数 - 返回请求统计、性能指标、缓存情况 |
-| **clear_cache**        | 缓存管理     | 无参数 - 清空所有缓存数据                 |
-
-**企业级特性**
-
-- **错误处理**: 完善的错误分类和处理
-- **性能监控**: 详细的请求指标和统计
-- **速率限制**: 防止服务器过载
-- **代理支持**: 支持 HTTP 代理配置
-- **随机 UA**: 防检测的用户代理轮换
-- **智能重试**: 指数退避重试机制
-- **结果缓存**: 内存缓存提升性能
-
-## 🔗 工具协同
-
-14 个 MCP 工具通过组合编排形成端到端的数据流水线（基础设施层详见[架构设计](docs/framework.md)）：
+### 工具协同流水线
 
 ```mermaid
 graph TD
@@ -177,31 +213,94 @@ graph TD
     T12 --> KB
 ```
 
-**典型生产协同场景**：
+**典型协同场景**：
 
-- **合规优先抓取**：`check_robots_txt` → `scrape_webpage` → `extract_structured_data`——先检查爬虫权限，再抓取并提取结构化数据
-- **反检测内容本地化**：`check_robots_txt` → `scrape_with_stealth` → `convert_webpage_to_markdown`——对反爬站点隐身采集后转为 Markdown
-- **深度站点探索**：`get_page_info` → `extract_links` → `scrape_multiple_webpages` → `batch_convert_webpages_to_markdown`——从侦察到批量采集再到知识归档的完整链路
-- **表单数据采集**：`fill_and_submit_form` → `extract_structured_data`——自动填写表单后提取响应中的结构化信息
+| 场景 | 工具链路 |
+|:---|:---|
+| 合规优先抓取 | `check_robots_txt` → `scrape_webpage` → `extract_structured_data` |
+| 隐身采集 | `check_robots_txt` → `scrape_with_stealth` → `convert_webpage_to_markdown` |
+| 深度站点探索 | `get_page_info` → `extract_links` → `scrape_multiple_webpages` → `batch_convert_webpages_to_markdown` |
+| 表单数据采集 | `fill_and_submit_form` → `extract_structured_data` |
 
-## 🎯 Quick Navigation
+> 完整架构设计（5 层分解、模块依赖、数据流）详见 [架构设计](docs/framework.md)。
 
-- [用户指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md)
-- [架构设计](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/framework.md)
-- [开发指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/development.md)
-- [测试指南](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/testing.md)
-- [配置系统](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/configuration.md)
-- [用户指南（含命令速查）](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md#开发者命令速查)
-- [版本里程](https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/CHANGELOG.md)
+## 🎯 典型场景
 
-## 🤝 Contribution
+<details>
+<summary>📰 新闻监控 & 知识归档</summary>
 
-欢迎提交 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 和 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls) 来改进这个项目。
+批量抓取多个新闻源 → 提取标题 / 正文 / 时间戳 → 转为 Markdown 归档：
 
-## 📄 License
+```python
+# 批量抓取结构化内容
+result = await client.call_tool("scrape_multiple_webpages", {
+    "urls": ["https://news.ycombinator.com", "https://techcrunch.com"],
+    "extract_config": {"headlines": {"selector": "h1, h2", "multiple": True}},
+})
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+# 批量转为 Markdown 归档
+await client.call_tool("batch_convert_webpages_to_markdown", {
+    "urls": ["https://news.ycombinator.com", "https://techcrunch.com"],
+    "extract_main_content": True,
+})
+```
+
+</details>
+
+<details>
+<summary>🎓 学术论文智能处理</summary>
+
+利用 Smart 模式自动处理含公式、表格、代码、图像的复杂学术 PDF：
+
+```python
+result = await client.call_tool("convert_pdf_to_markdown", {
+    "pdf_source": "arxiv_paper.pdf",
+    "method": "smart",              # LLM 编排多引擎
+})
+# 返回包含 LaTeX 公式、Markdown 表格、代码块的高质量输出
+```
+
+</details>
+
+<details>
+<summary>🛒 电商数据结构化采集</summary>
+
+CSS 选择器映射 → 产品列表抓取 → 详情页批量深入：
+
+```python
+products = await client.scrape_webpage(
+    url="https://shop.example.com/products",
+    extract_config={
+        "names":   {"selector": ".product-name", "multiple": True},
+        "prices":  {"selector": ".price",       "multiple": True},
+        "links":   {"selector": ".product-card a[href]", "attr": "href", "multiple": True},
+    },
+)
+```
+
+</details>
+
+## 📚 文档导航
+
+| 文档 | 目标读者 | 内容概要 |
+|:---|:---|:---|
+| [用户指南](docs/user-guide.md) | 所有用户 | MCP 配置、14 工具详解、API 参考、FAQ |
+| [架构设计](docs/framework.md) | 架构师 / 贡献者 | 5 层架构、引擎设计、模块依赖 |
+| [开发指南](docs/development.md) | 开发者 | 环境搭建、编码规范、发布流程 |
+| [测试指南](docs/testing.md) | 开发者 / QA | 测试体系、覆盖率、CI 集成 |
+| [配置系统](docs/configuration.md) | 运维 / 开发者 | YAML 三层配置、环境变量速查 |
+| [版本里程](CHANGELOG.md) | 所有用户 | 版本历史与变更记录 |
+
+## 🤝 参与贡献
+
+欢迎通过 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 反馈问题，或提交 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls) 改进项目。
+
+贡献前请阅读 [开发指南](docs/development.md) 了解代码规范与提交流程。
+
+## 📄 许可证
+
+[MIT](LICENSE) © 2025 [ThreeFish-AI](https://github.com/ThreeFish-AI)
 
 ---
 
-**注意**: 请负责任地使用此工具，遵守网站的使用条款和 robots.txt 规则，尊重网站的知识产权。
+> ⚠️ **伦理提醒**: 技术本身是中立的，但使用者的选择定义了它的价值。请负责任地使用本工具——遵守网站 `robots.txt` 规则、尊重知识产权、合理控制请求频率。
