@@ -240,3 +240,39 @@ class TestCommandsNoRedundancy:
             assert "uv build" not in block, (
                 "文档不应包含 uv build 命令（已由 development.md 覆盖）"
             )
+
+
+class TestSectionNumberContinuity:
+    """章节内子编号连续性验证，防止编号重复或跳跃。"""
+
+    @staticmethod
+    def _extract_section_numbers(
+        doc_content: str, start_heading: str, end_heading: str
+    ) -> list[int]:
+        """提取两个 H2 标题之间的 ### N. 编号列表。"""
+        start = doc_content.find(start_heading)
+        end = doc_content.find(end_heading, start + 1) if end_heading else len(doc_content)
+        if start == -1:
+            return []
+        section = doc_content[start:end if end != -1 else len(doc_content)]
+        return [int(n) for n in re.findall(r"^### (\d+)\.", section, re.MULTILINE)]
+
+    def test_advanced_scenarios_numbering_continuous(self, doc_content: str):
+        """高级使用场景子编号 1-N 连续无重复。"""
+        numbers = self._extract_section_numbers(
+            doc_content, "## 高级使用场景", "## 常见问题"
+        )
+        assert numbers, "未找到高级使用场景子编号"
+        assert numbers == list(range(1, len(numbers) + 1)), (
+            f"高级使用场景编号不连续: {numbers}，期望 {list(range(1, len(numbers) + 1))}"
+        )
+
+    def test_faq_numbering_continuous(self, doc_content: str):
+        """常见问题子编号 1-N 连续无重复。"""
+        numbers = self._extract_section_numbers(
+            doc_content, "## 常见问题", "## 安全与合规"
+        )
+        assert numbers, "未找到常见问题子编号"
+        assert numbers == list(range(1, len(numbers) + 1)), (
+            f"常见问题编号不连续: {numbers}，期望 {list(range(1, len(numbers) + 1))}"
+        )
