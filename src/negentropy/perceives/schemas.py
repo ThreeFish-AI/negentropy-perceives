@@ -147,5 +147,3 @@ class BatchPDFResponse(BaseModel):
     total_pages: int = Field(default=0, description="总页数")
     total_word_count: int = Field(default=0, description="总字数")
     total_conversion_time: float = Field(..., description="总转换时间（秒）")
-
-

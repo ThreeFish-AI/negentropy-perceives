@@ -18,7 +18,6 @@ from ._registry import (
     BrowserMethod,
     app,
     anti_detection_scraper,
-    elapsed_ms,
     normalize_extract_config,
     validate_url,
 )

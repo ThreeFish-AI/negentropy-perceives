@@ -13,13 +13,16 @@ Python Field 定义仅作为安全回退（fallback）。
 from __future__ import annotations
 
 import logging
-import os
 import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, InitSettingsSource, PydanticBaseSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    InitSettingsSource,
+    PydanticBaseSettingsSource,
+)
 
 from . import __version__
 
@@ -55,11 +58,7 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
     """
     result = base.copy()
     for key, value in override.items():
-        if (
-            key in result
-            and isinstance(result[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge(result[key], value)
         elif value is not None:
             result[key] = value
@@ -287,7 +286,9 @@ def describe_config_sources(
     effective_path = config_path or _config_path_override
     if effective_path:
         p = Path(effective_path).expanduser().resolve()
-        label = f"custom-config({p})" if p.is_file() else f"custom-config({p}, not found)"
+        label = (
+            f"custom-config({p})" if p.is_file() else f"custom-config({p}, not found)"
+        )
         sources.append(label)
     else:
         standard_path = _get_user_config_path()
@@ -501,8 +502,8 @@ class NegentropyPerceivesSettings(BaseSettings):
         但不再加入返回元组（.env 支持已移除）。
         """
         return (
-            init_settings,                        # -c 显式配置（最高优先级，靠前）
-            env_settings,                         # 环境变量（中优先级）
+            init_settings,  # -c 显式配置（最高优先级，靠前）
+            env_settings,  # 环境变量（中优先级）
             _UserYamlConfigSource(settings_cls),  # 内置默认+用户YAML（低优先级，靠后）
         )
 

@@ -96,11 +96,29 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
         return html_content
 
 
-_BLOCK_TAGS = frozenset([
-    "p", "div", "h1", "h2", "h3", "h4", "h5", "h6",
-    "blockquote", "pre", "ul", "ol", "table", "hr",
-    "section", "article", "figure", "figcaption", "details",
-])
+_BLOCK_TAGS = frozenset(
+    [
+        "p",
+        "div",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "blockquote",
+        "pre",
+        "ul",
+        "ol",
+        "table",
+        "hr",
+        "section",
+        "article",
+        "figure",
+        "figcaption",
+        "details",
+    ]
+)
 
 
 def _ensure_block_whitespace(soup: BeautifulSoup) -> None:
