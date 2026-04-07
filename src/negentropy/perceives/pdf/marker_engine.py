@@ -428,7 +428,7 @@ class MarkerEngine:
                     # 获取图片尺寸
                     try:
                         width, height = pil_image.size
-                    except Exception:
+                    except Exception:  # nosec B110  # 获取图片尺寸非关键路径，静默跳过
                         pass
 
                     # 保存到磁盘
