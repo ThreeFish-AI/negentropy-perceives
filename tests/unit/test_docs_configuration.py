@@ -1,4 +1,8 @@
-"""docs/configuration.md 文档完整性测试。"""
+"""docs/configuration.md 文档完整性测试。
+
+configuration.md 已迁移为重定向页，环境变量一致性验证现针对 user-guide.md
+（环境变量完整参考章节）。
+"""
 
 import re
 
@@ -13,6 +17,8 @@ from tests.unit.doc_contracts import (
 )
 
 CONFIG_DOC = "configuration.md"
+# 环境变量表格已迁移至 user-guide.md
+ENV_VAR_DOC = "user-guide.md"
 
 # NegentropyPerceivesSettings 中非配置元字段（model_config 等不映射为环境变量）
 _EXCLUDED_FIELDS = {"model_config"}
@@ -27,15 +33,21 @@ _SETTINGS_ENV_VARS: set[str] = {
 
 @pytest.fixture(scope="module")
 def doc_content() -> str:
-    """读取配置文档内容。"""
+    """读取配置重定向页内容。"""
     return read_doc(CONFIG_DOC)
+
+
+@pytest.fixture(scope="module")
+def env_var_doc_content() -> str:
+    """读取环境变量参考所在的 user-guide.md 内容。"""
+    return read_doc(ENV_VAR_DOC)
 
 
 class TestDocExists:
     """文档文件存在性验证。"""
 
     def test_configuration_doc_exists(self):
-        """configuration.md 文件存在。"""
+        """configuration.md 文件存在（重定向页）。"""
         assert_doc_exists(CONFIG_DOC)
 
 
@@ -58,41 +70,42 @@ class TestRelativeLinks:
 
 
 class TestEnvVarConsistency:
-    """文档中环境变量与代码实现的一致性验证。"""
+    """user-guide.md 中环境变量与代码实现的一致性验证。"""
 
     ENV_VAR_PATTERN = re.compile(r"`(NEGENTROPY_PERCEIVES_\w+)`")
 
-    def test_doc_covers_all_code_env_vars(self, doc_content: str):
-        """文档覆盖 config.py 中所有配置字段对应的环境变量。"""
-        doc_vars = set(self.ENV_VAR_PATTERN.findall(doc_content))
+    def test_doc_covers_all_code_env_vars(self, env_var_doc_content: str):
+        """user-guide.md 覆盖 config.py 中所有配置字段对应的环境变量。"""
+        doc_vars = set(self.ENV_VAR_PATTERN.findall(env_var_doc_content))
         missing = _SETTINGS_ENV_VARS - doc_vars
         assert missing == set(), (
-            f"以下环境变量在 config.py 中定义但文档未记录: {sorted(missing)}"
+            f"以下环境变量在 config.py 中定义但 user-guide.md 未记录: {sorted(missing)}"
         )
 
     # 元配置环境变量列表（已移除 .env 支持，当前为空）
     _META_ENV_VARS: set[str] = set()
 
-    def test_doc_env_vars_exist_in_code(self, doc_content: str):
-        """文档中引用的环境变量在 config.py 中有对应字段。"""
-        doc_vars = set(self.ENV_VAR_PATTERN.findall(doc_content))
+    def test_doc_env_vars_exist_in_code(self, env_var_doc_content: str):
+        """user-guide.md 中引用的环境变量在 config.py 中有对应字段。"""
+        doc_vars = set(self.ENV_VAR_PATTERN.findall(env_var_doc_content))
         extra = doc_vars - _SETTINGS_ENV_VARS - self._META_ENV_VARS
         assert extra == set(), (
-            f"以下环境变量在文档中出现但 config.py 中无对应字段: {sorted(extra)}"
+            f"以下环境变量在 user-guide.md 中出现但 config.py 中无对应字段: {sorted(extra)}"
         )
 
 
 class TestConfigGroupCompleteness:
-    """文档表格对 config.py 字段的覆盖完整性验证。"""
+    """user-guide.md 表格对 config.py 字段的覆盖完整性验证。"""
 
     TABLE_ROW_PATTERN = re.compile(
         r"^\| `NEGENTROPY_PERCEIVES_(\w+)` \|", re.MULTILINE
     )
 
-    def test_all_fields_in_tables(self, doc_content: str):
-        """文档表格行覆盖 config.py 中所有配置字段。"""
+    def test_all_fields_in_tables(self, env_var_doc_content: str):
+        """user-guide.md 表格行覆盖 config.py 中所有配置字段。"""
         table_fields = {
-            match.lower() for match in self.TABLE_ROW_PATTERN.findall(doc_content)
+            match.lower()
+            for match in self.TABLE_ROW_PATTERN.findall(env_var_doc_content)
         }
         code_fields = {
             name for name in NegentropyPerceivesSettings.model_fields
@@ -100,5 +113,5 @@ class TestConfigGroupCompleteness:
         }
         missing = code_fields - table_fields
         assert missing == set(), (
-            f"以下字段在 config.py 中定义但未出现在文档表格中: {sorted(missing)}"
+            f"以下字段在 config.py 中定义但未出现在 user-guide.md 表格中: {sorted(missing)}"
         )
