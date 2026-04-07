@@ -1,6 +1,6 @@
 ---
 id: user-guide
-sidebar_position: 6
+sidebar_position: 4
 title: User Guide
 description: Negentropy Perceives MCP Server 终端用户使用指南，涵盖 MCP Server 部署配置、12 个 MCP 工具参考、API 编程接口、高级使用场景及开发者命令速查。
 last_update:
@@ -53,7 +53,7 @@ curl http://localhost:3000/tools
 
 ## 开发者命令速查
 
-> 本章节收录 Negentropy Perceives 开发者日常使用的 CLI 命令速查。完整环境配置见[开发指南](./development.md#环境配置)，完整测试流程见[测试指南](./testing.md#-测试执行)。
+> 本章节收录 Negentropy Perceives 开发者日常使用的 CLI 命令速查。完整环境配置见[开发指南](./development.md#环境配置)，完整测试流程见[开发指南 > 测试执行](./development.md#测试执行)。
 
 ### 服务器启动
 
@@ -1712,5 +1712,5 @@ NEGENTROPY_PERCEIVES_ACCELERATOR_DEVICE=mps negentropy-perceives   # Apple Silic
 |------|------|---------|
 | [架构设计](./framework.md) | 系统架构与设计原则 | 架构师 / 贡献者 |
 | [开发指南](./development.md) | 环境搭建、编码规范、性能优化 | 开发者 |
-| [测试指南](./testing.md) | 测试体系与执行方法 | 开发者 / QA |
+| [开发指南 > 测试](./development.md#测试) | 测试体系与执行方法 | 开发者 / QA |
 | [配置系统](./configuration.md) | 环境变量与配置管理 | 运维 / 开发者 |

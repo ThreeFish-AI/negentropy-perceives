@@ -221,10 +221,10 @@ class TestCommandsNoRedundancy:
             )
 
     def test_no_pytest_commands(self, doc_content: str):
-        """pytest 命令应由 testing.md 覆盖。"""
+        """pytest 命令应由 development.md 覆盖。"""
         for block in _extract_bash_blocks(doc_content):
             assert "uv run pytest" not in block, (
-                "文档不应包含 pytest 命令（已由 testing.md 覆盖）"
+                "文档不应包含 pytest 命令（已由 development.md 覆盖）"
             )
 
     def test_no_uv_sync_commands(self, doc_content: str):
