@@ -394,10 +394,11 @@ class TestDescribeConfigSources:
         assert "loaded" in result.lower() or "environment" in result.lower()
 
     def test_describe_config_sources_with_custom_path(self):
-        """显式指定配置路径时应在诊断信息中体现"""
+        """显式指定配置路径时应在诊断信息中体现（跨平台路径规范化）"""
+        expected_path = str(Path("/tmp/my-config.yaml").resolve())
         result = describe_config_sources(config_path="/tmp/my-config.yaml")
         assert "custom-config" in result
-        assert "/tmp/my-config.yaml" in result
+        assert expected_path in result
 
 
 # ============================================================

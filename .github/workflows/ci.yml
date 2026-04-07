@@ -68,8 +68,10 @@ jobs:
       - name: Run pip-audit vulnerability scan
         run: |
           uv run pip-audit --format=json --output=audit-report.json || true
-          # 忽略 CVE-2026-4539 (pygments)，暂无修复版本
-          uv run pip-audit --ignore-vuln CVE-2026-4539
+          # 忽略已知漏洞（暂无修复版本或需依赖升级评估）
+          # CVE-2026-4539 (pygments)：暂无修复版本
+          # CVE-2025-64340 / CVE-2026-27124 (fastmcp 3.1.1)：修复版本 3.2.0，待升级评估
+          uv run pip-audit --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2025-64340 --ignore-vuln CVE-2026-27124
 
       - name: Upload security reports
         uses: actions/upload-artifact@v7

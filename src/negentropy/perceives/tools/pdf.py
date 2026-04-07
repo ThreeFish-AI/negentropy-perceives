@@ -105,7 +105,6 @@ async def convert_pdf_to_markdown(
         PDFResponse object containing success status, extracted content, metadata, processing method used,
         enhanced assets summary, and page/word count statistics.
     """
-    method_key = f"pdf_{method}"
     _start = time.time()
     try:
         # Validate page range using shared helper

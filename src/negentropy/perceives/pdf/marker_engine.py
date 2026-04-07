@@ -18,7 +18,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -207,11 +207,11 @@ class MarkerEngine:
                 converter_kwargs["llm_service"] = GeminiService()
                 logger.info("Marker 引擎: LLM 增强模式已启用（GeminiService）")
             except ImportError:
-                logger.warning(
-                    "Marker 引擎: LLM 增强模式依赖不可用，降级为基础模式"
-                )
+                logger.warning("Marker 引擎: LLM 增强模式依赖不可用，降级为基础模式")
             except Exception as e:
-                logger.warning("Marker 引擎: LLM 服务初始化失败 (%s)，降级为基础模式", e)
+                logger.warning(
+                    "Marker 引擎: LLM 服务初始化失败 (%s)，降级为基础模式", e
+                )
 
         converter = PdfConverter(**converter_kwargs)
         MarkerEngine._converters[key] = converter
@@ -306,9 +306,7 @@ class MarkerEngine:
     # 结构化元素提取
     # ------------------------------------------------------------------
 
-    def _extract_tables(
-        self, rendered: Any, markdown: str
-    ) -> List[MarkerTable]:
+    def _extract_tables(self, rendered: Any, markdown: str) -> List[MarkerTable]:
         """从 Marker 渲染结果中提取表格。
 
         Marker 将表格以 Markdown 表格语法输出。通过正则匹配从 Markdown
@@ -383,17 +381,13 @@ class MarkerEngine:
         for match in re.finditer(r"\$\$([\s\S]+?)\$\$", markdown):
             latex = match.group(1).strip()
             if latex:
-                formulas.append(
-                    MarkerFormula(latex=latex, formula_type="block")
-                )
+                formulas.append(MarkerFormula(latex=latex, formula_type="block"))
 
         # 行内公式: $ ... $ (排除 $$)
         for match in re.finditer(r"(?<!\$)\$(?!\$)([^$]+?)\$(?!\$)", markdown):
             latex = match.group(1).strip()
             if latex and len(latex) > 1:
-                formulas.append(
-                    MarkerFormula(latex=latex, formula_type="inline")
-                )
+                formulas.append(MarkerFormula(latex=latex, formula_type="inline"))
 
         return formulas
 
@@ -434,7 +428,7 @@ class MarkerEngine:
                     # 获取图片尺寸
                     try:
                         width, height = pil_image.size
-                    except Exception:
+                    except Exception:  # nosec B110  # 获取图片尺寸非关键路径，静默跳过
                         pass
 
                     # 保存到磁盘
@@ -617,9 +611,7 @@ class MarkerEngine:
         return images
 
     @staticmethod
-    def _embed_images_in_markdown(
-        markdown: str, images: List[MarkerImage]
-    ) -> str:
+    def _embed_images_in_markdown(markdown: str, images: List[MarkerImage]) -> str:
         """将 Markdown 中的图片引用替换为 base64 内联格式。"""
         for img in images:
             if img.filename and img.base64_data:

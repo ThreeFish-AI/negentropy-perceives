@@ -10,7 +10,6 @@ import yaml
 from ..config import (
     _get_user_config_path,
     _load_bundled_yaml,
-    build_settings,
     describe_config_sources,
     reload_settings,
     settings,

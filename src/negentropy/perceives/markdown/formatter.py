@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 # 行类型分类：用于段落间距归一化
 # ---------------------------------------------------------------------------
 
+
 class _LineType(Enum):
     """Markdown 行级元素类型。"""
+
     EMPTY = auto()
     HEADING = auto()
     LIST_ITEM = auto()
@@ -40,11 +42,13 @@ _LINE_PATTERNS: List[Tuple[re.Pattern, _LineType]] = [
 ]
 
 # 同构序列：这些行类型相邻时保持单个 \n
-_HOMOGENEOUS_PAIRS = frozenset({
-    (_LineType.LIST_ITEM, _LineType.LIST_ITEM),
-    (_LineType.TABLE_ROW, _LineType.TABLE_ROW),
-    (_LineType.BLOCKQUOTE, _LineType.BLOCKQUOTE),
-})
+_HOMOGENEOUS_PAIRS = frozenset(
+    {
+        (_LineType.LIST_ITEM, _LineType.LIST_ITEM),
+        (_LineType.TABLE_ROW, _LineType.TABLE_ROW),
+        (_LineType.BLOCKQUOTE, _LineType.BLOCKQUOTE),
+    }
+)
 
 
 def _classify_line(line: str) -> _LineType:
@@ -64,6 +68,7 @@ def _is_list_continuation(line: str) -> bool:
     if re.match(r"^[-*+]\s", stripped) or re.match(r"^\d+\.\s", stripped):
         return False
     return True
+
 
 # Default formatting options
 DEFAULT_FORMATTING_OPTIONS: Dict[str, bool] = {
@@ -405,7 +410,11 @@ class MarkdownFormatter:
                 else:
                     # 打开代码围栏：确保前方有空行
                     prev_type = _classify_line(prev_line)
-                    if prev_type != _LineType.EMPTY and result and result[-1].strip() != "":
+                    if (
+                        prev_type != _LineType.EMPTY
+                        and result
+                        and result[-1].strip() != ""
+                    ):
                         result.append("")
                     inside_code_fence = True
                     result.append(curr_line)

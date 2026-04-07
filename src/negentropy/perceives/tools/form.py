@@ -10,7 +10,7 @@ import time
 from ..infra import rate_limiter
 from ..schemas import ScrapeResponse
 from ..scraping import FormHandler, playwright_session, selenium_session
-from ._registry import BrowserMethod, app, elapsed_ms, validate_url
+from ._registry import BrowserMethod, app, validate_url
 
 logger = logging.getLogger(__name__)
 

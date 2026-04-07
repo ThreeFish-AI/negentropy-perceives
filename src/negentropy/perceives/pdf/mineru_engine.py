@@ -83,7 +83,9 @@ class MinerUConversionResult:
     tables: List[MinerUTable] = field(default_factory=list)
     images: List[MinerUImage] = field(default_factory=list)
     formulas: List[MinerUFormula] = field(default_factory=list)
-    code_blocks: List[Any] = field(default_factory=list)  # MinerU 不支持代码块，始终为空
+    code_blocks: List[Any] = field(
+        default_factory=list
+    )  # MinerU 不支持代码块，始终为空
     metadata: Dict[str, Any] = field(default_factory=dict)
     page_count: int = 0
 
@@ -205,10 +207,7 @@ class MinerUEngine:
         Returns:
             ``True`` 如果运行在 Apple Silicon 上。
         """
-        return (
-            platform.system() == "Darwin"
-            and platform.machine() == "arm64"
-        )
+        return platform.system() == "Darwin" and platform.machine() == "arm64"
 
     # ------------------------------------------------------------------
     # 配置签名（用于 converter 缓存键）
@@ -336,9 +335,12 @@ class MinerUEngine:
 
         cmd = [
             "mineru",
-            "-p", pdf_path,
-            "-o", str(output_dir),
-            "-b", backend,
+            "-p",
+            pdf_path,
+            "-o",
+            str(output_dir),
+            "-b",
+            backend,
         ]
 
         # 页码范围参数
@@ -508,7 +510,9 @@ class MinerUEngine:
 
         return ""
 
-    def _assemble_markdown_from_content_list(self, content_list: List[Dict[str, Any]]) -> str:
+    def _assemble_markdown_from_content_list(
+        self, content_list: List[Dict[str, Any]]
+    ) -> str:
         """从 content_list 结构化数据拼接 Markdown 文本。
 
         当 Markdown 文件不可用时，作为降级方案使用。
@@ -580,7 +584,9 @@ class MinerUEngine:
                     continue
 
                 # 解析表格维度
-                rows, cols = self._parse_table_dimensions(table_content, is_html=bool(html))
+                rows, cols = self._parse_table_dimensions(
+                    table_content, is_html=bool(html)
+                )
 
                 # 页码
                 page_no = item.get("page_no", None)
@@ -633,8 +639,10 @@ class MinerUEngine:
         else:
             # Markdown 表格：统计 | 分隔的行和列
             table_lines = [
-                line for line in content.strip().split("\n")
-                if line.strip().startswith("|") and line.strip().endswith("|")
+                line
+                for line in content.strip().split("\n")
+                if line.strip().startswith("|")
+                and line.strip().endswith("|")
                 # 排除分隔行（如 |---|---|）
                 and not re.match(r"^\|[\s\-:|]+\|$", line.strip())
             ]
@@ -830,7 +838,8 @@ class MinerUEngine:
         if content_list:
             # 页码范围
             page_numbers = [
-                item.get("page_no") for item in content_list
+                item.get("page_no")
+                for item in content_list
                 if item.get("page_no") is not None
             ]
             if page_numbers:
@@ -907,7 +916,9 @@ class MinerUEngine:
         return None
 
     @staticmethod
-    def _read_image_dimensions(image_path: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
+    def _read_image_dimensions(
+        image_path: Optional[str],
+    ) -> Tuple[Optional[int], Optional[int]]:
         """读取图片文件的宽高像素值。
 
         优先使用 PIL，降级为文件头解析。

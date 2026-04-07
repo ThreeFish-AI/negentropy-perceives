@@ -40,11 +40,11 @@ logger = logging.getLogger(__name__)
 
 # 每个 "auto" 模式的降级链：按优先级排列，前面的引擎不可用或失败时自动降级
 _ENGINE_FALLBACK_CHAIN = [
-    "docling",   # 最佳整体质量（MIT 许可证）
-    "mineru",    # 最佳 LaTeX 公式提取（Apache 2.0）
-    "marker",    # 最佳整体准确率（GPL-3.0，需确认许可证）
-    "pymupdf",   # 快速文本提取（始终可用）
-    "pypdf",     # 基础降级（始终可用）
+    "docling",  # 最佳整体质量（MIT 许可证）
+    "mineru",  # 最佳 LaTeX 公式提取（Apache 2.0）
+    "marker",  # 最佳整体准确率（GPL-3.0，需确认许可证）
+    "pymupdf",  # 快速文本提取（始终可用）
+    "pypdf",  # 基础降级（始终可用）
 ]
 
 # 简化降级链（不包含 MinerU/Marker，保持向后兼容）
@@ -78,7 +78,15 @@ class PDFProcessor:
             output_dir: Directory to save extracted images and assets
             prefer_docling: Whether to prefer Docling engine when available (default: True)
         """
-        self.supported_methods = ["pymupdf", "pypdf", "auto", "docling", "smart", "mineru", "marker"]
+        self.supported_methods = [
+            "pymupdf",
+            "pypdf",
+            "auto",
+            "docling",
+            "smart",
+            "mineru",
+            "marker",
+        ]
         self.temp_dir = tempfile.mkdtemp(prefix="pdf_extractor_")
         self._output_dir = output_dir
         self.enable_enhanced_features = enable_enhanced_features
@@ -212,6 +220,7 @@ class PDFProcessor:
         elif engine_name == "pymupdf":
             try:
                 from ._imports import import_fitz
+
                 import_fitz()
                 return True
             except ImportError:
@@ -219,6 +228,7 @@ class PDFProcessor:
         elif engine_name == "pypdf":
             try:
                 from ._imports import import_pypdf
+
                 import_pypdf()
                 return True
             except ImportError:
@@ -1545,9 +1555,7 @@ class PDFProcessor:
                     }
                     for img in mineru_result.images
                 ],
-                "files": [
-                    img.filename for img in mineru_result.images if img.filename
-                ],
+                "files": [img.filename for img in mineru_result.images if img.filename],
             }
 
         if mineru_result.tables:
@@ -1641,9 +1649,7 @@ class PDFProcessor:
                     }
                     for img in marker_result.images
                 ],
-                "files": [
-                    img.filename for img in marker_result.images if img.filename
-                ],
+                "files": [img.filename for img in marker_result.images if img.filename],
             }
 
         if marker_result.tables:

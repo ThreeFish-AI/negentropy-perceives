@@ -458,11 +458,13 @@ class LLMOrchestrator:
                     continue
                 if engine == "mineru":
                     from .mineru_engine import MinerUEngine
+
                     if not MinerUEngine.is_available():
                         logger.info("LLM 计划中包含 mineru 但不可用,跳过")
                         continue
                 if engine == "marker":
                     from .marker_engine import MarkerEngine
+
                     if not MarkerEngine.is_available():
                         logger.info("LLM 计划中包含 marker 但不可用,跳过")
                         continue
@@ -679,10 +681,10 @@ class LLMOrchestrator:
                     engine="mineru", success=False, error="MinerU 未安装"
                 )
 
-            engine = MinerUEngine(output_dir=str(self._output_dir) if self._output_dir else None)
-            result = await asyncio.to_thread(
-                engine.convert, str(pdf_path), page_range
+            engine = MinerUEngine(
+                output_dir=str(self._output_dir) if self._output_dir else None
             )
+            result = await asyncio.to_thread(engine.convert, str(pdf_path), page_range)
             if not result or not result.markdown:
                 return EngineResult(
                     engine="mineru", success=False, error="MinerU 返回空结果"
