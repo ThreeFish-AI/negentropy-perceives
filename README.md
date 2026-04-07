@@ -286,8 +286,7 @@ products = await client.scrape_webpage(
 |:---|:---|:---|
 | [用户指南](docs/user-guide.md) | 所有用户 | MCP 配置、14 工具详解、API 参考、FAQ |
 | [架构设计](docs/framework.md) | 架构师 / 贡献者 | 5 层架构、引擎设计、模块依赖 |
-| [开发指南](docs/development.md) | 开发者 | 环境搭建、编码规范、发布流程 |
-| [测试指南](docs/testing.md) | 开发者 / QA | 测试体系、覆盖率、CI 集成 |
+| [开发指南](docs/development.md) | 开发者 / QA | 环境搭建、测试、编码规范、发布流程 |
 | [配置系统](docs/configuration.md) | 运维 / 开发者 | YAML 三层配置、环境变量速查 |
 | [版本里程](CHANGELOG.md) | 所有用户 | 版本历史与变更记录 |
 

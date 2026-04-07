@@ -82,6 +82,6 @@
 
 - [架构设计](docs/framework.md)
 - [开发指南](docs/development.md)
-- [测试指南](docs/testing.md)
+- [测试](docs/development.md#测试)
 - [配置系统](docs/configuration.md)
 - [用户指南](docs/user-guide.md)
