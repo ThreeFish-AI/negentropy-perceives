@@ -234,10 +234,12 @@ NEGENTROPY_PERCEIVES_HTTP_HOST=0.0.0.0 \
 NEGENTROPY_PERCEIVES_HTTP_PORT=8081 \
 negentropy-perceives
 
-# 或通过 .env 文件配置
-echo "NEGENTROPY_PERCEIVES_TRANSPORT_MODE=http" >> .env
-echo "NEGENTROPY_PERCEIVES_HTTP_HOST=0.0.0.0" >> .env
-echo "NEGENTROPY_PERCEIVES_HTTP_PORT=8081" >> .env
+# 或通过用户 YAML 配置
+cat > ~/.negentropy/perceives.config.yaml << 'EOF'
+transport_mode: http
+http_host: "0.0.0.0"
+http_port: 8081
+EOF
 negentropy-perceives
 ```
 
@@ -1628,7 +1630,7 @@ netstat -tlnp | grep 8081
 NEGENTROPY_PERCEIVES_HTTP_PORT=8082 negentropy-perceives
 ```
 
-### 5. 配了 `.env` 但端口没生效
+### 5. 配了 YAML 但端口没生效
 
 ```bash
 # 1. 检查当前命令是否为新入口
@@ -1637,7 +1639,8 @@ which negentropy-perceives
 # 2. 检查最终读取到的配置
 uv run python -c "from negentropy.perceives.config import settings; print(settings.model_dump())"
 
-# 3. 从当前工作目录启动，确保 .env 在同目录
+# 3. 检查用户配置文件是否存在且有效
+cat ~/.negentropy/perceives.config.yaml
 NEGENTROPY_PERCEIVES_HTTP_PORT=8082 negentropy-perceives
 ```
 

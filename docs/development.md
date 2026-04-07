@@ -54,7 +54,8 @@ uv sync
 uv sync --group dev
 
 # 设置环境变量
-cp .env.example .env
+# 初始化用户配置（首次运行时自动生成，也可手动执行）
+uv run negentropy-perceives --init-config
 
 # 安装 Playwright 浏览器依赖
 uv run playwright install chromium

@@ -1,13 +1,13 @@
 """Negentropy Perceives MCP Server 配置管理模块。
 
 基于 pydantic-settings 的分层配置系统，按优先级从低到高：
-1. 字段默认值（Python Field 定义，单一事实源）
-2. 用户 YAML 配置（~/.negentropy/perceives.config.yaml 或 -c 显式指定）
-3. .env 文件（项目根目录 → CWD → 显式指定，向后兼容）
-4. 环境变量（NEGENTROPY_PERCEIVES_ 前缀，最高优先级）
+1. 内置默认配置（config.default.yaml，打包在 wheel 内）
+2. 用户 YAML 配置（~/.negentropy/perceives.config.yaml）
+3. 环境变量（NEGENTROPY_PERCEIVES_ 前缀）
+4. -c/--config 显式配置（最高优先级，通过构造函数传入）
 
-说明：config.default.yaml 为内置模板文件，仅供文档参考和 --init-config 复制使用，
-不参与运行时配置解析。运行时默认值以 Python Field 定义为准。
+config.default.yaml 为所有配置的单一事实默认值源。
+Python Field 定义仅作为安全回退（fallback）。
 """
 
 from __future__ import annotations
@@ -74,7 +74,8 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
 def _load_bundled_yaml() -> Dict[str, Any]:
     """加载内置默认 YAML 配置（打包在 wheel 内）。
 
-    用于 --init-config 复制和文档参考，不参与运行时配置解析。
+    作为所有配置的基线默认值源，与用户 YAML 进行深度合并后参与运行时解析。
+    同时也用于 --init-config 复制和文档参考。
 
     Returns:
         解析后的配置字典
@@ -124,39 +125,6 @@ def _load_yaml_file(path: Path) -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# .env 文件路径解析（向后兼容）
-# ---------------------------------------------------------------------------
-
-
-def _resolve_env_files() -> tuple[Path | str, ...]:
-    """计算 .env 文件搜索路径。
-
-    pydantic-settings 按顺序加载列表中的文件，后者覆盖前者。
-    优先级（后者覆盖前者）：
-    1. 项目根目录 .env（通过 pyproject.toml 哨兵文件检测）
-    2. CWD .env（pydantic-settings 原生行为）
-    3. NEGENTROPY_PERCEIVES_ENV_FILE 显式指定（最高优先级）
-
-    不存在的文件由 pydantic-settings 静默跳过。
-    """
-    candidates: list[Path | str] = []
-
-    # 项目根目录（仅当 pyproject.toml 存在时才视为有效项目根）
-    if (_PROJECT_ROOT / "pyproject.toml").is_file():
-        candidates.append(_PROJECT_ROOT / ".env")
-
-    # CWD 回退（保持 pydantic-settings 原生行为）
-    candidates.append(".env")
-
-    # 显式覆盖（最高优先级）
-    explicit = os.environ.get("NEGENTROPY_PERCEIVES_ENV_FILE")
-    if explicit:
-        candidates.append(Path(explicit))
-
-    return tuple(candidates)
-
-
-# ---------------------------------------------------------------------------
 # 用户 YAML 配置数据存储（供自定义 SettingsSource 读取）
 # ---------------------------------------------------------------------------
 
@@ -168,17 +136,16 @@ _config_path_override: Optional[str] = None
 
 
 class _UserYamlConfigSource(PydanticBaseSettingsSource):
-    """自定义配置源：将用户 YAML 配置数据注入 pydantic-settings 优先级链。
+    """自定义配置源：将合并后的 YAML 配置数据注入 pydantic-settings 优先级链。
 
-    仅包含用户显式配置的项（来自 ~/.negentropy/perceives.config.yaml 或 -c 参数），
-    不包含 bundled 默认值。这确保环境变量能正确覆盖所有未在用户 YAML 中
-    显式指定的字段。
+    包含内置默认（config.default.yaml）与用户 YAML 深度合并后的完整配置。
+    环境变量可正确覆盖所有 YAML 配置的字段。
 
-    优先级位置：dotenv_settings < _UserYamlConfigSource < env_settings < init_settings
-    即：.env < 用户 YAML < 环境变量 < 构造函数参数
+    优先级位置（靠前者优先级更高）：init_settings(-c) > env_settings > _UserYamlConfigSource(YAML)
+    即：-c 显式配置 > 环境变量 > 合并后的 YAML 配置
 
     注意：__call__() 返回空字典，实际字段值通过 get_field_value() 逐字段提供。
-    这确保 pydantic-settings 会继续查询后续源（如 env_settings）以获取更高优先级的值。
+    这确保 pydantic-settings 会继续查询后续源以获取更低优先级的值（作为回退）。
     """
 
     def __call__(self) -> Dict[str, Any]:
@@ -212,16 +179,23 @@ def _prepare_user_yaml(
     *,
     config_path: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """加载用户 YAML 配置并存入模块级缓存。
+    """加载并合并配置：内置默认 ← 用户 YAML（深度合并）。
+
+    优先级：config.default.yaml(低) < 用户 YAML(高)
+    用户 YAML 中仅声明差异项即可，未指定的字段保留内置默认值。
 
     Args:
         config_path: 显式指定的配置文件路径（-c/--config 参数）
 
     Returns:
-        用户配置字典（可能为空字典）
+        合并后的配置字典
     """
     global _user_yaml_data
 
+    # 第 1 层：加载内置默认配置（所有配置的基线）
+    bundled_dict = _load_bundled_yaml()
+
+    # 第 2 层：加载用户配置（覆盖内置默认的差异项）
     effective_path = config_path or _config_path_override
     if effective_path:
         user_path = Path(effective_path).expanduser().resolve()
@@ -229,8 +203,11 @@ def _prepare_user_yaml(
         user_path = _get_user_config_path()
 
     user_dict = _load_yaml_file(user_path) or {}
-    _user_yaml_data = user_dict
-    return user_dict
+
+    # 深度合并：用户配置仅覆盖差异项，非全文替换
+    merged = deep_merge(bundled_dict, user_dict)
+    _user_yaml_data = merged
+    return merged
 
 
 def build_settings(
@@ -240,10 +217,10 @@ def build_settings(
     """构建配置实例，执行完整的分层优先级合并。
 
     策略：
-    - 无显式 config_path：通过自定义 _UserYamlConfigSource 加载 ~/.negentropy/ 配置，
-      优先级为 字段默认 < .env < 用户YAML < 环境变量
-    - 有显式 config_path(-c)：将用户 YAML 作为构造参数传入，
-      优先级为 字段默认 < .env < 环境变量 < 显式配置(最高)
+    - 无显式 config_path：加载内置默认 + ~/.negentropy/ 配置（深度合并），
+      通过 _UserYamlConfigSource 注入，优先级为 内置默认 < 用户YAML < 环境变量
+    - 有显式 config_path(-c)：将合并后的 YAML 作为构造参数传入，
+      优先级为 内置默认 < 用户YAML < 环境变量 < -c 显式配置(最高)
 
     Args:
         config_path: 显式指定的配置文件路径（-c/--config 参数）
@@ -252,13 +229,13 @@ def build_settings(
         完全初始化的配置实例
     """
     if config_path:
-        # 显式指定配置文件：作为构造参数传入（最高优先级）
+        # 显式指定配置文件：加载合并后的配置，作为构造参数传入（最高优先级）
         user_dict = _prepare_user_yaml(config_path=config_path)
         if user_dict:
             return NegentropyPerceivesSettings(**user_dict)
         return NegentropyPerceivesSettings()
     else:
-        # 无显式指定：通过自定义 Source 注入用户配置
+        # 无显式指定：通过自定义 Source 注入合并后的配置
         _prepare_user_yaml(config_path=None)
         return NegentropyPerceivesSettings()
 
@@ -303,6 +280,9 @@ def describe_config_sources(
     """
     sources: list[str] = []
 
+    # 内置默认配置始终生效
+    sources.append("bundled-default(config.default.yaml)")
+
     # User config
     effective_path = config_path or _config_path_override
     if effective_path:
@@ -314,14 +294,8 @@ def describe_config_sources(
         if standard_path.is_file():
             sources.append(f"user-config({standard_path})")
 
-    # .env files (backward compatible)
-    for ef in _resolve_env_files():
-        p = Path(ef) if Path(ef).is_absolute() else Path.cwd() / ef
-        if p.is_file():
-            sources.append(f"env-file({p})")
-
-    if not sources:
-        return "Using field defaults (.env files and environment variables)"
+    if len(sources) == 1:  # 仅内置默认，无用户配置
+        return "Using bundled defaults (config.default.yaml) and environment variables"
 
     return f"Loaded: {', '.join(sources)}"
 
@@ -338,7 +312,7 @@ class NegentropyPerceivesSettings(BaseSettings):
     配置值通过深度合并实现层级覆盖，高优先级源仅覆盖差异项。
 
     优先级（低 → 高）：
-      字段默认值 < .env 文件 < 用户 YAML 配置 < 环境变量 < 构造函数参数
+      内置默认(config.default.yaml) < 用户YAML配置(~/.negentropy/) < 环境变量 < -c显式配置(构造函数参数)
     """
 
     # ── 服务标识 ──────────────────────────────────────────────
@@ -503,8 +477,6 @@ class NegentropyPerceivesSettings(BaseSettings):
     )
 
     model_config = {
-        "env_file": _resolve_env_files(),
-        "env_file_encoding": "utf-8",
         "extra": "ignore",
         "env_prefix": "NEGENTROPY_PERCEIVES_",
         "env_ignore_empty": True,
@@ -522,14 +494,16 @@ class NegentropyPerceivesSettings(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级链。
 
-        返回元组中从左到右优先级递增（后者覆盖前者）：
-          dotenv_settings(.env) < _UserYamlConfigSource(用户YAML) < env_settings(环境变量) < init_settings(构造参数)
+        返回元组中从左到右优先级递减（靠前者优先级更高）：
+          init_settings(-c显式配置) > env_settings(环境变量) > _UserYamlConfigSource(合并后YAML)
+
+        注意：dotenv_settings 参数保留在签名中以符合 pydantic-settings 协议，
+        但不再加入返回元组（.env 支持已移除）。
         """
         return (
-            dotenv_settings,                    # .env 文件（最低优先级，向后兼容）
-            _UserYamlConfigSource(settings_cls),  # 用户 YAML 配置（中等优先级）
-            env_settings,                       # 环境变量（高优先级）
-            init_settings,                      # 构造函数参数（最高优先级）
+            init_settings,                        # -c 显式配置（最高优先级，靠前）
+            env_settings,                         # 环境变量（中优先级）
+            _UserYamlConfigSource(settings_cls),  # 内置默认+用户YAML（低优先级，靠后）
         )
 
     @field_validator("log_level")

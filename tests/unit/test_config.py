@@ -14,12 +14,10 @@ from pydantic import ValidationError
 from negentropy.perceives import __version__
 from negentropy.perceives.config import (
     NegentropyPerceivesSettings,
-    _PROJECT_ROOT,
     _config_path_override,
     _get_user_config_path,
     _load_bundled_yaml,
     _load_yaml_file,
-    _resolve_env_files,
     build_settings,
     deep_merge,
     describe_config_sources,
@@ -379,68 +377,6 @@ class TestConfigurationEdgeCases:
         assert config is not None
 
 
-class TestEnvFileResolution:
-    """测试 .env 文件路径解析逻辑（向后兼容）"""
-
-    def test_resolve_env_files_includes_project_root(self):
-        """验证项目根目录 .env 路径在返回元组中"""
-        result = _resolve_env_files()
-        # 项目根目录下有 pyproject.toml，应包含项目根 .env
-        project_env = _PROJECT_ROOT / ".env"
-        assert project_env in result
-
-    def test_resolve_env_files_includes_cwd_fallback(self):
-        """验证 CWD .env 始终在返回元组中"""
-        result = _resolve_env_files()
-        assert ".env" in result
-
-    def test_resolve_env_files_with_explicit_override(self):
-        """验证 NEGENTROPY_PERCEIVES_ENV_FILE 追加到末尾（最高优先级）"""
-        with patch.dict(
-            os.environ, {"NEGENTROPY_PERCEIVES_ENV_FILE": "/tmp/custom.env"}
-        ):
-            result = _resolve_env_files()
-            assert Path("/tmp/custom.env") in result
-            # 显式指定的文件应在元组末尾（最高优先级）
-            assert result[-1] == Path("/tmp/custom.env")
-
-    def test_resolve_env_files_without_explicit_override(self):
-        """验证无显式覆盖时不包含额外路径"""
-        with patch.dict(os.environ, {}, clear=False):
-            # 确保 NEGENTROPY_PERCEIVES_ENV_FILE 不存在
-            os.environ.pop("NEGENTROPY_PERCEIVES_ENV_FILE", None)
-            result = _resolve_env_files()
-            # 不应包含额外路径（仅项目根 + CWD）
-            assert len(result) <= 2
-
-    def test_resolve_env_files_without_project_root(self):
-        """当项目根不存在 pyproject.toml 时，仅包含 CWD 条目"""
-        with patch.object(Path, "is_file", return_value=False):
-            result = _resolve_env_files()
-            assert ".env" in result
-
-    def test_env_file_loading_via_explicit_path(self):
-        """端到端验证：通过 NEGENTROPY_PERCEIVES_ENV_FILE 加载配置"""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".env", delete=False
-        ) as f:
-            f.write("NEGENTROPY_PERCEIVES_HTTP_PORT=9999\n")
-            f.write("NEGENTROPY_PERCEIVES_SERVER_NAME=test-from-env-file\n")
-            tmp_path = f.name
-
-        try:
-            with patch.dict(
-                os.environ, {"NEGENTROPY_PERCEIVES_ENV_FILE": tmp_path}
-            ):
-                config = NegentropyPerceivesSettings(
-                    _env_file=tmp_path,
-                )
-                assert config.http_port == 9999
-                assert config.server_name == "test-from-env-file"
-        finally:
-            os.unlink(tmp_path)
-
-
 class TestDescribeConfigSources:
     """测试启动诊断信息"""
 
@@ -451,10 +387,11 @@ class TestDescribeConfigSources:
         assert len(result) > 0
 
     def test_describe_config_sources_contains_bundled_default(self):
-        """诊断信息应包含默认配置相关描述"""
+        """诊断信息应包含内置默认配置相关描述"""
         result = describe_config_sources()
-        # 无外部配置源时，应提及默认值或环境变量
-        assert "default" in result.lower() or "environment" in result.lower()
+        assert "bundled" in result.lower()  # 始终包含内置默认
+        # 有用户配置时返回 "Loaded: ..."，无配置时提及 "environment"
+        assert "loaded" in result.lower() or "environment" in result.lower()
 
     def test_describe_config_sources_with_custom_path(self):
         """显式指定配置路径时应在诊断信息中体现"""
@@ -625,10 +562,10 @@ class TestBuildSettings:
         assert cfg.concurrent_requests == 16
 
     def test_build_yaml_plus_env_var_priority(self, tmp_path):
-        """环境变量优先级高于显式 YAML 配置（-c）。
+        """-c 显式配置优先级高于环境变量。
 
-        pydantic-settings 内部优先级：env_settings > init_settings(kwargs)。
-        这确保运维环境变量始终能覆盖配置文件，符合 12-factor 应用原则。
+        pydantic-settings 内部优先级：init_settings(-c 值) > env_settings。
+        这确保 -c 配置始终能覆盖环境变量。
         """
         yaml_content = "transport_mode: sse\n"
         yaml_file = tmp_path / "custom.yaml"
@@ -638,8 +575,8 @@ class TestBuildSettings:
             os.environ, {"NEGENTROPY_PERCEIVES_TRANSPORT_MODE": "http"}
         ):
             cfg = build_settings(config_path=str(yaml_file))
-            # 环境变量优先于显式配置文件（pydantic-settings 内部行为）
-            assert cfg.transport_mode == "http"  # env var wins
+            # -c 值通过 init_settings 传入，优先级高于环境变量
+            assert cfg.transport_mode == "sse"  # -c wins
 
     def test_build_deep_merge_partial_override(self, tmp_path):
         """深度合并：显式配置部分覆盖，未指定字段保持默认。"""
@@ -904,3 +841,89 @@ class TestMultiEngineConfigIntegration:
         assert ds["ocr_batch_size"] == 2
         assert ds["layout_batch_size"] == 10
         assert ds["table_batch_size"] == 15
+
+
+# ============================================================
+# 内置默认配置作为运行时默认值源验证
+# ============================================================
+class TestBundledDefaultAsSource:
+    """验证 config.default.yaml 是运行时默认值源。"""
+
+    def test_bundled_default_loaded_at_startup(self):
+        """内置默认 YAML 可正常加载并包含所有主要配置项。"""
+        data = _load_bundled_yaml()
+        assert isinstance(data, dict)
+        assert data["server_name"] == "negentropy-perceives"
+        assert "server_version" not in data  # 版本号不在 YAML 中
+
+    def test_bundled_default_contains_all_sections(self):
+        """内置默认 YAML 包含所有主要配置分区。"""
+        data = _load_bundled_yaml()
+        expected_keys = [
+            "transport_mode",
+            "http_port",
+            "concurrent_requests",
+            "log_level",
+            "accelerator_device",
+            "docling_enabled",
+            "mineru_enabled",
+            "marker_enabled",
+        ]
+        for key in expected_keys:
+            assert key in data, f"Missing key: {key}"
+
+    def test_user_yaml_overrides_bundled_default(self, tmp_path):
+        """用户 YAML 深度合并覆盖内置默认的差异项，未指定的保留内置默认。"""
+        yaml_content = "transport_mode: stdio\nhttp_port: 9999\n"
+        yaml_file = tmp_path / "override.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.transport_mode == "stdio"       # 用户覆盖
+        assert cfg.http_port == 9999                # 用户覆盖
+        assert cfg.server_name == "negentropy-perceives"  # 内置默认保留
+        assert cfg.concurrent_requests == 16        # 内置默认保留
+        assert cfg.log_level == "INFO"              # 内置默认保留
+
+    def test_env_var_overrides_merged_yaml(self, tmp_path):
+        """环境变量优先于用户 YAML 配置（无 -c 时，使用 ~/.negentropy/ 路径）。
+
+        无显式 config_path 时，通过 _UserYamlConfigSource 注入合并配置，
+        此时 env_settings 优先级高于 _UserYamlConfigSource。
+        """
+        yaml_content = "http_port: 7777\n"
+        yaml_file = tmp_path / "partial.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        # 模拟无 -c 场景：将 yaml_file 作为用户配置路径（非 -c 显式指定）
+        import negentropy.perceives.config as config_module
+        original_get_user_config_path = config_module._get_user_config_path
+        with patch.object(config_module, '_get_user_config_path', return_value=yaml_file):
+            with patch.dict(os.environ, {}, clear=True):
+                os.environ["NEGENTROPY_PERCEIVES_HTTP_PORT"] = "9999"
+                cfg = build_settings(config_path=None)  # 无 -c，走 _UserYamlConfigSource 路径
+                # env_settings > _UserYamlConfigSource（init_settings 为空时）
+                assert cfg.http_port == 9999  # 环境变量胜出
+
+    def test_c_flag_overrides_env_var(self, tmp_path):
+        """-c 显式配置优先级高于环境变量（最高优先级）。"""
+        yaml_content = "http_port: 5555\n"
+        yaml_file = tmp_path / "highest.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        with patch.dict(os.environ, {"NEGENTROPY_PERCEIVES_HTTP_PORT": "9999"}):
+            cfg = build_settings(config_path=str(yaml_file))
+            # -c 值通过 init_settings 传入，高于 env_settings
+            assert cfg.http_port == 5555  # -c 胜出
+
+    def test_deep_merge_preserves_unspecified_fields(self, tmp_path):
+        """深度合并：用户仅声明单项时，其余字段保持内置默认。"""
+        yaml_content = "log_level: DEBUG\n"
+        yaml_file = tmp_path / "minimal.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.log_level == "DEBUG"             # 用户覆盖
+        assert cfg.transport_mode == "http"          # 内置默认
+        assert cfg.enable_caching is True           # 内置默认
+        assert cfg.max_retries == 3                 # 内置默认

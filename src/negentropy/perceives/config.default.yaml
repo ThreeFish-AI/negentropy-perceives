@@ -6,11 +6,10 @@
 # 安装后位于包内（wheel），不应直接修改。
 #
 # 配置优先级（从低到高）：
-#   1. 本文件（内置默认，只读）
-#   2. 用户配置 ~/.negentropy/perceives.config.yaml
-#   3. -c / --config 显式指定的配置文件
-#   4. .env 文件（向后兼容）
-#   5. NEGENTROPY_PERCEIVES_* 环境变量（最高优先级）
+#   1. 本文件（内置默认，所有配置的基线值源）
+#   2. 用户配置 ~/.negentropy/perceives.config.yaml（深度合并覆盖差异项）
+#   3. NEGENTROPY_PERCEIVES_* 环境变量
+#   4. -c / --config 显式指定的配置文件（最高优先级）
 #
 # 高优先级配置对低优先级配置执行深度合并（deep merge）：
 #   仅覆盖差异的独立配置项，而非全文粗暴替换。
