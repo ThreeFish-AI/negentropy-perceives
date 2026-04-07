@@ -83,5 +83,5 @@
 - [架构设计](docs/framework.md)
 - [开发指南](docs/development.md)
 - [测试](docs/development.md#测试)
-- [配置系统](docs/configuration.md)
+- [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置)
 - [用户指南](docs/user-guide.md)

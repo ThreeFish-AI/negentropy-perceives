@@ -870,5 +870,5 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 | 文档 | 说明 |
 |------|------|
 | [架构设计](./framework.md) | 系统架构、设计模式、性能策略 |
-| [配置系统](./configuration.md) | 环境变量、配置模板 |
+| [用户指南 > MCP Server 配置](./user-guide.md#mcp-server-配置) | 环境变量、配置模板 |
 | [用户指南](./user-guide.md) | 使用指南、API 参考与命令速查 |

@@ -105,10 +105,10 @@ class TestOrthogonalityConstraints:
             "缺少到 development.md 的交叉引用链接"
         )
 
-    def test_has_cross_reference_to_configuration(self, doc_content: str):
-        """文档包含到配置系统的交叉引用链接。"""
-        assert "configuration.md" in doc_content, (
-            "缺少到 configuration.md 的交叉引用链接"
+    def test_has_env_var_reference_section(self, doc_content: str):
+        """文档包含环境变量完整参考章节（原 configuration.md 内容已迁入）。"""
+        assert "### 环境变量完整参考" in doc_content, (
+            "缺少 '### 环境变量完整参考' 章节（configuration.md 内容应已迁入）"
         )
 
 
