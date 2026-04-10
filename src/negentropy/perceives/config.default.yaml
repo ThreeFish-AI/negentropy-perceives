@@ -13,90 +13,110 @@
 #
 # 高优先级配置对低优先级配置执行深度合并（deep merge）：
 #   仅覆盖差异的独立配置项，而非全文粗暴替换。
+#
+# 层级化格式：
+#   本文件采用层级化 YAML 结构，加载时自动展平为扁平键名
+#   （如 server.name → server_name）。旧版扁平格式亦完全兼容。
 # =============================================================================
 
 # ── 服务标识 ──────────────────────────────────────────────────────────────────
-server_name: negentropy-perceives
+server:
+  name: negentropy-perceives
 # server_version 从 pyproject.toml 自动读取，无需在此配置
 
 # ── 传输层 ────────────────────────────────────────────────────────────────────
-transport_mode: http          # MCP 传输协议：stdio / http / sse
-http_host: localhost           # HTTP 服务器绑定主机
-http_port: 8081               # HTTP 服务器监听端口
-http_path: /mcp               # HTTP 端点路径
-http_cors_origins: "*"        # CORS 来源白名单（* 允许所有，null 禁用）
+transport:
+  mode: http                    # MCP 传输协议：stdio / http / sse
+
+http:
+  host: localhost               # HTTP 服务器绑定主机
+  port: 8081                    # HTTP 服务器监听端口
+  path: /mcp                    # HTTP 端点路径
+  cors_origins: "*"             # CORS 来源白名单（* 允许所有，null 禁用）
 
 # ── 抓取引擎 ──────────────────────────────────────────────────────────────────
-concurrent_requests: 16        # 并发请求上限（> 0）
-download_delay: 1.0           # 下载间隔，单位秒（>= 0）
-randomize_download_delay: true # 随机化下载间隔
-autothrottle_enabled: true     # 启用自动节流
-autothrottle_start_delay: 1.0 # 自动节流初始延迟，单位秒
-autothrottle_max_delay: 60.0  # 自动节流最大延迟，单位秒
-autothrottle_target_concurrency: 1.0  # 自动节流目标并发度
+concurrent_requests: 16         # 并发请求上限（> 0）
+download_delay: 1.0             # 下载间隔，单位秒（>= 0）
+randomize_download_delay: true  # 随机化下载间隔
+
+autothrottle:
+  enabled: true                 # 启用自动节流
+  start_delay: 1.0              # 自动节流初始延迟，单位秒
+  max_delay: 60.0               # 自动节流最大延迟，单位秒
+  target_concurrency: 1.0       # 自动节流目标并发度
 
 # ── 速率限制 ──────────────────────────────────────────────────────────────────
-rate_limit_requests_per_minute: 60  # 每分钟请求频率上限（>= 1）
+rate_limit:
+  requests_per_minute: 60       # 每分钟请求频率上限（>= 1）
 
 # ── 重试策略 ──────────────────────────────────────────────────────────────────
-max_retries: 3                 # 失败重试最大次数（>= 0）
-retry_delay: 1.0              # 重试间隔，单位秒（>= 0）
+max_retries: 3                  # 失败重试最大次数（>= 0）
+retry_delay: 1.0                # 重试间隔，单位秒（>= 0）
 
 # ── 缓存系统 ──────────────────────────────────────────────────────────────────
-enable_caching: true          # 启用响应缓存
-cache_ttl_hours: 24           # 缓存生存时间，单位小时（> 0）
+enable_caching: true            # 启用响应缓存
+cache:
+  ttl_hours: 24                 # 缓存生存时间，单位小时（> 0）
 
 # ── 日志系统 ──────────────────────────────────────────────────────────────────
-log_level: INFO               # 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL
-log_requests: null            # 记录请求详情（可选）
-log_responses: null           # 记录响应详情（可选）
+log:
+  level: INFO                   # 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL
+  requests: null                # 记录请求详情（可选）
+  responses: null               # 记录响应详情（可选）
 
 # ── 浏览器引擎 ────────────────────────────────────────────────────────────────
-enable_javascript: false      # 启用 JavaScript 执行
-browser_headless: true        # 无头浏览器模式
-browser_timeout: 30           # 浏览器操作超时，单位秒
-browser_window_size: "1920x1080"  # 浏览器窗口尺寸
+enable_javascript: false        # 启用 JavaScript 执行
+
+browser:
+  headless: true                # 无头浏览器模式
+  timeout: 30                   # 浏览器操作超时，单位秒
+  window_size: "1920x1080"      # 浏览器窗口尺寸
 
 # ── 用户代理 ──────────────────────────────────────────────────────────────────
-use_random_user_agent: true   # 启用随机 User-Agent 轮换
+use_random_user_agent: true     # 启用随机 User-Agent 轮换
 default_user_agent: >-
   Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
   (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
 
 # ── 代理服务 ──────────────────────────────────────────────────────────────────
-use_proxy: false              # 启用代理服务器
-proxy_url: null               # 代理服务器 URL（启用代理时必填）
+use_proxy: false                # 启用代理服务器
+proxy_url: null                 # 代理服务器 URL（启用代理时必填）
 
 # ── 请求设置 ──────────────────────────────────────────────────────────────────
-request_timeout: 30.0         # HTTP 请求超时，单位秒（> 0）
+request_timeout: 30.0           # HTTP 请求超时，单位秒（> 0）
 
 # ── LLM 编排（Smart 模式，需安装 litellm 可选依赖）─────────────────────────
-llm_api_key: null             # LLM API Key（ZhipuAI）
-llm_model: zhipu/glm-5-plus-250414  # LiteLLM 模型标识
-llm_temperature: 0.1          # LLM 温度参数（0.0 ~ 2.0）
-llm_max_tokens: 4096          # LLM 最大输出 token（> 0）
-llm_timeout: 60.0             # LLM API 超时，单位秒（> 0）
-llm_max_retries: 2            # LLM API 重试次数（>= 0）
+llm:
+  api_key: null                 # LLM API Key（ZhipuAI）
+  model: zhipu/glm-5-plus-250414  # LiteLLM 模型标识
+  temperature: 0.1              # LLM 温度参数（0.0 ~ 2.0）
+  max_tokens: 4096              # LLM 最大输出 token（> 0）
+  timeout: 60.0                 # LLM API 超时，单位秒（> 0）
+  max_retries: 2                # LLM API 重试次数（>= 0）
 
 # ── 硬件加速 ──────────────────────────────────────────────────────────────────
-accelerator_device: auto      # 推理设备：auto / cpu / cuda / mps / xpu
-accelerator_num_threads: 4    # CPU 推理线程数（>= 1）
-accelerator_ocr_batch_size: 0     # OCR 推理 batch size（0 = 自动推断）
-accelerator_layout_batch_size: 0  # Layout 推理 batch size（0 = 自动推断）
-accelerator_table_batch_size: 0   # Table 推理 batch size（0 = 自动推断）
+accelerator:
+  device: auto                  # 推理设备：auto / cpu / cuda / mps / xpu
+  num_threads: 4                # CPU 推理线程数（>= 1）
+  ocr_batch_size: 0             # OCR 推理 batch size（0 = 自动推断）
+  layout_batch_size: 0          # Layout 推理 batch size（0 = 自动推断）
+  table_batch_size: 0           # Table 推理 batch size（0 = 自动推断）
 
 # ── Docling PDF 引擎（需安装 docling 可选依赖）────────────────────────────────
-docling_enabled: false            # 启用 Docling 作为 PDF 提取引擎
-docling_ocr_enabled: true         # 为扫描版 PDF 启用 OCR
-docling_table_extraction_enabled: true   # 启用 Docling 高级表格提取
-docling_formula_extraction_enabled: true # 启用 Docling 数学公式提取
+docling:
+  enabled: false                # 启用 Docling 作为 PDF 提取引擎
+  ocr_enabled: true             # 为扫描版 PDF 启用 OCR
+  table_extraction_enabled: true   # 启用 Docling 高级表格提取
+  formula_extraction_enabled: true # 启用 Docling 数学公式提取
 
 # ── MinerU PDF 引擎（需安装 mineru 可选依赖）─────────────────────────────────
-mineru_enabled: false            # 启用 MinerU 作为 PDF 提取引擎
-mineru_device: auto              # MinerU 推理设备：auto / cpu / mlx / cuda
-mineru_backend: auto             # MinerU 后端：auto / pipeline / vlm
+mineru:
+  enabled: false                # 启用 MinerU 作为 PDF 提取引擎
+  device: auto                  # MinerU 推理设备：auto / cpu / mlx / cuda
+  backend: auto                 # MinerU 后端：auto / pipeline / vlm
 
 # ── Marker PDF 引擎（需安装 marker-pdf 可选依赖）──────────────────────────────
-marker_enabled: false            # 启用 Marker 作为 PDF 提取引擎
-marker_llm_enhanced: false       # 启用 Marker LLM 增强模式
-marker_license_acknowledged: false  # 确认 Marker GPL-3.0 许可证条款
+marker:
+  enabled: false                # 启用 Marker 作为 PDF 提取引擎
+  llm_enhanced: false           # 启用 Marker LLM 增强模式
+  license_acknowledged: false   # 确认 Marker GPL-3.0 许可证条款
