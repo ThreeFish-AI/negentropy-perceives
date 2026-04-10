@@ -1,32 +1,8 @@
 """MCP 工具响应模型定义。"""
 
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-
-
-class ScrapeResponse(BaseModel):
-    """抓取操作的响应模型。"""
-
-    success: bool = Field(..., description="操作是否成功")
-    url: str = Field(..., description="被抓取的URL")
-    method: str = Field(..., description="使用的抓取方法")
-    data: Optional[Dict[str, Any]] = Field(default=None, description="抓取到的数据")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="页面元数据")
-    error: Optional[str] = Field(default=None, description="错误信息（如果有）")
-    timestamp: datetime = Field(default_factory=datetime.now, description="抓取时间戳")
-
-
-class BatchScrapeResponse(BaseModel):
-    """批量抓取操作的响应模型。"""
-
-    success: bool = Field(..., description="整体操作是否成功")
-    total_urls: int = Field(..., description="总URL数量")
-    successful_count: int = Field(..., description="成功抓取的数量")
-    failed_count: int = Field(..., description="失败的数量")
-    results: List[ScrapeResponse] = Field(..., description="每个URL的抓取结果")
-    summary: Dict[str, Any] = Field(..., description="批量操作摘要信息")
 
 
 class LinkItem(BaseModel):
@@ -60,29 +36,6 @@ class PageInfoResponse(BaseModel):
     content_type: Optional[str] = Field(default=None, description="内容类型")
     content_length: Optional[int] = Field(default=None, description="内容长度")
     last_modified: Optional[str] = Field(default=None, description="最后修改时间")
-    error: Optional[str] = Field(default=None, description="错误信息（如果有）")
-
-
-class RobotsResponse(BaseModel):
-    """robots.txt 检查的响应模型。"""
-
-    success: bool = Field(..., description="操作是否成功")
-    url: str = Field(..., description="检查的URL")
-    robots_txt_url: str = Field(..., description="robots.txt文件URL")
-    robots_content: Optional[str] = Field(default=None, description="robots.txt内容")
-    is_allowed: bool = Field(..., description="是否允许抓取")
-    user_agent: str = Field(..., description="使用的User-Agent")
-    error: Optional[str] = Field(default=None, description="错误信息（如果有）")
-
-
-class StructuredDataResponse(BaseModel):
-    """结构化数据提取的响应模型。"""
-
-    success: bool = Field(..., description="操作是否成功")
-    url: str = Field(..., description="源页面URL")
-    data_type: str = Field(..., description="提取的数据类型")
-    extracted_data: Dict[str, Any] = Field(..., description="提取的结构化数据")
-    data_count: int = Field(..., description="提取的数据项数量")
     error: Optional[str] = Field(default=None, description="错误信息（如果有）")
 
 
