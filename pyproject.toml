@@ -15,7 +15,7 @@ exclude = ["tests*", "reports*", "htmlcov*", "scripts*"]
 
 [project]
 name = "negentropy-perceives"
-version = "0.2.0"
+version = "0.2.0a1"
 description = "A commercial-grade MCP Server built on FastMCP, offering robust capabilities to read, extract, and localize (into Markdown) content from web pages and PDFs with both text and images. It is purpose-built for long-term deployment in enterprise environments."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -24,9 +24,10 @@ license = "MIT"
 keywords = ["mcp", "web-crawler", "pdf", "markdown"]
 
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
