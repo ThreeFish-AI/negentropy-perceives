@@ -529,6 +529,7 @@ Negentropy Perceives 采用基于 [pydantic-settings](https://docs.pydantic.dev/
 | `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                   |
 | `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                 |
 | `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker） |
+| `NEGENTROPY_PERCEIVES_PIPELINE` | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 配置验证规则
 
@@ -1310,6 +1311,7 @@ _Source: Page 3_
 | `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                   |
 | `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                 |
 | `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker） |
+| `NEGENTROPY_PERCEIVES_PIPELINE` | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 12. batch_convert_pdfs_to_markdown - 批量 PDF 转 Markdown
 
