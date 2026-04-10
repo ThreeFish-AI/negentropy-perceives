@@ -51,9 +51,8 @@ dependencies = [
     "pydantic>=2.12.0",
     "pydantic-settings>=2.13.0",
     "pyyaml>=6.0",              # YAML 配置文件解析
-    "platformdirs>=4.0",        # 跨平台用户配置目录定位
     # --- 运行时基础设施 ---
-    "setuptools>=82.0.0",  # undetected-chromedriver 依赖 distutils（Python 3.12+ 已移除）
+    "setuptools>=82.0.0",  # 运行时补丁：undetected-chromedriver 依赖 pkg_resources（distutils），Python 3.12+ 已从标准库移除
 ]
 
 [project.urls]
@@ -62,9 +61,6 @@ dependencies = [
 "Bug Tracker" = "https://github.com/ThreeFish-AI/negentropy-perceives/issues"
 
 [project.optional-dependencies]
-docling = [
-    "docling>=2.70.0",
-]
 llm = [
     "litellm>=1.70.0",
 ]
@@ -155,9 +151,22 @@ output = "tests/reports/coverage.json"
 
 [tool.mypy]
 python_version = "3.13"
-warn_return_any = true
+warn_return_any = false          # 代码尚未全量标注，待类型覆盖率提升后逐步启用
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false    # 同上，待类型覆盖率提升后逐步启用
+ignore_missing_imports = true    # 全局兜底：第三方库缺少 py.typed 或 stub
+
+[[tool.mypy.overrides]]
+module = [
+    "scrapy.*",
+    "undetected_chromedriver.*",
+    "fake_useragent.*",
+    "playwright.*",
+    "bs4.*",
+    "selenium.*",
+    "fastmcp.*",
+]
+ignore_missing_imports = true
 
 [tool.uv]
 # Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布

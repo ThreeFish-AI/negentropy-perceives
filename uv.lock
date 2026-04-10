@@ -2344,7 +2344,6 @@ dependencies = [
     { name = "fake-useragent" },
     { name = "fastmcp" },
     { name = "markitdown" },
-    { name = "platformdirs" },
     { name = "playwright" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -2362,9 +2361,6 @@ all-engines = [
     { name = "docling" },
     { name = "marker-pdf" },
     { name = "mineru" },
-]
-docling = [
-    { name = "docling" },
 ]
 llm = [
     { name = "litellm" },
@@ -2401,7 +2397,6 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.0" },
     { name = "docling", specifier = ">=2.70.0" },
     { name = "docling", marker = "extra == 'all-engines'", specifier = ">=2.70.0" },
-    { name = "docling", marker = "extra == 'docling'", specifier = ">=2.70.0" },
     { name = "fake-useragent", specifier = ">=2.2.0" },
     { name = "fastmcp", specifier = ">=3.1.0" },
     { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.70.0" },
@@ -2410,7 +2405,6 @@ requires-dist = [
     { name = "markitdown", specifier = ">=0.1.5" },
     { name = "mineru", marker = "extra == 'all-engines'", specifier = ">=3.0.1" },
     { name = "mineru", marker = "extra == 'mineru'", specifier = ">=3.0.1" },
-    { name = "platformdirs", specifier = ">=4.0" },
     { name = "playwright", specifier = ">=1.58.0" },
     { name = "pydantic", specifier = ">=2.12.0" },
     { name = "pydantic-settings", specifier = ">=2.13.0" },
@@ -2422,7 +2416,7 @@ requires-dist = [
     { name = "setuptools", specifier = ">=82.0.0" },
     { name = "undetected-chromedriver", specifier = ">=3.5.0" },
 ]
-provides-extras = ["docling", "llm", "mineru", "marker", "all-engines"]
+provides-extras = ["llm", "mineru", "marker", "all-engines"]
 
 [package.metadata.requires-dev]
 dev = [
