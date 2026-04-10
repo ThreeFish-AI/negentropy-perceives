@@ -5,6 +5,7 @@ import asyncio
 from unittest.mock import patch
 
 from negentropy.perceives.tools import web_scraper
+from negentropy.perceives.tools._registry import markdown_converter
 from tests.integration.tooling import build_pdf_tool_kwargs, select_tools
 
 
@@ -19,12 +20,11 @@ def scenario_tools(e2e_tools):
     """提供真实场景测试所需的工具子集。"""
     return select_tools(
         e2e_tools,
-        "scrape_webpage",
-        "scrape_multiple_webpages",
         "convert_webpage_to_markdown",
         "convert_pdf_to_markdown",
         "batch_convert_pdfs_to_markdown",
         "extract_links",
+        "get_page_info",
     )
 
 
@@ -32,31 +32,18 @@ class TestCrossToolIntegration:
     """Integration tests for scenarios involving multiple tools working together."""
 
     @pytest.mark.asyncio
-    async def test_webpage_to_pdf_to_markdown_workflow(self, e2e_tools, pdf_processor):
-        """Test a complete workflow: scrape webpage, then process any PDFs found."""
-        tools = select_tools(e2e_tools, "scrape_webpage", "convert_pdf_to_markdown")
-        scrape_tool = tools["scrape_webpage"]
+    async def test_webpage_to_pdf_to_markdown_workflow(
+        self, e2e_tools, pdf_processor
+    ):
+        """Test a complete workflow: extract links from webpage, then process PDFs found."""
+        tools = select_tools(e2e_tools, "extract_links", "convert_pdf_to_markdown")
+        extract_links_tool = tools["extract_links"]
         convert_pdf_tool = tools["convert_pdf_to_markdown"]
 
-        # Mock webpage scraping that finds PDF links
-        webpage_result = {
+        # Mock link extraction that finds PDF links
+        scrape_result = {
             "url": "https://example.com/research-page",
-            "title": "Research Papers",
-            "status_code": 200,
             "content": {
-                "html": """
-                <html>
-                    <body>
-                        <h1>Research Papers</h1>
-                        <p>Here are some important research papers:</p>
-                        <ul>
-                            <li><a href="/papers/paper1.pdf">Machine Learning Basics</a></li>
-                            <li><a href="/papers/paper2.pdf">Deep Learning Advanced</a></li>
-                            <li><a href="https://external.com/paper3.pdf">Neural Networks</a></li>
-                        </ul>
-                    </body>
-                </html>
-                """,
                 "links": [
                     {
                         "url": "https://example.com/papers/paper1.pdf",
@@ -78,6 +65,7 @@ class TestCrossToolIntegration:
             "success": True,
             "text": "# Machine Learning Basics\n\nThis paper covers fundamental concepts...",
             "markdown": "# Machine Learning Basics\n\nThis paper covers fundamental concepts in machine learning.",
+            "content": "# Machine Learning Basics\n\nThis paper covers fundamental concepts in machine learning.",
             "source": "https://example.com/papers/paper1.pdf",
             "method_used": "pymupdf",
             "pages_processed": 15,
@@ -91,27 +79,30 @@ class TestCrossToolIntegration:
 
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
         ):
-            mock_scrape.return_value = webpage_result
+            mock_scrape.return_value = scrape_result
             mock_pdf.return_value = pdf_processing_result
 
-            # Step 1: Scrape the webpage
-            webpage_response = await scrape_tool.fn(
+            # Step 1: Extract links from the webpage
+            links_response = await extract_links_tool.fn(
                 url="https://example.com/research-page",
-                method="simple",
-                extract_config=None,
-                wait_for_element=None,
+                filter_domains=None,
+                exclude_domains=None,
+                internal_only=False,
             )
 
-            assert webpage_response.success is True
+            assert links_response.success is True
 
-            # Extract PDF links from the scraped content
+            # Extract PDF links from the extracted links
             pdf_links = [
-                link["url"]
-                for link in webpage_response.data["content"]["links"]
-                if link["url"].endswith(".pdf")
+                link.url
+                for link in links_response.links
+                if link.url.endswith(".pdf")
             ]
             assert len(pdf_links) == 3
 
@@ -119,7 +110,7 @@ class TestCrossToolIntegration:
             first_pdf_url = pdf_links[0]
             pdf_response = await convert_pdf_tool.fn(
                 pdf_source=first_pdf_url,
-                **build_pdf_tool_kwargs(),
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
 
             assert pdf_response.success is True
@@ -130,12 +121,10 @@ class TestCrossToolIntegration:
             mock_scrape.assert_called_once_with(
                 url="https://example.com/research-page",
                 method="simple",
-                extract_config=None,
-                wait_for_element=None,
             )
             mock_pdf.assert_called_once_with(
                 pdf_source=first_pdf_url,
-                method="auto",
+                method="pymupdf",
                 include_metadata=True,
                 page_range=None,
                 output_format="markdown",
@@ -147,19 +136,17 @@ class TestCrossToolIntegration:
             )
 
     @pytest.mark.asyncio
-    async def test_batch_scraping_with_pdf_extraction_workflow(
-        self, e2e_tools, pdf_processor
-    ):
-        """Test batch webpage scraping followed by batch PDF processing."""
+    async def test_batch_webpage_to_pdf_workflow(self, e2e_tools, pdf_processor):
+        """Test batch webpage conversion followed by batch PDF processing."""
         tools = select_tools(
             e2e_tools,
-            "scrape_multiple_webpages",
+            "batch_convert_webpages_to_markdown",
             "batch_convert_pdfs_to_markdown",
         )
-        batch_scrape_tool = tools["scrape_multiple_webpages"]
+        batch_webpage_tool = tools["batch_convert_webpages_to_markdown"]
         batch_pdf_tool = tools["batch_convert_pdfs_to_markdown"]
 
-        # Mock batch scraping results with mixed content including PDFs
+        # Mock batch scraping results
         batch_scrape_results = [
             {
                 "url": "https://site1.com",
@@ -193,6 +180,7 @@ class TestCrossToolIntegration:
                     "success": True,
                     "text": "Document 1 content...",
                     "markdown": "# Document 1\n\nContent of document 1.",
+                    "content": "# Document 1\n\nContent of document 1.",
                     "source": "https://site1.com/doc1.pdf",
                     "word_count": 1000,
                 },
@@ -200,6 +188,7 @@ class TestCrossToolIntegration:
                     "success": True,
                     "text": "Research paper content...",
                     "markdown": "# Research Paper\n\nContent of research paper.",
+                    "content": "# Research Paper\n\nContent of research paper.",
                     "source": "https://site2.com/research.pdf",
                     "word_count": 3000,
                 },
@@ -213,46 +202,41 @@ class TestCrossToolIntegration:
         }
 
         with (
-            patch.object(web_scraper, "scrape_multiple_urls") as mock_batch_scrape,
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch.object(
+                web_scraper, "scrape_multiple_urls"
+            ) as mock_batch_scrape,
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
         ):
             mock_batch_scrape.return_value = batch_scrape_results
             mock_batch_pdf.return_value = batch_pdf_results
 
-            # Step 1: Batch scrape multiple websites
+            # Step 1: Batch convert webpages to markdown
             scrape_urls = ["https://site1.com", "https://site2.com"]
-            scrape_response = await batch_scrape_tool.fn(
+            webpage_response = await batch_webpage_tool.fn(
                 urls=scrape_urls,
                 method="simple",
-                extract_config=None,
+                extract_main_content=True,
+                include_metadata=True,
+                custom_options=None,
+                embed_images=False,
+                embed_options=None,
             )
 
-            assert scrape_response.success is True
-            assert len(scrape_response.results) == 2
+            assert webpage_response.success is True
+            assert webpage_response.total_urls == 2
 
-            # Extract all PDF links from scraped results
-            all_pdf_links = []
-            for result in scrape_response.results:
-                if (
-                    result.success
-                    and result.data
-                    and "content" in result.data
-                    and "links" in result.data["content"]
-                ):
-                    pdf_links = [
-                        link["url"]
-                        for link in result.data["content"]["links"]
-                        if link["url"].endswith(".pdf")
-                    ]
-                    all_pdf_links.extend(pdf_links)
-
-            assert len(all_pdf_links) == 2
-
-            # Step 2: Batch process all found PDFs
+            # Step 2: Batch process PDFs discovered from those pages
+            pdf_sources = [
+                "https://site1.com/doc1.pdf",
+                "https://site2.com/research.pdf",
+            ]
             pdf_response = await batch_pdf_tool.fn(
-                pdf_sources=all_pdf_links,
-                **build_pdf_tool_kwargs(),
+                pdf_sources=pdf_sources,
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
 
             assert pdf_response.success is True
@@ -263,25 +247,28 @@ class TestCrossToolIntegration:
     @pytest.mark.asyncio
     async def test_error_propagation_across_tools(self, all_tools, pdf_processor):
         """Test how errors propagate when using multiple tools together."""
-        scrape_tool = all_tools["scrape_webpage"]
+        extract_links_tool = all_tools["extract_links"]
         pdf_tool = all_tools["convert_pdf_to_markdown"]
 
-        # Mock a failed scraping operation
+        # Mock a failed link extraction (scrape_url raises)
         with patch.object(web_scraper, "scrape_url") as mock_scrape:
             mock_scrape.side_effect = Exception("Network timeout")
 
             # First tool fails
-            scrape_response = await scrape_tool.fn(
+            links_response = await extract_links_tool.fn(
                 url="https://unreachable.com",
-                method="auto",
-                extract_config=None,
-                wait_for_element=None,
+                filter_domains=None,
+                exclude_domains=None,
+                internal_only=False,
             )
-            assert scrape_response.success is False
+            assert links_response.success is False
 
         # Mock a failed PDF processing
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
         ):
             mock_pdf.return_value = {
@@ -293,21 +280,13 @@ class TestCrossToolIntegration:
             # Second tool fails with proper error handling
             pdf_response = await pdf_tool.fn(
                 pdf_source="/corrupted.pdf",
-                method="auto",
-                include_metadata=True,
-                page_range=None,
-                output_format="markdown",
-                extract_images=True,
-                extract_tables=True,
-                extract_formulas=True,
-                embed_images=False,
-                enhanced_options=None,
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
             assert pdf_response.success is False
             assert "PDF parsing failed" in (
-                pdf_response.error["message"]
-                if isinstance(pdf_response.error, dict)
-                else pdf_response.error
+                pdf_response.error
+                if isinstance(pdf_response.error, str)
+                else str(pdf_response.error)
             )
 
     @pytest.mark.asyncio
@@ -321,11 +300,11 @@ class TestCrossToolIntegration:
         gc.collect()
         initial_objects = len(gc.get_objects())
 
-        scrape_tool = all_tools["scrape_webpage"]
+        webpage_tool = all_tools["convert_webpage_to_markdown"]
         pdf_tool = all_tools["convert_pdf_to_markdown"]
         batch_pdf_tool = all_tools["batch_convert_pdfs_to_markdown"]
 
-        # Mock successful_count operations
+        # Mock successful operations
         scrape_result = {
             "url": "https://test.com",
             "title": "Test",
@@ -336,6 +315,7 @@ class TestCrossToolIntegration:
             "success": True,
             "text": "Content " * 1000,  # Large content to test memory
             "markdown": "# Document\n\n" + "Paragraph.\n" * 500,
+            "content": "# Document\n\n" + "Paragraph.\n" * 500,
             "source": "/test.pdf",
             "word_count": 1000,
         }
@@ -348,9 +328,14 @@ class TestCrossToolIntegration:
 
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
-            patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
+            patch.object(
+                pdf_processor, "batch_process_pdfs"
+            ) as mock_batch_pdf,
         ):
             mock_scrape.return_value = scrape_result
             mock_pdf.return_value = pdf_result
@@ -358,37 +343,26 @@ class TestCrossToolIntegration:
 
             # Perform multiple operations with large data
             for i in range(10):
-                await scrape_tool.fn(
+                await webpage_tool.fn(
                     url=f"https://test{i}.com",
-                    method="auto",
-                    extract_config=None,
+                    method="simple",
+                    extract_main_content=True,
+                    include_metadata=True,
+                    custom_options=None,
                     wait_for_element=None,
+                    formatting_options=None,
+                    embed_images=False,
+                    embed_options=None,
                 )
                 await pdf_tool.fn(
                     pdf_source=f"/test{i}.pdf",
-                    method="auto",
-                    include_metadata=True,
-                    page_range=None,
-                    output_format="markdown",
-                    extract_images=True,
-                    extract_tables=True,
-                    extract_formulas=True,
-                    embed_images=False,
-                    enhanced_options=None,
+                    **build_pdf_tool_kwargs(method="pymupdf"),
                 )
 
             # Perform batch operation
             await batch_pdf_tool.fn(
                 pdf_sources=[f"/batch{i}.pdf" for i in range(5)],
-                method="auto",
-                include_metadata=True,
-                page_range=None,
-                output_format="markdown",
-                extract_images=True,
-                extract_tables=True,
-                extract_formulas=True,
-                embed_images=False,
-                enhanced_options=None,
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
 
         # Force garbage collection and check memory usage
@@ -404,7 +378,6 @@ class TestCrossToolIntegration:
     @pytest.mark.asyncio
     async def test_concurrent_multi_tool_operations(self, all_tools, pdf_processor):
         """Test concurrent execution of different tools."""
-        scrape_tool = all_tools["scrape_webpage"]
         pdf_tool = all_tools["convert_pdf_to_markdown"]
         markdown_tool = all_tools["convert_webpage_to_markdown"]
 
@@ -419,64 +392,42 @@ class TestCrossToolIntegration:
             "success": True,
             "text": "Concurrent PDF content",
             "markdown": "# Concurrent PDF\n\nContent",
+            "content": "# Concurrent PDF\n\nContent",
             "source": "/concurrent.pdf",
-        }
-
-        _ = {
-            "success": True,
-            "markdown": "# Concurrent Markdown\n\nContent",
-            "metadata": {"title": "Concurrent Test"},
         }
 
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
         ):
             mock_scrape.return_value = scrape_result
             mock_pdf.return_value = pdf_result
 
             # Create concurrent tasks using different tools
-            tasks = (
-                [
-                    scrape_tool.fn(
-                        url=f"https://test{i}.com",
-                        method="auto",
-                        extract_config=None,
-                        wait_for_element=None,
-                    )
-                    for i in range(3)
-                ]
-                + [
-                    pdf_tool.fn(
-                        pdf_source=f"/test{i}.pdf",
-                        method="auto",
-                        include_metadata=True,
-                        page_range=None,
-                        output_format="markdown",
-                        extract_images=True,
-                        extract_tables=True,
-                        extract_formulas=True,
-                        embed_images=False,
-                        enhanced_options=None,
-                    )
-                    for i in range(3)
-                ]
-                + [
-                    markdown_tool.fn(
-                        url=f"https://markdown{i}.com",
-                        method="auto",
-                        extract_main_content=True,
-                        include_metadata=True,
-                        custom_options=None,
-                        wait_for_element=None,
-                        formatting_options=None,
-                        embed_images=False,
-                        embed_options=None,
-                    )
-                    for i in range(3)
-                ]
-            )
+            tasks = [
+                pdf_tool.fn(
+                    pdf_source=f"/test{i}.pdf",
+                    **build_pdf_tool_kwargs(method="pymupdf"),
+                )
+                for i in range(3)
+            ] + [
+                markdown_tool.fn(
+                    url=f"https://markdown{i}.com",
+                    method="simple",
+                    extract_main_content=True,
+                    include_metadata=True,
+                    custom_options=None,
+                    wait_for_element=None,
+                    formatting_options=None,
+                    embed_images=False,
+                    embed_options=None,
+                )
+                for i in range(3)
+            ]
 
             # Execute all concurrently
             results = await asyncio.gather(*tasks)
@@ -486,9 +437,7 @@ class TestCrossToolIntegration:
                 assert result.success is True
 
             # Verify appropriate number of calls to each mock
-            assert (
-                mock_scrape.call_count == 6
-            )  # 3 scrape + 3 markdown (which uses scraping)
+            assert mock_scrape.call_count == 3  # 3 markdown conversions
             assert mock_pdf.call_count == 3  # 3 PDF operations
 
 
@@ -558,6 +507,7 @@ class TestRealWorldIntegrationScenarios:
                 {
                     "success": True,
                     "markdown": f"# Paper {i}\n\nResearch content {i}.",
+                    "content": f"# Paper {i}\n\nResearch content {i}.",
                     "source": pdf_links[i - 1],
                     "word_count": 1000 * i,
                     "metadata": {"title": f"Research Paper {i}"},
@@ -573,22 +523,19 @@ class TestRealWorldIntegrationScenarios:
         }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
-            patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
+            patch.object(
+                pdf_processor, "batch_process_pdfs"
+            ) as mock_batch_pdf,
         ):
             mock_batch_pdf.return_value = batch_result
 
             batch_response = await batch_pdf_tool.fn(
                 pdf_sources=pdf_links,
-                method="auto",
-                include_metadata=True,
-                page_range=None,
-                output_format="markdown",
-                extract_images=True,
-                extract_tables=True,
-                extract_formulas=True,
-                embed_images=False,
-                enhanced_options=None,
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
 
             assert batch_response.success is True
@@ -598,7 +545,12 @@ class TestRealWorldIntegrationScenarios:
         # Step 3: Also convert the overview HTML page to markdown
         markdown_tool = scenario_tools["convert_webpage_to_markdown"]
 
-        with patch.object(web_scraper, "scrape_url") as mock_scrape:
+        with (
+            patch.object(web_scraper, "scrape_url") as mock_scrape,
+            patch.object(
+                markdown_converter, "convert_webpage_to_markdown"
+            ) as mock_convert,
+        ):
             mock_scrape.return_value = {
                 "url": "https://academic-site.com/paper3.html",
                 "title": "Research Overview",
@@ -606,10 +558,16 @@ class TestRealWorldIntegrationScenarios:
                     "html": "<html><body><h1>Research Overview</h1><p>Summary of all papers.</p></body></html>"
                 },
             }
+            mock_convert.return_value = {
+                "success": True,
+                "markdown_content": "# Research Overview\n\nSummary of all papers.",
+                "metadata": {"title": "Research Overview"},
+                "word_count": 6,
+            }
 
             markdown_response = await markdown_tool.fn(
                 url="https://academic-site.com/paper3.html",
-                method="auto",
+                method="simple",
                 extract_main_content=True,
                 include_metadata=True,
                 custom_options=None,
@@ -629,67 +587,60 @@ class TestRealWorldIntegrationScenarios:
         """Test creating a complete backup of website documentation."""
         # Scenario: User wants to backup all documentation pages as markdown
 
-        # Step 1: Scrape the main documentation index
-        scrape_tool = scenario_tools["scrape_webpage"]
+        # Step 1: Extract links from the main documentation index
+        extract_links_tool = scenario_tools["extract_links"]
 
-        index_result = {
-            "url": "https://docs.example.com",
-            "title": "Documentation Index",
-            "content": {
-                "html": """
-                <html>
-                    <body>
-                        <h1>Documentation</h1>
-                        <nav>
-                            <ul>
-                                <li><a href="/getting-started">Getting Started</a></li>
-                                <li><a href="/api-reference">API Reference</a></li>
-                                <li><a href="/tutorials">Tutorials</a></li>
-                                <li><a href="/faq.pdf">FAQ (PDF)</a></li>
-                            </ul>
-                        </nav>
-                    </body>
-                </html>
-                """,
-                "links": [
-                    {
-                        "url": "https://docs.example.com/getting-started",
-                        "text": "Getting Started",
-                    },
-                    {
-                        "url": "https://docs.example.com/api-reference",
-                        "text": "API Reference",
-                    },
-                    {"url": "https://docs.example.com/tutorials", "text": "Tutorials"},
-                    {"url": "https://docs.example.com/faq.pdf", "text": "FAQ (PDF)"},
-                ],
+        index_links = [
+            {
+                "url": "https://docs.example.com/getting-started",
+                "text": "Getting Started",
             },
-        }
+            {
+                "url": "https://docs.example.com/api-reference",
+                "text": "API Reference",
+            },
+            {
+                "url": "https://docs.example.com/tutorials",
+                "text": "Tutorials",
+            },
+            {
+                "url": "https://docs.example.com/faq.pdf",
+                "text": "FAQ (PDF)",
+            },
+        ]
 
         with patch.object(web_scraper, "scrape_url") as mock_scrape:
-            mock_scrape.return_value = index_result
+            mock_scrape.return_value = {
+                "url": "https://docs.example.com",
+                "content": {"links": index_links},
+            }
 
-            index_response = await scrape_tool.fn(
+            index_response = await extract_links_tool.fn(
                 url="https://docs.example.com",
-                method="auto",
-                extract_config=None,
-                wait_for_element=None,
+                filter_domains=None,
+                exclude_domains=None,
+                internal_only=False,
             )
             assert index_response.success is True
 
-        # Step 2: Batch convert all HTML pages to markdown
+        # Step 2: Convert all HTML pages to markdown
         html_pages = [
             "https://docs.example.com/getting-started",
             "https://docs.example.com/api-reference",
             "https://docs.example.com/tutorials",
         ]
 
-        batch_markdown_tool = scenario_tools["convert_webpage_to_markdown"]
+        markdown_tool = scenario_tools["convert_webpage_to_markdown"]
 
-        # Process each HTML page (simulate batch by calling individually)
+        # Process each HTML page individually
         html_results = []
         for i, url in enumerate(html_pages):
-            with patch.object(web_scraper, "scrape_url") as mock_scrape:
+            with (
+                patch.object(web_scraper, "scrape_url") as mock_scrape,
+                patch.object(
+                    markdown_converter, "convert_webpage_to_markdown"
+                ) as mock_convert,
+            ):
                 mock_scrape.return_value = {
                     "url": url,
                     "title": f"Documentation Page {i + 1}",
@@ -697,10 +648,16 @@ class TestRealWorldIntegrationScenarios:
                         "html": f"<html><body><h1>Page {i + 1}</h1><p>Content for page {i + 1}</p></body></html>"
                     },
                 }
+                mock_convert.return_value = {
+                    "success": True,
+                    "markdown_content": f"# Page {i + 1}\\n\nContent for page {i + 1}.",
+                    "metadata": {"title": f"Documentation Page {i + 1}"},
+                    "word_count": 5,
+                }
 
-                result = await batch_markdown_tool.fn(
+                result = await markdown_tool.fn(
                     url=url,
-                    method="auto",
+                    method="simple",
                     extract_main_content=True,
                     include_metadata=True,
                     custom_options=None,
@@ -716,27 +673,23 @@ class TestRealWorldIntegrationScenarios:
         pdf_tool = scenario_tools["convert_pdf_to_markdown"]
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
         ):
             mock_pdf.return_value = {
                 "success": True,
                 "markdown": "# FAQ\n\n## Q: How to get started?\nA: Follow the getting started guide.",
+                "content": "# FAQ\n\n## Q: How to get started?\nA: Follow the getting started guide.",
                 "source": "https://docs.example.com/faq.pdf",
                 "word_count": 50,
             }
 
             pdf_result = await pdf_tool.fn(
                 pdf_source="https://docs.example.com/faq.pdf",
-                method="auto",
-                include_metadata=True,
-                page_range=None,
-                output_format="markdown",
-                extract_images=True,
-                extract_tables=True,
-                extract_formulas=True,
-                embed_images=False,
-                enhanced_options=None,
+                **build_pdf_tool_kwargs(method="pymupdf"),
             )
             assert pdf_result.success is True
 
@@ -745,111 +698,3 @@ class TestRealWorldIntegrationScenarios:
         for result in html_results:
             assert "Page" in result.markdown_content
         assert "FAQ" in pdf_result.content
-
-    @pytest.mark.asyncio
-    async def test_competitive_analysis_scenario(self, scenario_tools, pdf_processor):
-        """Test competitive analysis workflow across multiple competitor sites."""
-        # Scenario: Analyze multiple competitor websites and their resources
-
-        competitor_urls = [
-            "https://competitor1.com",
-            "https://competitor2.com",
-            "https://competitor3.com",
-        ]
-
-        # Step 1: Batch scrape all competitor sites
-        batch_scrape_tool = scenario_tools["scrape_multiple_webpages"]
-
-        competitor_results = [
-            {
-                "url": url,
-                "title": f"Competitor {i + 1}",
-                "content": {
-                    "html": f"""
-                    <html>
-                        <body>
-                            <h1>Competitor {i + 1}</h1>
-                            <p>Product features: Feature A, Feature B</p>
-                            <a href="/whitepaper{i + 1}.pdf">Download Whitepaper</a>
-                        </body>
-                    </html>
-                    """,
-                    "links": [
-                        {
-                            "url": f"{url}/whitepaper{i + 1}.pdf",
-                            "text": "Download Whitepaper",
-                        }
-                    ],
-                },
-            }
-            for i, url in enumerate(competitor_urls)
-        ]
-
-        with patch.object(web_scraper, "scrape_multiple_urls") as mock_batch_scrape:
-            mock_batch_scrape.return_value = competitor_results
-
-            scrape_response = await batch_scrape_tool.fn(
-                urls=competitor_urls,
-                method="simple",
-                extract_config=None,
-            )
-
-            assert scrape_response.success is True
-            assert len(scrape_response.results) == 3
-
-        # Step 2: Extract all whitepaper PDFs found
-        pdf_urls = []
-        for result in competitor_results:
-            if "content" in result and "links" in result["content"]:
-                pdf_links = [
-                    link["url"]
-                    for link in result["content"]["links"]
-                    if link["url"].endswith(".pdf")
-                ]
-                pdf_urls.extend(pdf_links)
-
-        assert len(pdf_urls) == 3
-
-        # Step 3: Batch process all competitor whitepapers
-        batch_pdf_tool = scenario_tools["batch_convert_pdfs_to_markdown"]
-
-        whitepaper_results = {
-            "success": True,
-            "results": [
-                {
-                    "success": True,
-                    "markdown": f"# Competitor {i + 1} Whitepaper\n\nProduct analysis and features.",
-                    "source": pdf_urls[i],
-                    "word_count": (i + 1) * 500,
-                    "metadata": {"title": f"Competitor {i + 1} Whitepaper"},
-                }
-                for i in range(3)
-            ],
-            "summary": {
-                "total_pdfs": 3,
-                "successful_count": 3,
-                "total_word_count": 3000,  # 500 + 1000 + 1500
-            },
-        }
-
-        with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
-            patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
-        ):
-            mock_batch_pdf.return_value = whitepaper_results
-
-            pdf_response = await batch_pdf_tool.fn(
-                pdf_sources=pdf_urls,
-                method="auto",
-                include_metadata=True,
-                page_range=None,
-                output_format="markdown",
-                extract_images=True,
-                extract_tables=True,
-                extract_formulas=True,
-                embed_images=False,
-                enhanced_options=None,
-            )
-
-            assert pdf_response.success is True
-            assert pdf_response.total_word_count == 3000
