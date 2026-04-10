@@ -126,3 +126,51 @@ class TestNoUnusedRuntimeDeps:
         assert "scrapy" not in dep_names, (
             "scrapy 仍在运行时依赖中，但源码中无任何 import scrapy"
         )
+
+    def test_platformdirs_not_in_runtime_deps(self):
+        """platformdirs 不在运行时依赖列表中（源码中无任何 import platformdirs）。"""
+        data = _load_pyproject()
+        deps = data.get("project", {}).get("dependencies", [])
+        dep_names = [re.split(r"[><=!~[;\s]", d)[0] for d in deps]
+
+        assert "platformdirs" not in dep_names, (
+            "platformdirs 仍在运行时依赖中，但源码中无任何 import platformdirs，"
+            "其功能已由 pydantic-settings 的 YAML 自定义路径机制替代"
+        )
+
+
+class TestDoclingNotInOptionalDeps:
+    """docling 已列入核心依赖，不应再出现在 optional-dependencies 中造成重复声明。"""
+
+    def test_docling_not_in_optional_deps(self):
+        """docling 不在 optional-dependencies 中（避免 DRY 违规与配置混淆）。"""
+        data = _load_pyproject()
+        opt_deps = data.get("project", {}).get("optional-dependencies", {})
+
+        assert "docling" not in opt_deps, (
+            "docling 出现在 optional-dependencies 中，但其已在 dependencies 中声明为核心依赖，"
+            "重复声明违反 DRY 原则并向用户传递混淆信号"
+        )
+
+
+class TestMypyConfigUnified:
+    """mypy 配置应统一在 pyproject.toml 中，mypy.ini 不应存在（避免配置分裂）。"""
+
+    def test_mypy_ini_not_present(self):
+        """mypy.ini 文件不存在；所有 mypy 配置已迁移至 pyproject.toml [tool.mypy]。"""
+        mypy_ini = PROJECT_ROOT / "mypy.ini"
+
+        assert not mypy_ini.exists(), (
+            "mypy.ini 仍存在，与 pyproject.toml [tool.mypy] 形成配置分裂（Split-Brain）。"
+            "请将 mypy.ini 中的第三方库 stub 配置迁移至 [[tool.mypy.overrides]] 并删除该文件。"
+        )
+
+    def test_mypy_overrides_present_in_pyproject(self):
+        """pyproject.toml 中包含 [[tool.mypy.overrides]] 块以声明第三方库 stub 豁免。"""
+        data = _load_pyproject()
+        overrides = data.get("tool", {}).get("mypy", {}).get("overrides", [])
+
+        assert len(overrides) > 0, (
+            "pyproject.toml [tool.mypy] 中缺少 [[tool.mypy.overrides]] 配置，"
+            "第三方库 ignore_missing_imports 声明应通过 overrides 管理"
+        )
