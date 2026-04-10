@@ -36,8 +36,40 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 # ---------------------------------------------------------------------------
-# Deep Merge 工具函数
+# 配置字典工具函数（展平 / 深度合并）
 # ---------------------------------------------------------------------------
+
+
+def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
+    """将嵌套 YAML 字典递归展平为以 ``_`` 连接的扁平键。
+
+    用于将层级化的 YAML 配置转换为与 :class:`NegentropyPerceivesSettings`
+    扁平字段名一一对应的字典。例如::
+
+        {"server": {"name": "x"}, "log_level": "INFO"}
+        → {"server_name": "x", "log_level": "INFO"}
+
+    **向后兼容**：若同一键名同时出现在顶层扁平键和嵌套展开结果中，
+    **扁平键优先**，确保旧版扁平 YAML 配置无缝兼容。
+
+    Args:
+        data: 可能包含嵌套子字典的配置字典
+        prefix: 递归调用时的键名前缀（内部使用）
+
+    Returns:
+        展平后的扁平字典
+    """
+    nested: Dict[str, Any] = {}
+    flat: Dict[str, Any] = {}
+    for key, value in data.items():
+        full_key = f"{prefix}{key}" if prefix else key
+        if isinstance(value, dict):
+            nested.update(_flatten_nested_yaml(value, prefix=f"{full_key}_"))
+        else:
+            flat[full_key] = value
+    # 扁平键覆盖嵌套展开的同名键（向后兼容保证）
+    nested.update(flat)
+    return nested
 
 
 def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -205,6 +237,8 @@ def _prepare_user_yaml(
 
     # 深度合并：用户配置仅覆盖差异项，非全文替换
     merged = deep_merge(bundled_dict, user_dict)
+    # 嵌套 YAML 展平为扁平键（兼容层级化与扁平配置格式）
+    merged = _flatten_nested_yaml(merged)
     _user_yaml_data = merged
     return merged
 

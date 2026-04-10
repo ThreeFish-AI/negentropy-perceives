@@ -15,6 +15,7 @@ from negentropy.perceives import __version__
 from negentropy.perceives.config import (
     NegentropyPerceivesSettings,
     _config_path_override,
+    _flatten_nested_yaml,
     _get_user_config_path,
     _load_bundled_yaml,
     _load_yaml_file,
@@ -482,28 +483,32 @@ class TestYamlConfigLoading:
     """测试 YAML 配置文件加载功能。"""
 
     def test_load_bundled_yaml_returns_dict(self):
-        """内置默认 YAML 可正常加载并返回字典。"""
+        """内置默认 YAML 可正常加载并返回嵌套字典。"""
         data = _load_bundled_yaml()
         assert isinstance(data, dict)
-        assert data["server_name"] == "negentropy-perceives"
+        assert data["server"]["name"] == "negentropy-perceives"
         assert "server_version" not in data  # 版本号不在 YAML 中
 
     def test_load_bundled_yaml_contains_all_sections(self):
-        """内置默认 YAML 包含所有主要配置分区。"""
+        """内置默认 YAML 包含所有主要嵌套分区。"""
         data = _load_bundled_yaml()
-        # 验证关键配置项存在
-        expected_keys = [
-            "transport_mode",
-            "http_port",
-            "concurrent_requests",
-            "log_level",
-            "accelerator_device",
-            "docling_enabled",
-            "mineru_enabled",
-            "marker_enabled",
+        # 验证嵌套顶层键存在
+        expected_top_keys = [
+            "server",
+            "transport",
+            "http",
+            "autothrottle",
+            "log",
+            "browser",
+            "llm",
+            "accelerator",
+            "docling",
+            "mineru",
+            "marker",
+            "concurrent_requests",  # 扁平键
         ]
-        for key in expected_keys:
-            assert key in data, f"Missing key: {key}"
+        for key in expected_top_keys:
+            assert key in data, f"Missing top-level key: {key}"
 
     def test_load_missing_yaml_returns_none(self):
         """不存在的 YAML 文件返回 None。"""
@@ -851,27 +856,31 @@ class TestBundledDefaultAsSource:
     """验证 config.default.yaml 是运行时默认值源。"""
 
     def test_bundled_default_loaded_at_startup(self):
-        """内置默认 YAML 可正常加载并包含所有主要配置项。"""
+        """内置默认 YAML 可正常加载并包含嵌套配置结构。"""
         data = _load_bundled_yaml()
         assert isinstance(data, dict)
-        assert data["server_name"] == "negentropy-perceives"
+        assert data["server"]["name"] == "negentropy-perceives"
         assert "server_version" not in data  # 版本号不在 YAML 中
 
     def test_bundled_default_contains_all_sections(self):
-        """内置默认 YAML 包含所有主要配置分区。"""
+        """内置默认 YAML 包含所有主要嵌套分区。"""
         data = _load_bundled_yaml()
-        expected_keys = [
-            "transport_mode",
-            "http_port",
-            "concurrent_requests",
-            "log_level",
-            "accelerator_device",
-            "docling_enabled",
-            "mineru_enabled",
-            "marker_enabled",
+        expected_top_keys = [
+            "server",
+            "transport",
+            "http",
+            "autothrottle",
+            "log",
+            "browser",
+            "llm",
+            "accelerator",
+            "docling",
+            "mineru",
+            "marker",
+            "concurrent_requests",  # 扁平键
         ]
-        for key in expected_keys:
-            assert key in data, f"Missing key: {key}"
+        for key in expected_top_keys:
+            assert key in data, f"Missing top-level key: {key}"
 
     def test_user_yaml_overrides_bundled_default(self, tmp_path):
         """用户 YAML 深度合并覆盖内置默认的差异项，未指定的保留内置默认。"""
@@ -928,3 +937,143 @@ class TestBundledDefaultAsSource:
         assert cfg.transport_mode == "http"          # 内置默认
         assert cfg.enable_caching is True           # 内置默认
         assert cfg.max_retries == 3                 # 内置默认
+
+    def test_bundled_yaml_keys_match_settings_fields(self):
+        """展平后的内置 YAML 键名与 Settings 字段名完全对应（黄金回归守护）。"""
+        data = _load_bundled_yaml()
+        flattened = _flatten_nested_yaml(data)
+        valid_fields = set(NegentropyPerceivesSettings.model_fields.keys())
+        unknown_keys = set(flattened.keys()) - valid_fields
+        assert unknown_keys == set(), (
+            f"展平后存在未对应 Settings 字段的键: {sorted(unknown_keys)}"
+        )
+
+
+# ============================================================
+# 嵌套 YAML 展平函数测试
+# ============================================================
+class TestFlattenNestedYaml:
+    """测试 _flatten_nested_yaml 工具函数。"""
+
+    def test_flat_dict_unchanged(self):
+        """纯扁平字典通过展平函数后不变。"""
+        data = {"server_name": "test", "http_port": 8081, "log_level": "INFO"}
+        result = _flatten_nested_yaml(data)
+        assert result == data
+
+    def test_nested_to_flat(self):
+        """嵌套字典正确展平为以 '_' 连接的扁平键。"""
+        data = {"server": {"name": "test"}, "http": {"host": "localhost", "port": 8081}}
+        result = _flatten_nested_yaml(data)
+        assert result["server_name"] == "test"
+        assert result["http_host"] == "localhost"
+        assert result["http_port"] == 8081
+
+    def test_mixed_flat_and_nested(self):
+        """混合扁平与嵌套键均正确处理。"""
+        data = {
+            "server": {"name": "test"},
+            "concurrent_requests": 16,
+            "log": {"level": "DEBUG"},
+        }
+        result = _flatten_nested_yaml(data)
+        assert result["server_name"] == "test"
+        assert result["concurrent_requests"] == 16
+        assert result["log_level"] == "DEBUG"
+
+    def test_flat_key_wins_over_nested(self):
+        """扁平键优先于嵌套展开产生的同名键（向后兼容核心保证）。"""
+        data = {
+            "http": {"port": 8081},  # 嵌套展开 → http_port=8081
+            "http_port": 9999,        # 顶层扁平键 → http_port=9999
+        }
+        result = _flatten_nested_yaml(data)
+        assert result["http_port"] == 9999  # 扁平键胜出
+
+    def test_deeply_nested_three_levels(self):
+        """三层嵌套结构正确展平。"""
+        data = {"level1": {"level2": {"level3": "value"}}}
+        result = _flatten_nested_yaml(data)
+        assert result["level1_level2_level3"] == "value"
+
+    def test_empty_dict_returns_empty(self):
+        """空字典展平后仍为空字典。"""
+        assert _flatten_nested_yaml({}) == {}
+
+    def test_none_values_preserved(self):
+        """None 值在展平过程中正确保留。"""
+        data = {"llm": {"api_key": None}, "proxy_url": None}
+        result = _flatten_nested_yaml(data)
+        assert result["llm_api_key"] is None
+        assert result["proxy_url"] is None
+
+    def test_boolean_values_preserved(self):
+        """布尔值在展平过程中类型不变。"""
+        data = {"docling": {"enabled": False, "ocr_enabled": True}}
+        result = _flatten_nested_yaml(data)
+        assert result["docling_enabled"] is False
+        assert result["docling_ocr_enabled"] is True
+
+
+# ============================================================
+# 嵌套 YAML 配置向后兼容集成测试
+# ============================================================
+class TestNestedYamlIntegration:
+    """测试嵌套 YAML 配置与 build_settings 的端到端集成。"""
+
+    def test_nested_yaml_loads_correctly(self, tmp_path):
+        """嵌套 YAML 格式通过 build_settings 正确加载为合法配置。"""
+        yaml_content = (
+            "transport:\n"
+            "  mode: stdio\n"
+            "http:\n"
+            "  port: 9999\n"
+            "log:\n"
+            "  level: DEBUG\n"
+        )
+        yaml_file = tmp_path / "nested.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.transport_mode == "stdio"
+        assert cfg.http_port == 9999
+        assert cfg.log_level == "DEBUG"
+        # 未覆盖的字段保持内置默认
+        assert cfg.server_name == "negentropy-perceives"
+        assert cfg.concurrent_requests == 16
+
+    def test_flat_yaml_backward_compatibility(self, tmp_path):
+        """旧版扁平 YAML 格式仍然完全正常工作。"""
+        yaml_content = (
+            "transport_mode: sse\n"
+            "http_port: 7777\n"
+            "log_level: WARNING\n"
+        )
+        yaml_file = tmp_path / "flat.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.transport_mode == "sse"
+        assert cfg.http_port == 7777
+        assert cfg.log_level == "WARNING"
+        assert cfg.server_name == "negentropy-perceives"
+
+    def test_mixed_nested_and_flat_yaml(self, tmp_path):
+        """混合嵌套与扁平格式的 YAML 正确处理，扁平键优先。"""
+        yaml_content = (
+            "http:\n"
+            "  host: 0.0.0.0\n"
+            "  port: 8081\n"
+            "http_port: 9999\n"  # 扁平键应优先于嵌套展开
+            "concurrent_requests: 32\n"
+            "llm:\n"
+            "  model: openai/gpt-4\n"
+        )
+        yaml_file = tmp_path / "mixed.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        cfg = build_settings(config_path=str(yaml_file))
+        assert cfg.http_host == "0.0.0.0"
+        assert cfg.http_port == 9999         # 扁平键胜出
+        assert cfg.concurrent_requests == 32
+        assert cfg.llm_model == "openai/gpt-4"
