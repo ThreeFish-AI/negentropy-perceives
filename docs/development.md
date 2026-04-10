@@ -206,14 +206,14 @@ tests/
 
 #### 模块覆盖矩阵
 
-| 模块分层 | 覆盖模块 | 单元测试 | 集成测试 |
-| -------- | -------- | -------- | -------- |
-| **MCP 工具层** | 14 个 `@app.tool()` 注册工具（`tools/` 子包） | ✅ | ✅ |
-| **核心引擎** | `scraper`、`anti_detection`、`markdown_converter` | ✅ | ✅ |
-| **数据层** | `schemas`、`models`、`config`、`form_handler` | ✅ | ✅ |
-| **PDF 处理** | `pdf/processor`、`pdf/enhanced` | ✅ | ✅ |
-| **基础设施** | `cache`、`rate_limiter`、`retry`、`error_handler`、`metrics`、`timing` | ✅ | — |
-| **工具类** | `browser_utils`、`url_utils`、`text_utils`、`config_validator` | ✅ | — |
+| 模块分层       | 覆盖模块                                                               | 单元测试 | 集成测试 |
+| -------------- | ---------------------------------------------------------------------- | -------- | -------- |
+| **MCP 工具层** | 14 个 `@app.tool()` 注册工具（`tools/` 子包）                          | ✅       | ✅       |
+| **核心引擎**   | `scraper`、`anti_detection`、`markdown_converter`                      | ✅       | ✅       |
+| **数据层**     | `schemas`、`models`、`config`、`form_handler`                          | ✅       | ✅       |
+| **PDF 处理**   | `pdf/processor`、`pdf/enhanced`                                        | ✅       | ✅       |
+| **基础设施**   | `cache`、`rate_limiter`、`retry`、`error_handler`、`metrics`、`timing` | ✅       | —        |
+| **工具类**     | `browser_utils`、`url_utils`、`text_utils`、`config_validator`         | ✅       | —        |
 
 ### 测试执行
 
@@ -268,17 +268,17 @@ uv run pytest -m "not slow"          # 排除慢速测试
 
 #### 全局 Fixture（[`tests/conftest.py`](../tests/conftest.py)）
 
-| Fixture | 作用域 | 说明 |
-| ------- | ------ | ---- |
-| `test_config` | function | 安全的 `NegentropyPerceivesSettings` 测试实例 |
-| `mock_web_scraper` | function | `WebScraper` Mock（`spec=` 类型约束） |
-| `mock_anti_detection_scraper` | function | `AntiDetectionScraper` Mock |
-| `mock_form_handler` | function | `FormHandler` Mock |
-| `sample_html` | function | 标准 HTML 测试内容（含表单、列表、链接） |
-| `sample_extraction_config` | function | CSS 选择器提取配置样本 |
-| `sample_scrape_result` | function | 完整爬取结果数据结构 |
-| `temp_cache_dir` | function | `tempfile.TemporaryDirectory` 临时缓存目录 |
-| `mock_http_response` | function | Mock HTTP 响应（200、text/html） |
+| Fixture                       | 作用域   | 说明                                          |
+| ----------------------------- | -------- | --------------------------------------------- |
+| `test_config`                 | function | 安全的 `NegentropyPerceivesSettings` 测试实例 |
+| `mock_web_scraper`            | function | `WebScraper` Mock（`spec=` 类型约束）         |
+| `mock_anti_detection_scraper` | function | `AntiDetectionScraper` Mock                   |
+| `mock_form_handler`           | function | `FormHandler` Mock                            |
+| `sample_html`                 | function | 标准 HTML 测试内容（含表单、列表、链接）      |
+| `sample_extraction_config`    | function | CSS 选择器提取配置样本                        |
+| `sample_scrape_result`        | function | 完整爬取结果数据结构                          |
+| `temp_cache_dir`              | function | `tempfile.TemporaryDirectory` 临时缓存目录    |
+| `mock_http_response`          | function | Mock HTTP 响应（200、text/html）              |
 
 #### 集成测试 Fixture（[`tests/integration/conftest.py`](../tests/integration/conftest.py)）
 
@@ -292,12 +292,12 @@ uv run pytest -m "not slow"          # 排除慢速测试
 
 ### 质量门禁
 
-| 指标 | 目标值 |
-| ---- | ------ |
-| 单元测试通过率 | > 99% |
-| 集成测试通过率 | > 95% |
-| 代码覆盖率 | > 95% |
-| 测试执行时间 | < 5 分钟 |
+| 指标           | 目标值   |
+| -------------- | -------- |
+| 单元测试通过率 | > 99%    |
+| 集成测试通过率 | > 95%    |
+| 代码覆盖率     | > 95%    |
+| 测试执行时间   | < 5 分钟 |
 
 覆盖率报告自动上传至 Codecov，具体配置参见 [`ci.yml`](../.github/workflows/ci.yml) 中的 `coverage` 步骤。CI/CD 工作流的完整文档参见 [CI/CD 与版本管理](#cicd-与版本管理)。
 
@@ -442,12 +442,12 @@ async def scrape_webpage(
 
 项目使用以下工具链保障代码质量，详见 [用户指南 > 代码质量检查](./user-guide.md#代码质量检查)：
 
-| 工具 | 用途 | 配置位置 |
-|------|------|---------|
-| Ruff | Lint + Format | `pyproject.toml` `[tool.ruff]` |
-| MyPy | 静态类型检查 | `pyproject.toml` `[tool.mypy]` |
-| Bandit | 安全扫描 | CI `security` job |
-| pip-audit | 依赖漏洞扫描 | CI `security` job |
+| 工具      | 用途          | 配置位置                       |
+| --------- | ------------- | ------------------------------ |
+| Ruff      | Lint + Format | `pyproject.toml` `[tool.ruff]` |
+| MyPy      | 静态类型检查  | `pyproject.toml` `[tool.mypy]` |
+| Bandit    | 安全扫描      | CI `security` job              |
+| pip-audit | 依赖漏洞扫描  | CI `security` job              |
 
 ### 测试编码规范
 
@@ -551,13 +551,13 @@ graph TD
 
 **触发条件：** 推送到 master/main/develop、PR → master/main/develop、`workflow_call`、手动触发
 
-| Job | 职责 |
-|-----|------|
-| `test` | 在 Ubuntu / Windows / macOS 上运行 pytest |
-| `lint` | ruff lint + format check + mypy 类型检查 |
+| Job        | 职责                                         |
+| ---------- | -------------------------------------------- |
+| `test`     | 在 Ubuntu / Windows / macOS 上运行 pytest    |
+| `lint`     | ruff lint + format check + mypy 类型检查     |
 | `security` | bandit 静态安全扫描 + pip-audit 依赖漏洞扫描 |
-| `build` | 构建 wheel 并验证安装 |
-| `coverage` | 覆盖率报告 + Codecov 上传 |
+| `build`    | 构建 wheel 并验证安装                        |
+| `coverage` | 覆盖率报告 + Codecov 上传                    |
 
 支持 `workflow_call`，可被 release.yml 作为验证步骤调用。
 
@@ -567,35 +567,36 @@ graph TD
 
 **整体流程：** Pre-Release（预发布）→ 人工审批 → Release（正式发布）
 
-| Job | 职责 | 阶段 | 触发条件 |
-|-----|------|------|----------|
-| `validate` | 调用 ci.yml 执行完整验证 | 共享 | 始终 |
-| `build` | 构建分发包 + twine check | 共享 | 始终 |
-| `pre-release-github` | 创建 prerelease Release + 上传 assets | Phase 1 | 标签推送 |
-| `testpypi` | 发布到 TestPyPI | Phase 1 | 标签推送 / 手动 |
-| `approval` | 人工审批门禁（Environment Protection Rules） | Gate | 标签推送（需 pre-release + testpypi 完成） |
-| `promote-release` | 将 prerelease 提升为正式 Release | Phase 2 | 审批通过 |
-| `pypi` | 发布到 PyPI（OIDC 可信发布） | Phase 2 | promote-release 成功 / release published（fallback） |
-| `changelog-update` | 发布后更新 CHANGELOG | Phase 2 | PyPI 发布成功 / release published（fallback） |
+| Job                  | 职责                                         | 阶段    | 触发条件                                             |
+| -------------------- | -------------------------------------------- | ------- | ---------------------------------------------------- |
+| `validate`           | 调用 ci.yml 执行完整验证                     | 共享    | 始终                                                 |
+| `build`              | 构建分发包 + twine check                     | 共享    | 始终                                                 |
+| `pre-release-github` | 创建 prerelease Release + 上传 assets        | Phase 1 | 标签推送                                             |
+| `testpypi`           | 发布到 TestPyPI                              | Phase 1 | 标签推送 / 手动                                      |
+| `approval`           | 人工审批门禁（Environment Protection Rules） | Gate    | 标签推送（需 pre-release + testpypi 完成）           |
+| `promote-release`    | 将 prerelease 提升为正式 Release             | Phase 2 | 审批通过                                             |
+| `pypi`               | 发布到 PyPI（OIDC 可信发布）                 | Phase 2 | promote-release 成功 / release published（fallback） |
+| `changelog-update`   | 发布后更新 CHANGELOG                         | Phase 2 | PyPI 发布成功 / release published（fallback）        |
 
 ### 依赖管理 — [`dependencies.yml`](../.github/workflows/dependencies.yml)
 
 **触发条件：** 每周一 9:00 UTC、手动触发
 
-| Job | 职责 |
-|-----|------|
+| Job      | 职责                                 |
+| -------- | ------------------------------------ |
 | `update` | `uv lock --upgrade` → 测试 → 创建 PR |
 
 ### 代码审查 — [`review.yml`](../.github/workflows/review.yml)
 
 **触发条件：** PR opened/synchronize/reopened、推送到 master/main、手动触发
 
-| Job | 职责 |
-|-----|------|
-| `pr-review` | 审查 PR 变更文件，发布 PR 评论 |
+| Job           | 职责                                               |
+| ------------- | -------------------------------------------------- |
+| `pr-review`   | 审查 PR 变更文件，发布 PR 评论                     |
 | `push-review` | 审查推送到主分支的变更，发布 commit 评论或告警摘要 |
 
 **实现方式：**
+
 - 基于官方 `anthropics/claude-code-action@v1`
 - PR 审查启用 `track_progress` 与 sticky comment
 - 审查异常采用"告警但不中断"策略，避免辅助流程将主交付链路打红
@@ -606,11 +607,11 @@ graph TD
 
 所有工作流共享的 Python 环境初始化 action。
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `python-version` | `3.13` | Python 版本 |
-| `install-dev` | `true` | 是否安装开发依赖 |
-| `enable-cache` | `true` | 是否启用 uv 缓存 |
+| 参数             | 默认值 | 说明             |
+| ---------------- | ------ | ---------------- |
+| `python-version` | `3.13` | Python 版本      |
+| `install-dev`    | `true` | 是否安装开发依赖 |
+| `enable-cache`   | `true` | 是否启用 uv 缓存 |
 
 ### 环境配置
 
@@ -618,10 +619,10 @@ graph TD
 
 **仓库密钥：**
 
-| Secret | 用途 | 必需 |
-|--------|------|------|
-| `ANTHROPIC_API_KEY` | 代码审查 | 仅 review.yml |
-| `ANTHROPIC_BASE_URL` | API 端点 | 可选 |
+| Secret               | 用途     | 必需          |
+| -------------------- | -------- | ------------- |
+| `ANTHROPIC_API_KEY`  | 代码审查 | 仅 review.yml |
+| `ANTHROPIC_BASE_URL` | API 端点 | 可选          |
 
 **关键 Action 版本：**
 
@@ -642,13 +643,14 @@ graph TD
 
 **GitHub 环境：**
 
-| Environment | 用途 | Protection Rules |
-|-------------|------|------------------|
-| `pypi` | 生产环境 PyPI 发布 | （可选配置 reviewers） |
-| `testpypi` | TestPyPI 预发布 | （可选） |
+| Environment      | 用途                               | Protection Rules                   |
+| ---------------- | ---------------------------------- | ---------------------------------- |
+| `pypi`           | 生产环境 PyPI 发布                 | （可选配置 reviewers）             |
+| `testpypi`       | TestPyPI 预发布                    | （可选）                           |
 | **`production`** | **Pre-Release → Release 审批门禁** | **Required Reviewers（必须配置）** |
 
 > **production 环境配置（首次发布前必须完成）：**
+>
 > 1. 进入仓库 Settings → Environments → New environment
 > 2. 名称填 `production`，URL 填 `https://pypi.org/p/negentropy-perceives`
 > 3. 在 Protection rules 中添加 Required reviewers（至少 1 位维护者）
@@ -696,6 +698,7 @@ uv run negentropy-perceives --help
 ```
 
 **审批前检查清单：**
+
 - [ ] Pre-Release 在 GitHub Releases 页面显示正确
 - [ ] 从 TestPyPI 安装并通过冒烟测试
 - [ ] Release notes 准确无误
@@ -826,26 +829,26 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 
 #### 测试常见问题速查
 
-| 问题类型 | 症状 | 解决方案 |
-| -------- | ---- | -------- |
+| 问题类型   | 症状                         | 解决方案                                                                                           |
+| ---------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
 | **浏览器** | Selenium/Playwright 测试失败 | `export NEGENTROPY_PERCEIVES_ENABLE_JAVASCRIPT=false` 或 `uv run pytest -k "not requires_browser"` |
-| **网络** | 请求超时或连接失败 | `uv run pytest -k "not requires_network"` 或 `uv run pytest --timeout=30` |
-| **异步** | 异步测试挂起或超时 | 确认 `asyncio_mode = "auto"` 已配置；加 `--timeout=60` |
-| **资源** | 内存不足或执行缓慢 | `uv run pytest -n 1` 串行执行；`rm -rf .pytest_cache/` 清理缓存 |
+| **网络**   | 请求超时或连接失败           | `uv run pytest -k "not requires_network"` 或 `uv run pytest --timeout=30`                          |
+| **异步**   | 异步测试挂起或超时           | 确认 `asyncio_mode = "auto"` 已配置；加 `--timeout=60`                                             |
+| **资源**   | 内存不足或执行缓慢           | `uv run pytest -n 1` 串行执行；`rm -rf .pytest_cache/` 清理缓存                                    |
 
 #### CI/CD 相关
 
-| 问题 | 解决方案 |
-|------|---------|
-| 构建失败 | 检查 CI 日志中的测试/lint 失败 |
-| 发布失败 | 验证 PyPI 可信发布配置与环境设置 |
-| 依赖 PR 创建失败 | 检查 Actions 权限（Settings → Actions → Workflow permissions） |
-| 代码审查未执行 | 验证 `ANTHROPIC_API_KEY` 已配置 |
-| 代码审查告警但未阻塞 | 查看 `review.yml` 中 Claude 步骤日志，通常是模型限流、超时或外部服务异常 |
-| 覆盖率下降 | 为新代码添加测试 |
-| 审批门禁报错 | 确认仓库 Settings → Environments → production 已创建并配置 Required Reviewers |
-| Pre-Release 后 workflow 停滞 | 正常行为——需在 GitHub Actions 页面手动审批 production 环境 |
-| PyPI 发布失败（Phase 2） | Pre-Release 已转为正式 Release；可手动 re-run pypi job 或联系 PyPI support |
+| 问题                         | 解决方案                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| 构建失败                     | 检查 CI 日志中的测试/lint 失败                                                |
+| 发布失败                     | 验证 PyPI 可信发布配置与环境设置                                              |
+| 依赖 PR 创建失败             | 检查 Actions 权限（Settings → Actions → Workflow permissions）                |
+| 代码审查未执行               | 验证 `ANTHROPIC_API_KEY` 已配置                                               |
+| 代码审查告警但未阻塞         | 查看 `review.yml` 中 Claude 步骤日志，通常是模型限流、超时或外部服务异常      |
+| 覆盖率下降                   | 为新代码添加测试                                                              |
+| 审批门禁报错                 | 确认仓库 Settings → Environments → production 已创建并配置 Required Reviewers |
+| Pre-Release 后 workflow 停滞 | 正常行为——需在 GitHub Actions 页面手动审批 production 环境                    |
+| PyPI 发布失败（Phase 2）     | Pre-Release 已转为正式 Release；可手动 re-run pypi job 或联系 PyPI support    |
 
 更多调试命令详见 [用户指南 > 开发者命令速查](./user-guide.md#开发者命令速查)。
 
@@ -867,8 +870,8 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 
 ## 相关文档
 
-| 文档 | 说明 |
-|------|------|
-| [架构设计](./framework.md) | 系统架构、设计模式、性能策略 |
-| [用户指南 > MCP Server 配置](./user-guide.md#mcp-server-配置) | 环境变量、配置模板 |
-| [用户指南](./user-guide.md) | 使用指南、API 参考与命令速查 |
+| 文档                                                          | 说明                         |
+| ------------------------------------------------------------- | ---------------------------- |
+| [架构设计](./framework.md)                                    | 系统架构、设计模式、性能策略 |
+| [用户指南 > MCP Server 配置](./user-guide.md#mcp-server-配置) | 环境变量、配置模板           |
+| [用户指南](./user-guide.md)                                   | 使用指南、API 参考与命令速查 |

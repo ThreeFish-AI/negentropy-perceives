@@ -81,20 +81,20 @@ graph LR
 
 ### 工具清单（12 个）
 
-| 模块 | 领域 | 工具 | 功能 |
-|------|------|------|------|
-| [`scraping.py`](../src/negentropy/perceives/tools/scraping.py) | 网页抓取 | `scrape_webpage` | 单页抓取 |
-| | | `scrape_multiple_webpages` | 批量并发抓取 |
-| [`stealth.py`](../src/negentropy/perceives/tools/stealth.py) | 反检测抓取 | `scrape_with_stealth` | 反检测隐身抓取 |
-| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取 | `extract_links` | 链接提取与分类 |
-| | | `get_page_info` | 页面元数据获取 |
-| | | `extract_structured_data` | 结构化数据提取 |
-| | | `check_robots_txt` | robots.txt 合规检查 |
-| [`form.py`](../src/negentropy/perceives/tools/form.py) | 表单自动化 | `fill_and_submit_form` | 表单自动填写与提交 |
-| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py) | 内容转换 | `convert_webpage_to_markdown` | 网页转 Markdown |
-| | | `batch_convert_webpages_to_markdown` | 批量网页转换 |
-| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py) | PDF 处理 | `convert_pdf_to_markdown` | PDF 转 Markdown |
-| | | `batch_convert_pdfs_to_markdown` | 批量 PDF 转 Markdown |
+| 模块                                                               | 领域       | 工具                                 | 功能                 |
+| ------------------------------------------------------------------ | ---------- | ------------------------------------ | -------------------- |
+| [`scraping.py`](../src/negentropy/perceives/tools/scraping.py)     | 网页抓取   | `scrape_webpage`                     | 单页抓取             |
+|                                                                    |            | `scrape_multiple_webpages`           | 批量并发抓取         |
+| [`stealth.py`](../src/negentropy/perceives/tools/stealth.py)       | 反检测抓取 | `scrape_with_stealth`                | 反检测隐身抓取       |
+| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取   | `extract_links`                      | 链接提取与分类       |
+|                                                                    |            | `get_page_info`                      | 页面元数据获取       |
+|                                                                    |            | `extract_structured_data`            | 结构化数据提取       |
+|                                                                    |            | `check_robots_txt`                   | robots.txt 合规检查  |
+| [`form.py`](../src/negentropy/perceives/tools/form.py)             | 表单自动化 | `fill_and_submit_form`               | 表单自动填写与提交   |
+| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py)     | 内容转换   | `convert_webpage_to_markdown`        | 网页转 Markdown      |
+|                                                                    |            | `batch_convert_webpages_to_markdown` | 批量网页转换         |
+| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py)               | PDF 处理   | `convert_pdf_to_markdown`            | PDF 转 Markdown      |
+|                                                                    |            | `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown |
 
 ### 响应模型层
 
@@ -110,11 +110,11 @@ graph LR
 
 [`src/negentropy/perceives/scraping/engine.py`](../src/negentropy/perceives/scraping/engine.py) 中的 `WebScraper` 作为门面类，持有两个活跃后端实例并通过方法分发进行路由：
 
-| 后端 | 类 | 技术栈 | 状态 |
-|------|------|--------|------|
-| HTTP | `HttpScraper` | requests + BeautifulSoup | ✅ 可用 |
-| Selenium | `SeleniumScraper` | Chrome WebDriver + headless | ✅ 可用 |
-| Scrapy | — | 路由至 HttpScraper | ⚠️ 已禁用（reactor 冲突） |
+| 后端     | 类                | 技术栈                      | 状态                      |
+| -------- | ----------------- | --------------------------- | ------------------------- |
+| HTTP     | `HttpScraper`     | requests + BeautifulSoup    | ✅ 可用                   |
+| Selenium | `SeleniumScraper` | Chrome WebDriver + headless | ✅ 可用                   |
+| Scrapy   | —                 | 路由至 HttpScraper          | ⚠️ 已禁用（reactor 冲突） |
 
 > 内容提取逻辑独立封装于 [`scraping/content_extraction/`](../src/negentropy/perceives/scraping/content_extraction/) 子目录，提供默认提取、BS4 配置提取和 Selenium 配置提取三种策略。
 
@@ -224,11 +224,11 @@ sequenceDiagram
 
 ### 核心组件
 
-| 组件 | 文件 | 实现方式 |
-|------|------|---------|
-| `RateLimiter` | [`infra/resilience.py`](../src/negentropy/perceives/infra/resilience.py) | 时间间隔限速器：记录上次请求时间，间隔不足时 `asyncio.sleep` |
-| `RetryManager` | [`infra/resilience.py`](../src/negentropy/perceives/infra/resilience.py) | 指数退避重试：`base_delay × backoff_factor^attempt`（全局配置：max=3, factor=2.0） |
-| `record_error()` | [`tools/_registry.py`](../src/negentropy/perceives/tools/_registry.py) | 字符串匹配分类器：按关键字匹配为 timeout/connection/not_found/forbidden/anti_bot/unknown |
+| 组件             | 文件                                                                     | 实现方式                                                                                 |
+| ---------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `RateLimiter`    | [`infra/resilience.py`](../src/negentropy/perceives/infra/resilience.py) | 时间间隔限速器：记录上次请求时间，间隔不足时 `asyncio.sleep`                             |
+| `RetryManager`   | [`infra/resilience.py`](../src/negentropy/perceives/infra/resilience.py) | 指数退避重试：`base_delay × backoff_factor^attempt`（全局配置：max=3, factor=2.0）       |
+| `record_error()` | [`tools/_registry.py`](../src/negentropy/perceives/tools/_registry.py)   | 字符串匹配分类器：按关键字匹配为 timeout/connection/not_found/forbidden/anti_bot/unknown |
 
 ### 缓存流程
 
@@ -272,27 +272,27 @@ graph TD
 
 ## 工具辅助类
 
-| 模块 | 类/函数 | 功能 |
-|------|---------|------|
-| [`infra/parsing.py`](../src/negentropy/perceives/infra/parsing.py) | `URLValidator` / `TextCleaner` | URL 校验/规范化、文本清理、邮箱/电话提取 |
-| [`config.py`](../src/negentropy/perceives/config.py) | `ConfigValidator` | 提取配置字典校验（已合并至 config 模块） |
-| [`scraping/browser.py`](../src/negentropy/perceives/scraping/browser.py) | `build_chrome_options()` | 共享 Chrome 选项构建器（User-Agent、headless、proxy 等统一配置） |
+| 模块                                                                     | 类/函数                        | 功能                                                             |
+| ------------------------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------- |
+| [`infra/parsing.py`](../src/negentropy/perceives/infra/parsing.py)       | `URLValidator` / `TextCleaner` | URL 校验/规范化、文本清理、邮箱/电话提取                         |
+| [`config.py`](../src/negentropy/perceives/config.py)                     | `ConfigValidator`              | 提取配置字典校验（已合并至 config 模块）                         |
+| [`scraping/browser.py`](../src/negentropy/perceives/scraping/browser.py) | `build_chrome_options()`       | 共享 Chrome 选项构建器（User-Agent、headless、proxy 等统一配置） |
 
 ## 公共导入路径
 
 各模块通过规范路径导入（旧路径仍可通过 shim 文件兼容使用）：
 
-| 用途 | 导入路径 |
-|------|---------|
-| 网页抓取 | `from negentropy.perceives.scraping import WebScraper` |
-| 反检测抓取 | `from negentropy.perceives.scraping import AntiDetectionScraper` |
-| 表单处理 | `from negentropy.perceives.scraping import FormHandler` |
-| 浏览器会话 | `from negentropy.perceives.scraping import selenium_session, playwright_session` |
-| PDF 处理 | `from negentropy.perceives.pdf.processor import PDFProcessor` |
-| 增强 PDF | `from negentropy.perceives.pdf.enhanced import EnhancedPDFProcessor` |
-| Markdown 转换 | `from negentropy.perceives.markdown.converter import MarkdownConverter` |
-| 基础设施 | `from negentropy.perceives.infra import rate_limiter, retry_manager` |
-| SDK 客户端 | `from negentropy.perceives.sdk import NegentropyPerceivesClient` |
+| 用途          | 导入路径                                                                         |
+| ------------- | -------------------------------------------------------------------------------- |
+| 网页抓取      | `from negentropy.perceives.scraping import WebScraper`                           |
+| 反检测抓取    | `from negentropy.perceives.scraping import AntiDetectionScraper`                 |
+| 表单处理      | `from negentropy.perceives.scraping import FormHandler`                          |
+| 浏览器会话    | `from negentropy.perceives.scraping import selenium_session, playwright_session` |
+| PDF 处理      | `from negentropy.perceives.pdf.processor import PDFProcessor`                    |
+| 增强 PDF      | `from negentropy.perceives.pdf.enhanced import EnhancedPDFProcessor`             |
+| Markdown 转换 | `from negentropy.perceives.markdown.converter import MarkdownConverter`          |
+| 基础设施      | `from negentropy.perceives.infra import rate_limiter, retry_manager`             |
+| SDK 客户端    | `from negentropy.perceives.sdk import NegentropyPerceivesClient`                 |
 
 ---
 
