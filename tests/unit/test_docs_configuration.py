@@ -1,6 +1,6 @@
-"""docs/configuration.md 文档完整性测试。
+"""配置环境变量一致性测试。
 
-configuration.md 已迁移为重定向页，环境变量一致性验证现针对 user-guide.md
+原 configuration.md 已删除，环境变量一致性验证现针对 user-guide.md
 （环境变量完整参考章节）。
 """
 
@@ -9,14 +9,8 @@ import re
 import pytest
 
 from negentropy.perceives.config import NegentropyPerceivesSettings
-from tests.unit.doc_contracts import (
-    assert_doc_exists,
-    assert_relative_links_resolve,
-    assert_required_frontmatter,
-    read_doc,
-)
+from tests.unit.doc_contracts import read_doc
 
-CONFIG_DOC = "configuration.md"
 # 环境变量表格已迁移至 user-guide.md
 ENV_VAR_DOC = "user-guide.md"
 
@@ -32,41 +26,9 @@ _SETTINGS_ENV_VARS: set[str] = {
 
 
 @pytest.fixture(scope="module")
-def doc_content() -> str:
-    """读取配置重定向页内容。"""
-    return read_doc(CONFIG_DOC)
-
-
-@pytest.fixture(scope="module")
 def env_var_doc_content() -> str:
     """读取环境变量参考所在的 user-guide.md 内容。"""
     return read_doc(ENV_VAR_DOC)
-
-
-class TestDocExists:
-    """文档文件存在性验证。"""
-
-    def test_configuration_doc_exists(self):
-        """configuration.md 文件存在（重定向页）。"""
-        assert_doc_exists(CONFIG_DOC)
-
-
-class TestFrontmatter:
-    """Frontmatter 完整性验证。"""
-
-    def test_has_frontmatter(self, doc_content: str):
-        """文档包含 YAML frontmatter。"""
-        assert_required_frontmatter(doc_content)
-
-
-class TestRelativeLinks:
-    """文档内相对路径链接有效性验证。"""
-
-    LINK_PATTERN = re.compile(r"\[.*?\]\((\.\.?/[^)#]+?)(?:#[^)]*)?\)")
-
-    def test_all_relative_links_resolve(self, doc_content: str):
-        """所有相对路径链接指向的文件存在。"""
-        assert_relative_links_resolve(doc_content)
 
 
 class TestEnvVarConsistency:
