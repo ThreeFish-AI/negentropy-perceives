@@ -2,73 +2,89 @@
 
 <p align="center">
   <strong>面向 AI Agent 的全天候感知引擎 · 商业级 MCP Server</strong><br/><br/>
-  把网页和 PDF 变成干净的 Markdown，直接投喂大模型。
+  把网页和 PDF 变成干净的 Markdown 原浆，直接投喂大模型。
 </p>
 
 <p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
-  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/badge/PyPI-0.2.0a1-orange" alt="PyPI" /></a>
+  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/pypi/v/negentropy-perceives?color=orange" alt="PyPI" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/stargazers"><img src="https://img.shields.io/github/stars/ThreeFish-AI/negentropy-perceives?style=social" alt="Stars" /></a>
   <img src="https://img.shields.io/badge/status-alpha-orange?logo=statuspage&logoColor=white" alt="Alpha" />
 </p>
 
 <p align="center">
-  <b>6 MCP Tools</b> · <b>Pipeline 编排</b> · <b>5 引擎 PDF</b> · <b>LLM 智能编排</b>
+  <b>6 MCP Tools</b> · <b>Pipeline 编排</b> · <b>5 引擎 PDF</b> · <b>LLM 智能评估</b>
 </p>
 
 ---
 
-## 为什么需要 Negentropy Perceives？
+## ✨ 为什么需要 Negentropy Perceives？
 
-- 🌐 **网页抓取远比想象中复杂** — SPA 动态渲染、反爬机制、广告干扰，AI Agent 面对的真实网页不是 `requests.get` 能搞定的。内置 4 种抓取策略（simple / selenium / stealth_selenium / stealth_playwright），12 Stage 流水线自动清洗，所见即所得。
-- 📑 **PDF 转换总是丢东西** — 表格错位、公式消失、多栏排版混乱，通用工具处理学术论文和财报常常翻车。5 大专业引擎按降级链自动选择，`smart` 模式甚至能让 LLM 裁决多引擎竞争结果，再难啃的 PDF 也不在话下。
-- 🧠 **Agent 需要干净数据，不是 HTML** — 大模型吃 Markdown，但市面上的方案要么只做网页、要么只做 PDF，还需要你自己拼装。6 个 MCP 工具统一覆盖链接提取、页面信息、网页/PDF 转 Markdown，批量处理开箱即用。
-- 🏗️ **生产环境不是 Demo** — 裸调 API 遇到限流就崩，遇到超时就挂。指数退避重试、速率限制、内存缓存、代理轮换——这些"脏活"我们已经帮你埋好了，你只管专注业务逻辑。
+当下的各种 AI 智能体项目中，信息感知这类“脏活累活”往往最容易随着时间推移变得极其丑陋且脆弱。基于**正交分解与熵减 (Negentropy)** 的底层工程哲学，我们替你彻底封锁了底层网络通信与格式解构的混沌，只向你的沙箱池中注入无可争议的确定性：
+
+- 🕵️ **Web Page 转 Markdown**: 面对重度渲染的 SPA 和严防死守的反扒策略？引擎内置 5 级防线穿透机制（从极速并发到无头隐身浏览器轮换）。所见即所得，各类瀑布流如同探囊取物。
+- 📑 **PDF 转 Markdown**: 不要再妥协于错位的表格或丢失的符号。独创“引擎打擂”机制，启动 `Smart` 模式即可召唤 LLM 亲自督战，裁判调度 Docling、PyMuPDF 等 7 大专业引擎并发解构，精准萃取 LaTeX 公式、复杂表格矩阵甚至深层版面特征。
+- 🦾 **积木重载**: 摒弃玩具级的粗暴封装。内核植入指数量级退避重试网络、多重限速熔断防御，以及激进的内存预载机制 (Cache)。依托全双工 `asyncio` 跑满机器单节点极限吞吐量。
+- 🔌 **原生 MCP 接驳**: 坚决拥抱标准 Model Context Protocol 协议规范。依托 HTTP / STDIO / SSE 标准传输模式，抛弃冗杂代码胶水，一键免密注入 Claude Desktop 或 Cursor 环境。
 
 ---
 
 ## 快速上手 (Quick Start)
 
-### 1. 安装
+### 1. 毫秒级装载
 
 ```bash
 # 推荐使用 uv（需要 Python 3.13+）
 uv add negentropy-perceives
 ```
 
-### 2. 启动
+### 2. 轰鸣启动引擎
 
 ```bash
-negentropy-perceives  # 默认监听 localhost:8081，HTTP 模式
+uv run negentropy-perceives  # 默认监听 localhost:8081，HTTP 模式
 ```
 
-### 3. 调用
+> 💡 **进阶锦囊**: 首次启动时，Negentropy Percevies 会自动生成的配置至 `~/.negentropy/perceives.config.yaml`。里面潜藏着各类高阶玩法的解锁机关。
+
+### 3. 见证感知力
 
 ```python
 import asyncio
 from negentropy.perceives.sdk import NegentropyPerceivesClient
 
-async def main():
+async def perceive_world():
     async with NegentropyPerceivesClient() as client:
         result = await client.convert_webpage_to_markdown(
-            url="https://example.com",
+            url="https://zh.wikipedia.org/wiki/熵",
         )
-        print(result.markdown_content[:200])
-        print(f"Word count: {result.word_count}")
+        print("====== 萃取原浆 ======")
+        print(result.markdown_content[:250], "......\n")
+        print(f"📊 从噪音中汲取纯净字词: {result.word_count}")
 
-asyncio.run(main())
+asyncio.run(perceive_world())
 ```
 
-> 首次启动时会自动生成配置文件至 `~/.negentropy/perceives.config.yaml`，支持环境变量、YAML、CLI 参数三种配置方式。
+### 4. 接入 MCP Client
+
+在 Claude Desktop 的 `claude_desktop_config.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "negentropy-perceives": {
+      "type": "http",
+      "url": "http://localhost:8081/mcp"
+    }
+  }
+}
+```
+
+> 支持三种传输模式：STDIO（本地开发）、HTTP（生产推荐）、SSE（兼容模式）。完整配置参见 [用户指南](./docs/user-guide.md#mcp-server-配置)。
 
 ---
 
 ## 核心能力
-
-> [!WARNING]
->
-> 请遵守目标网站的服务条款（TOS），合理控制请求频率。本工具仅供合法合规的数据获取场景使用。
 
 ### 工具总览
 
@@ -80,6 +96,10 @@ asyncio.run(main())
 | `batch_convert_webpages_to_markdown` | 批量网页转 Markdown                  | 知识库构建、站点归档 |
 | `convert_pdf_to_markdown`            | PDF 转 Markdown                      | 学术论文、财报处理   |
 | `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                 | 文档批量数字化       |
+
+> [!WARNING]
+>
+> 请遵守目标网站的服务条款（TOS），合理控制请求频率。本工具仅供合法合规的数据获取场景使用。
 
 ### Web 抓取策略
 
@@ -128,30 +148,6 @@ graph TD
 
 ---
 
-## 接入 MCP Client
-
-在 Claude Desktop 的 `claude_desktop_config.json` 中添加：
-
-```json
-{
-  "mcpServers": {
-    "negentropy-perceives": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--with",
-        "git+https://github.com/ThreeFish-AI/data-negentropy.perceives.git@v0.2.0a1",
-        "negentropy-perceives"
-      ]
-    }
-  }
-}
-```
-
-> 支持三种传输模式：STDIO（本地开发）、HTTP（生产推荐）、SSE（兼容模式）。完整配置参见 [用户指南](./docs/user-guide.md#mcp-server-配置)。
-
----
-
 ## 文档导航
 
 | 文档                              | 内容                                                  | 适合谁          |
@@ -165,10 +161,10 @@ graph TD
 
 ## 社区与贡献
 
-欢迎贡献代码或提出建议：
+万维网页与海量非结构化文本的另一面是噪音深渊，唯有持续的代码演进方可稳步前行。若您手中正握有将混沌拉回秩序的灵感，请务必不吝赐教：
 
-1. 贡献前请先阅读 [开发指南](./docs/development.md)
-2. 提交 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 或 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls)
+1. 动键盘前，烦请顺路翻转一页 [开发指南](./docs/development.md)
+2. 将您的重磅想法掷向 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 或直接提送带有改变战局力量的 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls)
 
 ---
 
