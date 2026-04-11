@@ -1,11 +1,12 @@
 <h1 align="center">Negentropy Perceives</h1>
 
 <p align="center">
-  <strong>商业级 MCP Server</strong> — 让 AI Agent 看懂任意网页和 PDF，不管对面是 SPA、反爬墙还是密密麻麻的学术公式。
+  <strong>面向下一代智能体的全天候感知引擎 (商业级 MCP Server)</strong><br/><br/>
+  赋予 AI Agent 真正的“千里眼 x 顺风耳”。无论是动态加载的 SPA 网页、严苛的反爬虫矩阵，还是排版极其复杂的学术论文 PDF，统统手到擒来，咀嚼转化成最纯净清爽的 Markdown 原浆，直接投喂大模型。
 </p>
 
 <p align="center">
-  <a href="#快速开始"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
   <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/pypi/v/negentropy-perceives?color=orange" alt="PyPI" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/stargazers"><img src="https://img.shields.io/github/stars/ThreeFish-AI/negentropy-perceives?style=social" alt="Stars" /></a>
@@ -13,382 +14,110 @@
 </p>
 
 <p align="center">
-  <b>6 个 MCP 工具</b> · <b>7 种 PDF 处理方法</b> · <b>Pipeline 编排</b> · <b>LLM Smart 模式</b>
+  <b>MCP 原生支持</b> · <b>10+ 级流水线降级处理</b> · <b>LLM 智能裁决模式</b>
 </p>
 
 <br />
 
-## ✨ 为什么选它？
+## ✨ 为什么它是您的首选？
 
-| 🧠 Smart 模式 | 🕵️ 隐身抓取 | ⚡ 引擎降级 |
-| :--- | :--- | :--- |
-| **LLM 当裁判，多引擎并行出卷，最优答案胜出**<br/>分析文档特征 → 并行调度 Docling / PyMuPDF → 择优融合。学术论文、财报、技术手册，一个 `method="smart"` 搞定。需安装 `litellm` 并配置 API Key。 | **5 种策略，对付一切网页**<br/>`auto` / `simple` / `selenium` / `stealth_selenium` / `stealth_playwright`。随机 UA 轮换 + 浏览器隐身，动态页面照抓不误。 | **Docling → MineRU → Marker → PyMuPDF → PyPDF**<br/>缺一个引擎？接着跑。缺五个？那可能需要检查一下安装了什么。GPU 加速（CUDA / MPS / XPU）可选开启。 |
+当下的各种 AI 智能体项目中，信息感知这类“脏活累活”往往最容易随着时间推移变得极其丑陋且脆弱。基于**正交分解与熵减 (Negentropy)** 的底层工程哲学，我们替你彻底封锁了底层网络通信与格式解构的混沌，只向你的沙箱池中注入无可争议的确定性：
 
-<details>
-<summary>📖 更多企业级特性</summary>
+- 🕵️ **Web 隐形刺客**: 面对重度渲染的 SPA 和严防死守的反扒策略？引擎内置 5 级防线穿透机制（从极速并发到无头隐身浏览器轮换）。所见即所得，各类瀑布流如同探囊取物。
+- 📑 **PDF 绞肉机**: 不要再妥协于错位的表格或丢失的符号。独创“引擎打擂”机制，启动 `Smart` 模式即可召唤 LLM 亲自督战，裁判调度 Docling、PyMuPDF 等 7 大专业引擎并发解构，精准萃取 LaTeX 公式、复杂表格矩阵甚至深层版面特征。
+- 🦾 **工业级重载底座**: 摒弃玩具级的粗暴封装。内核植入指数量级退避重试网络、多重限速熔断防御，以及激进的内存预载机制 (Cache)。依托全双工 `asyncio` 跑满机器单节点极限吞吐量。
+- 🔌 **零摩擦的 MCP 接驳**: 坚决拥抱标准 Model Context Protocol 协议规范。依托 HTTP / STDIO / SSE 标准传输模式，抛弃冗杂代码胶水，一键免密注入 Claude Desktop 或 Cursor 环境。
 
-- 🔀 **Pipeline 编排框架**: Stage 化处理管线，竞争/降级双模式，PDF 10 Stages + WebPage 9 Stages（含 4 个并行富元素子任务）
-- 🚀 **并发批处理**: `batch_convert_webpages_to_markdown` / `batch_convert_pdfs_to_markdown` 支持 asyncio 并发
-- 🖼️ **深度内容提取**: 表格识别、LaTeX 公式保持、图像 base64 嵌入
-- 🔄 **弹性保障**: 指数退避重试（×3）、频率限速（2 req/s）、内存缓存三层防护
-- ⚙️ **YAML 四层配置**: 内置默认 → 用户 YAML → 环境变量 → `-c` 显式（最高），优先级清晰
-- 🎯 **Python SDK**: `NegentropyPerceivesClient` 一行连接，类型化便捷方法开箱即用
-- 📡 **三种传输模式**: HTTP（默认） / STDIO / SSE，Claude Desktop 一键接入
+## 🚀 经典 Quick Start
 
-</details>
+只需不足百秒，开启通向干净数据的任意门。
 
-## 🚀 快速开始
-
-### 安装
+### 1. 毫秒级装载
 
 ```bash
+# 推荐使用极速丝滑的 uv 部署环境（提示: 需要 Python 3.13+）
 uv add negentropy-perceives
 ```
 
-> 需要 [uv](https://docs.astral.sh/uv/) 包管理器和 **Python >= 3.13**。
+### 2. 轰鸣启动引擎
 
-### Hello World
+一键挂载，开箱即用：
+
+```bash
+negentropy-perceives  # 服务已就绪：正默认监听 localhost:8081 提供 MCP-HTTP 通道
+```
+
+### 3. 一行代码见证感知力
+
+通过自带的高阶 SDK 体验何为“瞬间感知”：
 
 ```python
 import asyncio
 from negentropy.perceives.sdk import NegentropyPerceivesClient
 
-async def main():
-    async with NegentropyPerceivesClient() as client:   # 默认连接 localhost:8081/mcp
+async def perceive_world():
+    # 瞬间链接本地引擎底座
+    async with NegentropyPerceivesClient() as client:
         result = await client.convert_webpage_to_markdown(
-            url="https://example.com",
+            url="https://zh.wikipedia.org/wiki/熵",
         )
-        print(result.markdown_content)     # 干净的 Markdown 正文
-        print(f"字数: {result.word_count}")
+        print("====== 萃取原浆 ======")
+        print(result.markdown_content[:250], "......\n")
+        print(f"📊 从噪音中汲取纯净字词: {result.word_count}")
 
-asyncio.run(main())
+asyncio.run(perceive_world())
 ```
 
-> 首次运行会自动生成用户配置至 `~/.negentropy/perceives.config.yaml`。
-
-### 启动 MCP Server
-
-```bash
-negentropy-perceives               # 默认 HTTP 模式（localhost:8081/mcp）
-negentropy-perceives --init-config # 生成用户配置模板至 ~/.negentropy/
-negentropy-perceives -c my.yaml    # 使用自定义配置文件
-```
-
-<details>
-<summary>⌨️ 更多示例：PDF 转换 · 链接提取 · 批量转换</summary>
-
-#### PDF 转 Markdown
-
-```python
-async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool("convert_pdf_to_markdown", {
-        "pdf_source": "report.pdf",
-        "method": "auto",           # auto / pymupdf / pypdf / docling / mineru / marker / smart
-        "page_range": [0, 9],       # 可选：[start, end]，从 0 开始
-        "extract_tables": True,
-        "extract_formulas": True,
-    })
-```
-
-#### 链接提取
+> 💡 **进阶锦囊**: 首次深呼吸运转时，底座会自动生成专属的配置要塞至 `~/.negentropy/perceives.config.yaml`。里面潜藏着各类高端玩法的解锁机关。
 
-```python
-async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool("extract_links", {
-        "url": "https://docs.example.com",
-        "internal_only": True,       # 仅提取站内链接
-    })
-    # result.links — 链接列表
-    # result.total_links / result.internal_links_count / result.external_links_count
-```
-
-#### 批量网页转 Markdown
-
-```python
-async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool("batch_convert_webpages_to_markdown", {
-        "urls": [
-            "https://blog.example.com/post1",
-            "https://blog.example.com/post2",
-        ],
-        "method": "auto",
-        "extract_main_content": True,
-    })
-```
+## 🛠️ 决胜数据黑洞的军火库
 
-完整 API 参考与高级用法详见 [用户指南](docs/user-guide.md)。
-
-</details>
+我们拒绝拿只能跑通 Demo 的短命积木忽悠人。底座出场即标配 6 把锋利无匹的“手术刀”，由底层并发核心强劲驱动，专治乱象频发的数字深渊：
 
-## 🛠️ 工具全景（6 个 MCP 工具）
+**🌐 Web 空间的降维打击**
 
-### 🔍 数据提取（2 工具）
+- `convert_webpage_to_markdown`：**单兵网页蒸馏釜**。面对重度渲染的 SPA 应用或严密反爬风控？它能从容切入，绝情剥离成吨的广告与内容侧边栏，完美定格语义树，甚至能将图片提纯为 Base64 无损嵌于结果内。所见即所得。
+- `batch_convert_webpages_to_markdown`：**超线程洗稿集群**。单线作战太磨叽？直接向它投喂一份庞大的 URL 阵列。异步引擎拉满配置，万千冗杂的动态页面眨眼间即可并行碾碎、蒸馏为清脆的顶级大模型语料。
 
-| 工具 | 一句话 | 核心能力 |
-| :--- | :--- | :--- |
-| `extract_links` | 链接提取 | 域名过滤、内外链分类、白/黑名单过滤 |
-| `get_page_info` | 页面侦察 | 标题、状态码、描述、Content-Type、Content-Length 一键获取 |
+**📄 硬核 PDF 的叹息之墙**
 
-### 🌐 Markdown 转换（2 工具）
-
-| 工具 | 一句话 | 核心能力 |
-| :--- | :--- | :--- |
-| `convert_webpage_to_markdown` | **页面 → MD** | 5 种抓取策略 + 主内容提取 + 格式化选项 + 图片嵌入 + Pipeline 编排 |
-| `batch_convert_webpages_to_markdown` | 批量转 MD | 多 URL 并发转换 + 统计摘要 |
-
-### 📄 PDF 处理（2 工具）
-
-| 工具 | 一句话 | 核心能力 |
-| :--- | :--- | :--- |
-| `convert_pdf_to_markdown` | **PDF → MD** | 7 种提取方法 + 图像/表格/公式提取 + Smart 模式 + Pipeline 编排 |
-| `batch_convert_pdfs_to_markdown` | 批量 PDF | 多文档并发 + 统计摘要（URL/本地路径混用） |
-
-<details>
-<summary>🔧 PDF 处理方法与依赖说明</summary>
-
-```
-7 种 method 可选值：
-  auto          → 自动选择最佳引擎（优先 Pipeline 编排）
-  smart         → LLM 三阶段编排（分析→执行→综合），需 [llm] 依赖
-  docling       → AI 布局分析 + TableFormer 表格（核心依赖）
-  mineru        → 深度学习文档结构分析（可选，Apache 2.0）
-  marker        → 基于 Nougat 模型（可选，GPL-3.0）
-  pymupdf       → 快速纯文本提取（核心依赖）
-  pypdf         → 基础文本兜底（核心依赖）
-
-降级链（method=auto 时自动触发）：
-  Docling → MineRU → Marker → PyMuPDF → PyPDF
-```
-
-**依赖安装说明：**
-
-| 引擎 | 依赖类型 | 安装命令 |
-| :--- | :--- | :--- |
-| **Docling** | 核心依赖（随包安装） | 已内置，需在配置中 `docling.enabled: true` 启用 |
-| **PyMuPDF / PyPDF** | 核心依赖（随包安装） | 已内置，开箱即用 |
-| **MineRU** | 可选 | `uv add "negentropy-perceives[mineru]"` |
-| **Marker** | 可选（GPL-3.0） | `uv add "negentropy-perceives[marker]"` |
-| **Smart 模式 (LLM)** | 可选 | `uv add "negentropy-perceives[llm]"` + 配置 API Key |
-| **全部引擎** | — | `uv add "negentropy-perceives[all-engines,llm]"` |
-
-> 未安装的可选引擎会通过 `is_available()` 自动跳过，不影响基础功能运行。
-
-**Smart 模式** (`method="smart"`): LLM 三阶段编排 — 分析文档特征 → 并行调度多引擎 → 择优融合输出。默认使用智谱 GLM-5 (`zhipu/glm-5-plus-250414`)。未配置 API Key 时自动降级到 Docling + PyMuPDF 双引擎。
-
-</details>
-
-### 🔄 传输模式
-
-| 模式 | 适用场景 | 推荐度 |
-| :--- | :--- | :---: |
-| **HTTP**（默认） | 生产环境、远程访问、多客户端 | ⭐⭐⭐⭐⭐ |
-| **STDIO** | 本地开发、Claude Desktop | ⭐⭐⭐ |
-| **SSE** | 遗留系统兼容 | ⭐⭐ |
-
-> 详细配置（host / port / CORS / 认证）参见 [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置)。
-
-## ⚙️ 配置与集成
-
-### YAML 四层优先级（低 → 高）
-
-```
-内置默认 (config.default.yaml)
-  └→ 用户配置 (~/.negentropy/perceives.config.yaml)
-       └→ 环境变量 (NEGENTROPY_PERCEIVES_*)
-            └→ CLI 显式 (negentropy-perceives -c my.yaml)  ← 最高优先级
-```
-
-生成用户配置模板：
-
-```bash
-negentropy-perceives --init-config
-```
-
-### Smart 模式启用
-
-```bash
-# 安装 LLM 依赖
-uv add "negentropy-perceives[llm]"
-```
-
-在 `~/.negentropy/perceives.config.yaml` 中配置：
-
-```yaml
-llm:
-  api_key: "your-api-key"
-  model: zhipu/glm-5-plus-250414  # 默认模型：智谱 GLM-5
-```
-
-> 未配置 API Key 时，`method="smart"` 自动降级到 Docling + PyMuPDF 双引擎处理。
-
-### Claude Desktop 集成（STDIO 模式）
-
-```json
-{
-  "mcpServers": {
-    "negentropy-perceives": {
-      "command": "negentropy-perceives",
-      "env": {
-        "NEGENTROPY_PERCEIVES_TRANSPORT__MODE": "stdio"
-      }
-    }
-  }
-}
-```
-
-## 🏗️ 架构一览
-
-```mermaid
-graph TD
-    subgraph CLIENT["客户端层"]
-        A1["Claude Desktop / Cursor<br/>AI Agent"]
-        A2["NegentropyPerceivesClient<br/>Python SDK"]
-    end
-
-    subgraph TOOLS["MCP 工具层 · 6 Tools · @app.tool()"]
-        T1["extract_links<br/>链接提取"]
-        T2["get_page_info<br/>页面元数据"]
-        T3["convert_webpage_to_markdown<br/>网页 → Markdown"]
-        T4["batch_convert_webpages<br/>批量网页 → Markdown"]
-        T5["convert_pdf_to_markdown<br/>PDF → Markdown"]
-        T6["batch_convert_pdfs<br/>批量 PDF → Markdown"]
-    end
-
-    subgraph PIPELINE["Pipeline 编排层 · method=auto 触发"]
-        PW["WebPage Pipeline<br/>9 Stages · 降级+竞争双模式<br/>合规→获取→反检测→主内容→清洗→转换→格式化"]
-        PP["PDF Pipeline<br/>10 Stages · 降级+竞争双模式<br/>预处理→快扫→布局→文本→表格→公式→图片→代码→组装"]
-    end
-
-    subgraph ENGINES["处理引擎层"]
-        E1["WebScraper<br/>simple / selenium / stealth_selenium / stealth_playwright"]
-        E2["Docling · MineRU · Marker<br/>PyMuPDF · PyPDF"]
-        E3["LLM Smart<br/>zhipu/glm-5-plus · litellm"]
-        E4["MarkdownConverter<br/>markitdown + 格式化管线"]
-    end
-
-    subgraph INFRA["基础设施层"]
-        I1["RateLimiter · 2 req/s"]
-        I2["RetryManager · 指数退避 ×3"]
-        I3["Config · 4 层优先级 · YAML"]
-    end
-
-    A1 & A2 -->|"MCP over HTTP/STDIO/SSE"| TOOLS
-    T3 & T4 -->|"method=auto → Pipeline"| PW
-    T3 & T4 -->|"method=simple/selenium/... → 传统路径"| E1
-    T5 & T6 -->|"method=auto → Pipeline"| PP
-    T5 & T6 -->|"method=docling/smart/... → 传统路径"| E2 & E3
-    T1 & T2 --> E1
-    PW --> E1 & E4
-    PP --> E2 & E3
-    E1 & E2 & E3 & E4 --> INFRA
-
-    style CLIENT fill:#1e1b4b,stroke:#6366f1,color:#e0e7ff
-    style TOOLS fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
-    style PIPELINE fill:#78350f,stroke:#f59e0b,color:#fef3c7
-    style ENGINES fill:#14532d,stroke:#22c55e,color:#dcfce7
-    style INFRA fill:#134e4a,stroke:#14b8a6,color:#ccfbf1
-```
-
-**典型工具协同场景：**
-
-| 场景 | 工具链路 |
-| :--- | :--- |
-| 网站内容归档 | `get_page_info` → `extract_links` → `batch_convert_webpages_to_markdown` |
-| 学术论文处理 | `convert_pdf_to_markdown`（method=smart）→ Knowledge Base |
-| 快速文档提取 | `extract_links`（内链列表）→ `batch_convert_webpages_to_markdown`（并发转换） |
-| 多格式批量处理 | `batch_convert_pdfs_to_markdown` + `batch_convert_webpages_to_markdown` 并行 |
-
-> 完整架构设计（5 层分解、模块依赖、数据流）详见 [架构设计](docs/framework.md)。
-
-## 🎯 典型场景
-
-<details>
-<summary>📰 网站内容归档</summary>
-
-提取站内所有链接 → 并发转换为 Markdown 归档：
-
-```python
-async with NegentropyPerceivesClient() as client:
-    # 1. 获取站内所有链接
-    links_result = await client.call_tool("extract_links", {
-        "url": "https://docs.example.com",
-        "internal_only": True,
-    })
-
-    urls = [link["url"] for link in links_result["links"]]
-
-    # 2. 批量转换为 Markdown
-    await client.call_tool("batch_convert_webpages_to_markdown", {
-        "urls": urls,
-        "extract_main_content": True,
-    })
-```
-
-</details>
-
-<details>
-<summary>🎓 学术论文智能处理</summary>
-
-利用 Smart 模式自动处理含公式、表格、代码、图像的复杂学术 PDF：
-
-```python
-async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool("convert_pdf_to_markdown", {
-        "pdf_source": "arxiv_paper.pdf",
-        "method": "smart",              # LLM 编排多引擎，择优融合
-        "extract_formulas": True,
-        "extract_tables": True,
-    })
-    # 返回包含 LaTeX 公式、Markdown 表格、代码块的高质量输出
-```
-
-</details>
-
-<details>
-<summary>📄 批量 PDF 处理</summary>
-
-混合 URL 和本地路径，并发批量转换：
-
-```python
-async with NegentropyPerceivesClient() as client:
-    result = await client.call_tool("batch_convert_pdfs_to_markdown", {
-        "pdf_sources": [
-            "https://example.com/report2024.pdf",
-            "/local/archive/manual.pdf",
-            "https://arxiv.org/pdf/2401.00001",
-        ],
-        "method": "auto",
-        "extract_images": True,
-        "extract_tables": True,
-        "extract_formulas": True,
-    })
-    # 返回每个文档的转换结果和统计摘要
-```
-
-</details>
-
-## 📚 文档导航
-
-| 文档 | 目标读者 | 内容概要 |
-| :--- | :--- | :--- |
-| [用户指南](docs/user-guide.md) | 所有用户 | Quick Start、6 工具详解、API 参考、FAQ |
-| [架构设计](docs/framework.md) | 架构师 / 贡献者 | 5 层架构、Pipeline 框架、引擎设计 |
-| [开发指南](docs/development.md) | 开发者 / QA | 环境搭建、测试体系、编码规范、发布流程 |
-| [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置) | 运维 / 开发者 | YAML 四层配置、环境变量速查 |
-| [版本里程](CHANGELOG.md) | 所有用户 | 版本历史与变更记录 |
-
-## 🤝 参与贡献
-
-欢迎通过 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 反馈问题，或提交 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls) 改进项目。
-
-贡献前请阅读 [开发指南](docs/development.md) 了解代码规范与提交流程。
-
-## 📄 许可证
-
-[MIT](LICENSE) © 2025 [ThreeFish-AI](https://github.com/ThreeFish-AI)
-
----
-
-> ⚠️ 当前版本 **0.2.0a1（Alpha）**，API 可能随时迭代，生产环境请锁定版本。
+- `convert_pdf_to_markdown`：**骨灰级解构台**。还在因财报里的跨页畸形表格或学术顶会里的高密 LaTeX 公式而抓狂？抛给它！启动专属的 `smart 模式` 召唤多核心引擎竞技互搏，无损还原高维的图文混排。再难啃的 PDF 也给你嚼碎成最丝滑的文本流。
+- `batch_convert_pdfs_to_markdown`：**全天候重装推土机**。彻底无视本地文件系统与远端云地址边界。不用管报表堆积如山，一口气推入并发洗稿队列，让你的专属 Knowledge Base 体验一把“暴风吸入”的爽快感。
+
+**🔦 前沿阵地的情报嗅探**
+
+- `extract_links`：**全域链路雷达**。它是大模型尝试“涌现与全自动漫游”的开路先锋。抛入一个靶点，瞬间摸出整站的爬行拓扑图，并支持防波堤级别的隐秘内外链精确剔除。
+- `get_page_info`：**超频状态谍报兵**。在决定倾听长文前，为何不在毫秒内先掠取一发目标网站的状态码、载荷体量与隐性 Meta 标识？它专为你那充满好奇心的 Agent 提供绝佳的潜入行动预判依据。
+
+## 🗺️ 架构剖析与高阶子路径 (模块引路)
+
+在“功能正交分层”的信条下，我们备齐了 4 条截然不同的探险子径。阁下打算向何处发测？
+
+| 探索域                      | 您将在此挖掘的宝藏...                                                                                                                   | 传送门                                     |
+| :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------- |
+| **📘 用户与作战指南**       | 6 大硬核 MCP 施法工具的终极参数图表、各类批处理实战组合拳、无缝接入 Claude Desktop 的快捷通道，以及 YAML 重金四层防线的优先级解构。     | `👉 `[前往用户指南](./docs/user-guide.md)  |
+| **🏗️ 解析引擎的全景蓝图**   | 建立在有向无环图 (DAG) 上的 5 级沉降深网管线、引擎角斗比赛与融合判分的底层逻辑、主打死磕 OOM (Out Of Memory) 护栏的防御性编码设计手记。 | `👉 `[纵览架构设计](./docs/framework.md)   |
+| **🛠️ 二次魔改与共创者契约** | TDD 本地极速炼丹环境的重生法则、苛求完美（但能大幅降低心智负担）的 PR 准入红线准则。                                                    | `👉 `[深入开发指引](./docs/development.md) |
+| **📜 脱胎换骨的里程史书**   | 回首每个 Alpha / Beta 里我们铲除了多少荒唐 Bug，又酝酿着哪些即将颠覆传统的野望。                                                        | `👉 `[查阅 CHANGELOG](CHANGELOG.md)        |
+
+## 🤝 社区联合作战网络
+
+万维网页与海量非结构化文本的另一面是噪音深渊，唯有持续的代码演进方可稳步前行。
+若您手中正握有将混沌拉回秩序的灵感，请务必不吝赐教：
+
+1. 动键盘前，烦请顺路翻转一页 [开发指南](./docs/development.md) 校对贡献坐标系。
+2. 将您的重磅想法掷向 [Issue 板](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 或是直接提送带有改变战局力量的 [PR 通道](https://github.com/ThreeFish-AI/negentropy-perceives/pulls)。
+
+## ⚖️ 知识产权与数字边界共识
+
+全套底层源码依照最通透开放的 [MIT](LICENSE) 先锋许可协议颁发，© 2026 [ThreeFish-AI](https://github.com/ThreeFish-AI) 全权解释所有架构逻辑。
+
+> [!WARNING]
 >
-> ⚠️ **伦理提醒**: 技术本身是中立的，但使用者的选择定义了它的价值。请负责任地使用本工具——尊重目标网站的服务条款、知识产权，合理控制请求频率。
+> **写在执行回车键前**
+>
+> 技术力是一种到达真理的途径，绝非盲操的借口。我们交付这柄吹毛断发的利刃，但深切反对无节制、掠夺式的野蛮数据收割。
+>
+> 敬请以无上敬畏之心，时刻遵守并爱护目标服务器与服务方 (TOS) 的运作边界。在释放大规模自动抓取的咒语前，主动系牢温和请求频率的缰绳。
+>
+> 工具纵是冰冷钢铁，但驱动其意志的人类及智能体，当为文明本身。
