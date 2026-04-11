@@ -2,22 +2,20 @@
 id: development
 sidebar_position: 2
 title: Development
-description: 开发环境配置、项目结构、测试体系与执行、MCP 工具开发规范、CI/CD 工作流与编码最佳实践
+description: 开发环境配置、项目结构、测试体系、MCP 工具开发规范、Pipeline 编排框架、CI/CD 工作流与编码最佳实践
 last_update:
   author: Aurelius
-  date: 2026-04-07
+  date: 2026-04-11
 tags:
   - Development
   - Guide
   - Best Practices
   - Workflow
   - CI/CD
-  - GitHub Actions
   - Testing
-  - Quality Assurance
 ---
 
-Negentropy Perceives 采用现代化的 Python 开发工具链，基于 [uv](https://docs.astral.sh/uv/) 包管理器构建高效的开发环境。本文档提供开发环境配置、项目结构总览、测试体系与执行、MCP 工具开发规范、CI/CD 工作流与编码最佳实践。
+Negentropy Perceives 采用现代化 Python 开发工具链，基于 [uv](https://docs.astral.sh/uv/) 包管理器构建高效的开发环境。本文档提供开发环境配置、项目结构总览、测试体系、MCP 工具开发规范、Pipeline 编排框架、CI/CD 工作流与编码最佳实践。
 
 ## 环境配置
 
@@ -55,7 +53,6 @@ uv sync
 # 安装开发依赖
 uv sync --group dev
 
-# 设置环境变量
 # 初始化用户配置（首次运行时自动生成，也可手动执行）
 uv run negentropy-perceives --init-config
 
@@ -79,50 +76,78 @@ negentropy-perceives/
 │   │   └── app.py               # MCP 服务器入口（main()）
 │   │
 │   ├── scraping/                # 网页抓取引擎子包
-│   │   ├── engine.py            # 核心抓取引擎（WebScraper）
+│   │   ├── engine.py            # 核心抓取引擎（WebScraper, HttpScraper, SeleniumScraper）
 │   │   ├── anti_detection.py    # 反检测隐身抓取（AntiDetectionScraper）
-│   │   ├── browser.py           # 浏览器工具
-│   │   ├── form_handler.py      # 表单处理
+│   │   ├── browser.py           # 浏览器工具（selenium_session, playwright_session, stealth_*, chrome_options）
+│   │   ├── form_handler.py      # 表单处理（FormHandler）
 │   │   └── content_extraction/  # 内容提取（selectors.py, pages.py）
 │   │
-│   ├── pdf/                     # PDF 处理引擎子包（5 级降级链）
+│   ├── pdf/                     # PDF 处理引擎子包
 │   │   ├── processor.py         # 核心 PDF 处理器（多引擎调度）
 │   │   ├── enhanced.py          # 增强 PDF 处理器（PyMuPDF）
 │   │   ├── docling_engine.py    # Docling 引擎（GPU 加速）
-│   │   ├── marker_engine.py     # Marker 引擎
-│   │   ├── mineru_engine.py     # MineRU 引擎
-│   │   ├── llm_orchestrator.py  # LLM 编排器
-│   │   ├── llm_client.py        # LLM 客户端
+│   │   ├── marker_engine.py     # Marker 引擎（Nougat 模型，学术文档）
+│   │   ├── mineru_engine.py     # MineRU 引擎（深度学习文档结构分析）
+│   │   ├── llm_orchestrator.py  # LLM 编排器（smart 模式多引擎融合）
+│   │   ├── llm_client.py        # LLM 客户端（LiteLLM）
 │   │   ├── math_formula.py      # 数学公式处理
-│   │   ├── device_config.py     # 设备配置
-│   │   ├── hardware.py          # 硬件检测
+│   │   ├── device_config.py     # 设备配置（GPU/CPU 调度）
+│   │   ├── hardware.py          # 硬件检测（MPS/CUDA/XPU）
 │   │   ├── figure_text_filter.py # 图文过滤
-│   │   ├── _imports.py / _sources.py  # 内部导入管理
+│   │   ├── _imports.py          # 内部导入管理
+│   │   └── _sources.py          # 内部数据源管理
 │   │
 │   ├── markdown/                # Markdown 转换子包
 │   │   ├── converter.py         # Markdown 转换器核心
-│   │   ├── formatter.py         # 格式化器
+│   │   ├── formatter.py         # 格式化器（数学公式保护）
 │   │   ├── html_preprocessor.py # HTML 预处理
 │   │   ├── algorithm_detector.py # 算法检测
 │   │   ├── formula_placeholder_resolver.py # 公式占位符解析
 │   │   ├── image_embedder.py    # 图片嵌入
 │   │   └── image_ref_normalizer.py # 图片引用规范化
 │   │
-│   ├── tools/                   # MCP 工具注册子包（12 个 tool）
+│   ├── pipeline/                # Pipeline 编排框架（详见 Pipeline 编排框架 章节）
+│   │   ├── base.py              # Stage / StageResult / StageTool 基类
+│   │   ├── competitive.py       # CompetitiveStage（多工具并行竞争）
+│   │   ├── orchestrator.py      # PipelineOrchestrator（Stage 串联编排）
+│   │   ├── scheduler.py         # StageScheduler（降级 / 竞争模式调度）
+│   │   ├── registry.py          # 工具注册与发现（register_tool / get_tool）
+│   │   ├── models.py            # Pipeline 数据模型（PDF / WebPage 通用）
+│   │   ├── convenience.py       # 高级便捷 API（run_pdf_pipeline / run_webpage_pipeline）
+│   │   ├── pdf_stages/          # PDF Pipeline Stages（10 个 Stage）
+│   │   │   ├── preprocessing.py   # 预处理（PDF 加载 + 文档特征检测）
+│   │   │   ├── layout_analysis.py # 版面分析与阅读顺序
+│   │   │   ├── text_extraction.py # 文本提取
+│   │   │   ├── table_extraction.py # 表格提取
+│   │   │   ├── formula_extraction.py # 数学公式提取
+│   │   │   ├── image_extraction.py  # 图片提取
+│   │   │   ├── code_detection.py    # 代码块检测
+│   │   │   ├── asset_bundling.py    # 资源打包
+│   │   │   ├── assembly.py          # 内容组装（Markdown 输出）
+│   │   │   └── quick_scan.py        # 快速扫描
+│   │   └── webpage_stages/      # WebPage Pipeline Stages（9 个 Stage）
+│   │       ├── page_fetching.py          # 页面获取
+│   │       ├── anti_detection.py         # 反检测
+│   │       ├── compliance_check.py       # 合规检查（robots.txt）
+│   │       ├── html_sanitization.py      # HTML 清洗
+│   │       ├── main_content_extraction.py # 主内容提取
+│   │       ├── markdown_conversion.py    # Markdown 转换
+│   │       ├── markdown_formatting.py    # Markdown 格式化
+│   │       ├── rich_elements.py          # 富元素处理（图片、表格等）
+│   │       └── asset_bundling.py         # 资源打包
+│   │
+│   ├── tools/                   # MCP 工具注册子包（3 模块 · 6 个 tool）
 │   │   ├── __init__.py          # 包初始化 + 触发注册
 │   │   ├── _registry.py         # FastMCP app 实例 + 共享服务 + 辅助函数导出
-│   │   ├── _observability.py    # 可观测性辅助（elapsed_ms 等）
-│   │   ├── _support.py          # 支撑工具（validate_url, 类型别名等）
-│   │   ├── extraction.py        # 数据提取工具（4 个 tool）
-│   │   ├── form.py              # 表单交互工具（1 个 tool）
-│   │   ├── markdown.py          # Markdown 转换工具（2 个 tool）
-│   │   ├── pdf.py               # PDF 处理工具（2 个 tool）
-│   │   ├── scraping.py          # 网页抓取工具（2 个 tool）
-│   │   └── stealth.py           # 隐身抓取工具（1 个 tool）
+│   │   ├── _observability.py    # 可观测性辅助（elapsed_ms）
+│   │   ├── _support.py          # 共享类型（ScrapeMethod, PDFMethod, PDFOutputFormat）+ 校验函数
+│   │   ├── extraction.py        # 数据提取工具（extract_links, get_page_info）
+│   │   ├── markdown.py          # Markdown 转换工具（convert_webpage_to_markdown, batch_convert_webpages_to_markdown）
+│   │   └── pdf.py               # PDF 处理工具（convert_pdf_to_markdown, batch_convert_pdfs_to_markdown）
 │   │
 │   ├── infra/                   # 基础设施层
-│   │   ├── parsing.py           # 解析工具
-│   │   └── resilience.py        # 弹性策略（重试、限速等）
+│   │   ├── parsing.py           # 解析工具（TextCleaner, URLValidator, extract_*）
+│   │   └── resilience.py        # 弹性策略（RateLimiter, RetryManager）
 │   │
 │   └── examples/                # 示例与模板（随包分发）
 │       ├── configs/
@@ -133,9 +158,11 @@ negentropy-perceives/
 │           └── python_sdk_usage.py    # Python SDK 集成示例
 │
 ├── tests/                        # 测试套件（详见 [测试](#测试) 章节）
-│   ├── conftest.py               # 共享 Fixtures
-│   ├── unit/                     # 单元测试
-│   └── integration/              # 集成测试
+│   ├── conftest.py               # 全局共享 Fixture
+│   ├── unit/                     # 单元测试（40+ files）
+│   ├── integration/              # 集成测试（12 files + tooling.py helper）
+│   │   └── tooling.py            # 集成测试共享工具（get_tool_map, build_pdf_tool_kwargs）
+│   └── reports/                  # 测试报告（.gitignore，运行时生成）
 │
 ├── scripts/                      # 仓库维护脚本
 │   ├── dev/
@@ -158,8 +185,8 @@ negentropy-perceives/
 
 ```mermaid
 graph BT
-    U["<b>单元测试</b> (16 files)<br/>独立模块 · Mock 隔离 · 快速执行"]
-    I["<b>集成测试</b> (9 files)<br/>组件协作 · 端到端验证 · 真实交互"]
+    U["<b>单元测试</b> (40+ files)<br/>独立模块 · Mock 隔离 · 快速执行<br/>120s 超时保护"]
+    I["<b>集成测试</b> (12 files)<br/>组件协作 · 端到端验证 · 真实交互"]
     U --> I
 
     style U fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
@@ -171,25 +198,53 @@ graph BT
 ```
 tests/
 ├── conftest.py                              # 全局共享 Fixture
-├── unit/                                    # 单元测试 (16 files)
+├── unit/                                    # 单元测试 (40+ files)
+│   ├── conftest.py                          # 120s 超时保护（pytest-timeout signal 模式）
+│   ├── doc_contracts.py                     # 文档契约验证
 │   ├── test_advanced_features.py            # 高级功能向后兼容
+│   ├── test_algorithm_detector.py           # 算法检测
 │   ├── test_anti_detection.py               # 反检测隐身爬取
+│   ├── test_app_entrypoint.py               # 应用入口
 │   ├── test_browser_utils.py                # 浏览器工具
 │   ├── test_config.py                       # 配置系统
+│   ├── test_content_extraction.py           # 内容提取
 │   ├── test_dependency_integrity.py         # 跨模块依赖完整性
+│   ├── test_device_config.py                # GPU 设备配置
+│   ├── test_docling_engine.py               # Docling 引擎
+│   ├── test_docs_configuration.py           # 文档一致性（配置相关）
+│   ├── test_docs_user_guide.py              # 文档一致性（用户指南相关）
 │   ├── test_enhanced_pdf_processor.py       # PDF 增强处理
 │   ├── test_examples.py                     # 示例代码验证
+│   ├── test_figure_text_filter.py           # 图文过滤
 │   ├── test_form_handler.py                 # 表单交互
+│   ├── test_formatter_math_protection.py    # 格式化数学公式保护
+│   ├── test_formula_placeholder_resolver.py # 公式占位符解析
+│   ├── test_github_workflows.py             # CI/CD 工作流验证
+│   ├── test_html_math_preservation.py       # HTML 数学公式保留
+│   ├── test_image_ref_normalizer.py         # 图片引用规范化
+│   ├── test_infra_package.py                # 基础设施包
+│   ├── test_llm_client.py                   # LLM 客户端
+│   ├── test_llm_orchestrator.py             # LLM 编排器
+│   ├── test_logging_config.py               # 日志配置
 │   ├── test_markdown_converter.py           # Markdown 转换
+│   ├── test_marker_engine.py                # Marker 引擎
+│   ├── test_math_formula.py                 # 数学公式处理
+│   ├── test_mcp_tools_unit.py               # MCP 工具单元测试
+│   ├── test_mineru_engine.py                # MineRU 引擎
+│   ├── test_paragraph_separation.py         # 段落分隔
 │   ├── test_pdf_processor.py                # PDF 基础处理
+│   ├── test_pdf_table_extraction.py         # PDF 表格提取
+│   ├── test_pyproject_metadata.py           # pyproject.toml 元数据验证
 │   ├── test_schemas.py                      # 响应模型
 │   ├── test_scraper.py                      # 网页抓取引擎
+│   ├── test_scraping_package.py             # 抓取包完整性
 │   ├── test_scripts.py                      # 脚本文件验证
-│   ├── test_mcp_tools_unit.py               # MCP 工具单元测试
+│   ├── test_sdk.py                          # Python SDK
 │   ├── test_tool_registry.py                # 工具注册表
 │   └── test_utils.py                        # 工具类
-├── integration/                             # 集成测试 (9 files)
-│   ├── conftest.py                          # 集成测试专用 Fixture
+├── integration/                             # 集成测试 (12 files)
+│   ├── conftest.py                          # 集成测试专用 Fixture（含 GPU 感知）
+│   ├── tooling.py                           # 集成测试共享工具（get_tool_map, build_pdf_tool_kwargs）
 │   ├── test_comprehensive_integration.py    # 综合集成 + 性能负载
 │   ├── test_cross_tool_integration.py       # 跨工具协作
 │   ├── test_docling_pdf_integration.py      # Docling PDF GPU 加速集成
@@ -198,7 +253,9 @@ tests/
 │   ├── test_e2e_error_resilience.py         # 错误恢复能力
 │   ├── test_e2e_performance.py              # 性能基准
 │   ├── test_langchain_blog_conversion.py    # Langchain 博客转换
+│   ├── test_llm_pdf_integration.py          # LLM 编排 PDF 集成
 │   ├── test_mcp_tools.py                    # MCP 工具端到端
+│   ├── test_pdf_formula_regression.py       # PDF 公式回归测试
 │   └── test_pdf_integration.py              # PDF 处理集成
 ```
 
@@ -208,12 +265,13 @@ tests/
 
 | 模块分层       | 覆盖模块                                                               | 单元测试 | 集成测试 |
 | -------------- | ---------------------------------------------------------------------- | -------- | -------- |
-| **MCP 工具层** | 14 个 `@app.tool()` 注册工具（`tools/` 子包）                          | ✅       | ✅       |
-| **核心引擎**   | `scraper`、`anti_detection`、`markdown_converter`                      | ✅       | ✅       |
-| **数据层**     | `schemas`、`models`、`config`、`form_handler`                          | ✅       | ✅       |
-| **PDF 处理**   | `pdf/processor`、`pdf/enhanced`                                        | ✅       | ✅       |
-| **基础设施**   | `cache`、`rate_limiter`、`retry`、`error_handler`、`metrics`、`timing` | ✅       | —        |
-| **工具类**     | `browser_utils`、`url_utils`、`text_utils`、`config_validator`         | ✅       | —        |
+| **MCP 工具层** | 6 个 `@app.tool()` 注册工具（`tools/` 3 模块）                       | ✅       | ✅       |
+| **Pipeline 层** | `pipeline/` 编排框架 + PDF/WebPage Stages                            | ✅       | —        |
+| **核心引擎**   | `scraping`、`anti_detection`、`markdown_converter`                      | ✅       | ✅       |
+| **PDF 引擎**   | `docling`、`marker`、`mineru`、`llm_orchestrator`、`enhanced`         | ✅       | ✅       |
+| **数据层**     | `schemas`、`config`、`form_handler`                                      | ✅       | ✅       |
+| **基础设施**   | `resilience`（RateLimiter, RetryManager）、`parsing`（TextCleaner, URLValidator） | ✅       | —        |
+| **SDK**        | `sdk.py`（NegentropyPerceivesClient）                                   | ✅       | —        |
 
 ### 测试执行
 
@@ -252,7 +310,9 @@ uv run pytest -n auto                # 自动并行（需 pytest-xdist）
 uv run pytest --durations=10         # 最慢 10 个测试
 uv run pytest -m "not slow"          # 排除慢速测试
 
-# GPU 加速测试（Docling + MPS/CUDA）：`-m requires_gpu`、`--co -m requires_gpu`（列出不执行）
+# GPU 加速测试：-m requires_gpu
+# LLM 编排测试：-m requires_llm
+# 列出不执行：--co -m requires_gpu
 ```
 
 #### 测试配置
@@ -282,13 +342,27 @@ uv run pytest -m "not slow"          # 排除慢速测试
 
 #### 集成测试 Fixture（[`tests/integration/conftest.py`](../tests/integration/conftest.py)）
 
-集成测试专用 Fixture 包括：`pdf_processor`（真实 PDF 处理器）、`e2e_tools`（MCP 工具映射）、`detected_gpu_device`（硬件检测）、`gpu_docling_engine`（GPU 绑定引擎）、`warm_docling_converter`（预热转换器，session 级）。
+| Fixture                       | 作用域   | 说明                                                   |
+| ----------------------------- | -------- | ------------------------------------------------------ |
+| `pdf_processor`               | function | 真实 PDF 处理器实例                                    |
+| `e2e_tools`                   | function | MCP 工具映射（通过 `tooling.get_tool_map()` 获取）     |
+| `detected_gpu_device`         | session  | GPU 硬件检测结果（MPS/CUDA/XPU）                       |
+| `gpu_docling_engine`          | session  | GPU 绑定的 DoclingEngine 实例                          |
+| `warm_docling_converter`      | session  | 预热 Docling Converter（触发模型加载，返回耗时秒数）   |
+| `shared_docling_result_ce`    | session  | CE_PDF 的 Docling GPU 转换结果（session 内共享）       |
+| `shared_docling_result_arxiv` | session  | arXiv PDF 前 8 页的 Docling GPU 转换结果（session 内共享） |
+
+集成测试还使用 [`tests/integration/tooling.py`](../tests/integration/tooling.py) 提供的共享工具函数：
+- **`get_tool_map()`**：返回 MCP 工具名称到工具对象的映射
+- **`select_tools()`**：从完整工具映射中选择指定工具
+- **`build_pdf_tool_kwargs()`**：构造 PDF 工具调用参数（含默认值覆盖）
 
 #### Fixture 约定
 
-- 新增全局 fixture 添加到 `tests/conftest.py`；集成测试专用 fixture 添加到 `tests/integration/conftest.py`
+- 新增全局 fixture 添加到 [`tests/conftest.py`](../tests/conftest.py)；集成测试专用 fixture 添加到 [`tests/integration/conftest.py`](../tests/integration/conftest.py)
 - Mock 对象统一使用 `Mock(spec=TargetClass)` 模式确保接口约束
 - 异步 fixture 使用 `@pytest_asyncio.fixture` 装饰器
+- 单元测试默认 120 秒超时保护（[`tests/unit/conftest.py`](../tests/unit/conftest.py)，通过 `pytest-timeout` signal 模式实现）
 
 ### 质量门禁
 
@@ -299,7 +373,7 @@ uv run pytest -m "not slow"          # 排除慢速测试
 | 代码覆盖率     | > 95%    |
 | 测试执行时间   | < 5 分钟 |
 
-覆盖率报告自动上传至 Codecov，具体配置参见 [`ci.yml`](../.github/workflows/ci.yml) 中的 `coverage` 步骤。CI/CD 工作流的完整文档参见 [CI/CD 与版本管理](#cicd-与版本管理)。
+覆盖率报告自动上传至 Codecov，具体配置参见 [`ci.yml`](../.github/workflows/ci.yml) 中的 `coverage` job。CI/CD 工作流的完整文档参见 [CI/CD 与版本管理](#cicd-与版本管理)。
 
 ## MCP 工具开发
 
@@ -309,37 +383,58 @@ uv run pytest -m "not slow"          # 排除慢速测试
 
 ```
 tools/_registry.py          定义 FastMCP app 实例 + 共享服务
-       ↓                       （web_scraper, anti_detection_scraper,
-tools/_support.py                markdown_converter, create_pdf_processor 工厂）
-tools/_observability.py      导出 validate_url、elapsed_ms 等辅助函数
+       ↓                       （web_scraper, markdown_converter, create_pdf_processor 工厂）
+tools/_support.py           共享类型别名（ScrapeMethod, PDFMethod, PDFOutputFormat）+ 校验函数
+tools/_observability.py     导出 elapsed_ms 计时工具
        ↓
-tools/extraction.py 等       用 @app.tool() 装饰器注册工具函数
-       ↓                       （12 个 tool 分布于 6 个模块）
+tools/extraction.py         用 @app.tool() 注册 2 个工具（extract_links, get_page_info）
+tools/markdown.py           用 @app.tool() 注册 2 个工具（convert_webpage_to_markdown, batch_convert_webpages_to_markdown）
+tools/pdf.py                用 @app.tool() 注册 2 个工具（convert_pdf_to_markdown, batch_convert_pdfs_to_markdown）
+       ↓                       （6 个 tool 分布于 3 个模块）
 tools/__init__.py           导入各子模块 + _registry 公共 API，触发装饰器注册
        ↓
 apps/app.py                 应用入口 main()，从 tools 导入 app 实例
 ```
 
-`_registry.py` 是中枢，提供 `app` 实例和共享服务，以及通用辅助函数。`_support.py` 导出类型别名和输入验证工具，`_observability.py` 提供计时和指标收集能力。
+[`_registry.py`](../src/negentropy/perceives/tools/_registry.py) 是中枢，提供 `app` 实例和共享服务（`web_scraper`、`markdown_converter`、`create_pdf_processor` 工厂函数），以及通用辅助函数（`validate_url`、`validate_page_range`、`normalize_extract_config`、`elapsed_ms`）。[`_support.py`](../src/negentropy/perceives/tools/_support.py) 定义共享类型枚举（`ScrapeMethod`、`PDFMethod`、`PDFOutputFormat`）与输入校验函数，[`_observability.py`](../src/negentropy/perceives/tools/_observability.py) 提供计时能力。
+
+### MCP 工具清单
+
+| 模块              | 工具名称                                | 职责                                         |
+| ----------------- | --------------------------------------- | -------------------------------------------- |
+| `extraction.py`   | `extract_links`                         | 提取网页链接，支持域名过滤和内外链分类       |
+| `extraction.py`   | `get_page_info`                         | 获取页面元数据（标题、描述、状态码等）       |
+| `markdown.py`     | `convert_webpage_to_markdown`           | 网页 → Markdown 转换（支持 Pipeline 自动降级）|
+| `markdown.py`     | `batch_convert_webpages_to_markdown`    | 批量网页 → Markdown 转换                     |
+| `pdf.py`          | `convert_pdf_to_markdown`               | PDF → Markdown 转换（支持 Pipeline 自动降级）|
+| `pdf.py`          | `batch_convert_pdfs_to_markdown`        | 批量 PDF → Markdown 转换                     |
+
+### Pipeline 集成
+
+`convert_webpage_to_markdown` 和 `convert_pdf_to_markdown` 在 `method="auto"` 时会自动尝试 Pipeline 路径：
+
+1. **Pipeline 路径**：通过 `run_webpage_pipeline()` / `run_pdf_pipeline()` 执行 Stage 化管线处理
+2. **传统路径**：若 Pipeline 不可用或执行失败，自动降级到传统的 `web_scraper + markdown_converter` / `PDFProcessor` 路径
+
+这种"优雅给自己留后路"的降级策略，确保了 Pipeline 框架不会成为单点故障——Pipeline 不是躺平，是优雅地给自己留后路。
 
 ### 开发新工具步骤
 
-以 `check_robots_txt`（[tools/extraction.py](../src/negentropy/perceives/tools/extraction.py)）为例：
+以 [`convert_pdf_to_markdown`](../src/negentropy/perceives/tools/pdf.py) 为例：
 
 #### 1. 定义响应模型
 
-在 [schemas.py](../src/negentropy/perceives/schemas.py) 中添加 Pydantic 响应模型：
+在 [`schemas.py`](../src/negentropy/perceives/schemas.py) 中添加 Pydantic 响应模型：
 
 ```python
-class RobotsResponse(BaseModel):
-    """Response model for robots.txt check."""
+class PDFResponse(BaseModel):
+    """Response model for PDF conversion."""
     success: bool = Field(..., description="操作是否成功")
-    url: str = Field(..., description="检查的URL")
-    robots_txt_url: str = Field(..., description="robots.txt文件URL")
-    robots_content: Optional[str] = Field(default=None, description="robots.txt内容")
-    is_allowed: bool = Field(..., description="是否允许抓取")
-    user_agent: str = Field(..., description="使用的User-Agent")
-    error: Optional[str] = Field(default=None, description="错误信息（如果有）")
+    pdf_source: str = Field(..., description="PDF 源路径或 URL")
+    method: str = Field(..., description="使用的处理方法")
+    output_format: str = Field(default="markdown", description="输出格式")
+    content: Optional[str] = Field(default=None, description="转换后的内容")
+    # ... 其他字段
 ```
 
 #### 2. 实现工具函数
@@ -347,100 +442,159 @@ class RobotsResponse(BaseModel):
 在 `tools/` 下对应模块中实现，通过 `@app.tool()` 注册：
 
 ```python
-from ..schemas import RobotsResponse
-from ._registry import app, web_scraper
+from ..schemas import PDFResponse
+from ._registry import app, create_pdf_processor, PDFMethod, validate_page_range
 
 @app.tool()
-async def check_robots_txt(url: str) -> RobotsResponse:
-    """Check the robots.txt file for a domain to understand crawling permissions."""
-    try:
-        parsed = urlparse(url)
-        if not parsed.scheme or not parsed.netloc:
-            raise ValueError("Invalid URL format")
+async def convert_pdf_to_markdown(
+    pdf_source: Annotated[str, Field(..., description="PDF 源路径或 URL")],
+    method: Annotated[PDFMethod, Field(default="auto", description="处理方法")],
+    # ... 更多参数
+) -> PDFResponse:
+    """Convert a PDF document to Markdown format."""
+    # 参数校验
+    page_range_tuple, page_range_error = validate_page_range(page_range)
+    if page_range_error:
+        return PDFResponse(success=False, ..., error=page_range_error)
 
-        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-        result = await web_scraper.simple_scraper.scrape(robots_url, extract_config={})
+    # Pipeline 路径（auto 模式优先尝试）
+    if method == "auto":
+        try:
+            from ..pipeline import run_pdf_pipeline
+            result = await run_pdf_pipeline(source=pdf_source, ...)
+            if result.success:
+                return PDFResponse(success=True, ..., content=result.markdown)
+        except Exception:
+            pass  # 降级到传统路径
 
-        if "error" in result:
-            return RobotsResponse(success=False, url=url, robots_txt_url=robots_url,
-                                  is_allowed=False, user_agent="*",
-                                  error=f"Could not fetch robots.txt: {result['error']}")
-
-        robots_content = result.get("content", {}).get("text", "")
-        return RobotsResponse(success=True, url=url, robots_txt_url=robots_url,
-                              robots_content=robots_content, is_allowed=True, user_agent="*")
-    except Exception as e:
-        return RobotsResponse(success=False, url=url, robots_txt_url="",
-                              is_allowed=False, user_agent="*", error=str(e))
+    # 传统路径
+    pdf_processor = create_pdf_processor()
+    result = await pdf_processor.process_pdf(pdf_source=pdf_source, method=method, ...)
+    return PDFResponse(success=result.get("success", False), ...)
 ```
 
 #### 3. 注册触发
 
-在 [tools/\_\_init\_\_.py](../src/negentropy/perceives/tools/__init__.py) 中导入新模块：
+在 [`tools/__init__.py`](../src/negentropy/perceives/tools/__init__.py) 中导入新模块：
 
 ```python
-from . import extraction  # noqa: F401  # 触发 @app.tool() 注册
+from . import pdf  # noqa: F401  # 触发 @app.tool() 注册
 ```
 
 工具函数统一通过 `tools/` 包导入，无需额外 re-export。
 
 ### 参数设计模式
 
-推荐使用 **Annotated Field 模式**，直接在函数签名中定义参数描述，无需额外的请求模型类。以 [tools/scraping.py](../src/negentropy/perceives/tools/scraping.py) 中的 `scrape_webpage` 为例：
+推荐使用 **Annotated Field 模式**，直接在函数签名中定义参数描述。以 [`tools/markdown.py`](../src/negentropy/perceives/tools/markdown.py) 中的 `convert_webpage_to_markdown` 为例：
 
 ```python
 @app.tool()
-async def scrape_webpage(
-    url: Annotated[str, Field(..., description="目标网页 URL，必须包含协议前缀（http://或https://）")],
-    method: Annotated[str, Field(default="auto", description="抓取方法：auto/simple/scrapy/selenium")],
-    extract_config: Annotated[Optional[Dict[str, Any]], Field(default=None, description="数据提取配置字典")],
-    wait_for_element: Annotated[Optional[str], Field(default=None, description="等待元素的 CSS 选择器")],
-) -> ScrapeResponse:
+async def convert_webpage_to_markdown(
+    url: Annotated[str, Field(..., description="目标网页URL，必须包含协议前缀")],
+    method: Annotated[ScrapeMethod, Field(default="auto", description="抓取方法")],
+    extract_main_content: Annotated[bool, Field(default=True, description="是否仅提取主要内容")],
+    # ...
+) -> MarkdownResponse:
 ```
 
 **优势**：参数透明可见、描述清晰、MCP Client 兼容性好、减少样板代码。
 
 ### 开发最佳实践
 
-- **错误处理**：验证输入参数，使用 `_registry.py` 中的 `validate_url()` 和 `_support.py` 中的辅助函数，返回结构化错误信息
-- **性能优化**：使用异步编程（`async/await`），利用 `infra/resilience.py` 限速、`_observability.py` 计时装饰器
+- **错误处理**：验证输入参数，使用 `_registry.py` 中的 `validate_url()` 和 `_support.py` 中的校验函数，返回结构化错误信息
+- **性能优化**：使用异步编程（`async/await`），利用 `infra/resilience.py` 限速、`_observability.py` 计时
+- **Pipeline 优先**：新工具在 `auto` 模式下应优先尝试 Pipeline 路径，失败后降级到传统路径
 - **架构参考**：系统性能设计详见 [架构设计](./framework.md)
+
+## Pipeline 编排框架
+
+Pipeline 框架是 Negentropy Perceives 的核心编排引擎，将文档处理流程拆解为**可组合、可竞争**的 Stage。它不是简单的管道——它是一个懂得"择优录用"的智能调度系统。
+
+### 核心组件
+
+| 组件                      | 文件                  | 职责                                             |
+| ------------------------- | --------------------- | ------------------------------------------------ |
+| `Stage`                   | `pipeline/base.py`    | Stage 基类，定义统一的 `execute()` 接口          |
+| `StageResult`             | `pipeline/base.py`    | Stage 执行结果的统一包装（success/output/error） |
+| `StageTool`               | `pipeline/base.py`    | Stage 工具协议（鸭子类型接口）                   |
+| `CompetitiveStage`        | `pipeline/competitive.py` | 多工具并行竞争 Stage（择优录用）             |
+| `StageScheduler`          | `pipeline/scheduler.py`   | Stage 调度器（降级 / 竞争模式）               |
+| `PipelineOrchestrator`    | `pipeline/orchestrator.py` | Pipeline 编排器（串联多个 Stage）             |
+| `register_tool` / `get_tool` | `pipeline/registry.py` | 工具注册与发现                               |
+| `run_pdf_pipeline` / `run_webpage_pipeline` | `pipeline/convenience.py` | 高级便捷 API，供 MCP 工具层直接调用 |
+
+### 架构流程
+
+```mermaid
+graph TD
+    subgraph "MCP 工具层"
+        T["@app.tool() 工具函数"]
+    end
+
+    subgraph "Pipeline 层"
+        C["convenience.py<br/>run_pdf_pipeline / run_webpage_pipeline"]
+        O["PipelineOrchestrator<br/>Stage 串联编排"]
+        S["StageScheduler<br/>降级 / 竞争调度"]
+        R["registry.py<br/>工具注册与发现"]
+    end
+
+    subgraph "PDF Pipeline Stages"
+        P1["preprocessing"]
+        P2["layout_analysis"]
+        P3["text_extraction"]
+        P4["table_extraction"]
+        P5["formula_extraction"]
+        P6["image_extraction"]
+        P7["code_detection"]
+        P8["assembly"]
+    end
+
+    subgraph "WebPage Pipeline Stages"
+        W1["page_fetching"]
+        W2["compliance_check"]
+        W3["html_sanitization"]
+        W4["main_content_extraction"]
+        W5["markdown_conversion"]
+        W6["markdown_formatting"]
+    end
+
+    T -->|"method=auto"| C
+    C --> O
+    O --> S
+    S --> R
+    R --> P1
+    P1 --> P2 --> P3 & P4 & P5 & P6 & P7
+    P3 & P4 & P5 & P6 & P7 --> P8
+
+    R --> W1 --> W2 --> W3 --> W4 --> W5 --> W6
+
+    style T fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
+    style C fill:#b45309,stroke:#f59e0b,color:#ffffff
+    style O fill:#166534,stroke:#22c55e,color:#ffffff
+    style S fill:#7c3aed,stroke:#a78bfa,color:#ffffff
+```
+
+### 调度策略
+
+- **降级模式**：按优先级依次尝试工具，首个成功即返回——经典的"能用就行"策略
+- **竞争模式**（`CompetitiveStage`）：多个工具并行执行，择优选用结果——"赛马机制"，用算力换质量
+- **并行组**：独立的 Stage 可配置为并行执行（如 PDF Pipeline 中 text/table/formula/image/code extraction 并行处理）
+
+### 配置驱动
+
+Pipeline 由 `config.yaml` 或环境变量驱动：
+
+- **Stage 配置**：定义 Stage 列表、每个 Stage 的引擎选择和参数
+- **引擎门控**：通过 `docling_enabled`、`mineru_enabled`、`marker_enabled` 控制引擎可用性
+- **默认配置**：`pipeline.defaults` 提供全局默认值
+
+详见 [用户指南 > MCP Server 配置](./user-guide.md#mcp-server-配置)。
 
 ## 编码规范
 
 遵循 PEP 8 和 PEP 257 标准。代码质量工具的使用详见 [用户指南 > 开发者命令速查](./user-guide.md#开发者命令速查)。
 
-### 类型注解与文档字符串
-
-所有函数和方法应有类型注解和 Google 风格的文档字符串：
-
-```python
-from typing import Dict, List, Optional, Any
-
-async def scrape_webpage(
-    url: str,
-    method: str = "auto",
-    extract_config: Optional[Dict[str, Any]] = None,
-) -> ScrapeResponse:
-    """抓取网页数据
-
-    Args:
-        url: 要抓取的URL
-        method: 抓取方法 (auto/simple/scrapy/selenium)
-        extract_config: 数据提取配置
-
-    Returns:
-        抓取响应对象
-
-    Raises:
-        ValueError: URL格式错误
-    """
-    pass
-```
-
 ### 代码质量保障
-
-项目使用以下工具链保障代码质量，详见 [用户指南 > 代码质量检查](./user-guide.md#代码质量检查)：
 
 | 工具      | 用途          | 配置位置                       |
 | --------- | ------------- | ------------------------------ |
@@ -486,6 +640,7 @@ def test_extract_data():
   - `unit` / `integration` / `slow` — 测试分类
   - `requires_network` / `requires_browser` — 环境依赖
   - `requires_gpu` — GPU 加速依赖（MPS/CUDA/XPU）
+  - `requires_llm` — LLM API 依赖（smart 模式、LLM 编排）
 
 ## CI/CD 与版本管理
 
@@ -494,32 +649,33 @@ def test_extract_data():
 ```mermaid
 graph TD
     subgraph "触发源"
-        A["推送 master/main/develop"]
-        B0["PR → master/main/develop"]
-        C["🏷️ 标签 v*.*.*"]
+        A["推送 master/main/develop/feature/**"]
+        B0["PR → master/main/develop/feature/**"]
+        C["标签 v*.*.*"]
         G["计划 / 手动"]
     end
 
     subgraph "CI 流水线"
         B[ci.yml]
-        B1[跨平台测试]
-        B2[Lint & 类型检查]
-        B3[安全审计]
-        B4[构建验证]
-        B5[覆盖率报告]
-        B --> B1 & B2 & B3 & B4 & B5
+        B1["跨平台测试<br/>(Ubuntu / Windows / macOS)"]
+        B2["Ruff Lint + Format"]
+        B3["MyPy 类型检查"]
+        B4["安全审计<br/>(bandit + pip-audit)"]
+        B5["构建验证"]
+        B6["覆盖率报告 + Codecov"]
+        B --> B1 & B2 & B3 & B4 & B5 & B6
     end
 
     subgraph "发布流水线（两阶段）"
         D[release.yml]
-        D0[CI 验证]
-        D1[构建分发包]
+        D0["CI 验证"]
+        D1["构建分发包"]
         D2["Pre-Release GitHub<br/>(prerelease: true)"]
-        D3[TestPyPI 发布]
-        D4["🛑 人工审批门禁<br/>(Environment: production)"]
+        D3["TestPyPI 发布"]
+        D4["人工审批门禁<br/>(Environment: production)"]
         D5["Promote 正式 Release<br/>(prerelease: false)"]
-        D6[PyPI 发布 OIDC]
-        D7[更新 Changelog]
+        D6["PyPI 发布 OIDC"]
+        D7["更新 Changelog"]
         D --> D0 --> D1
         D1 --> D2
         D1 --> D3
@@ -530,8 +686,8 @@ graph TD
     end
 
     subgraph "辅助流水线"
-        H[dependencies.yml]
-        K[review.yml]
+        H["dependencies.yml<br/>每周一 9:00 UTC"]
+        K["review.yml<br/>PR + 主分支推送"]
     end
 
     A --> B
@@ -549,7 +705,7 @@ graph TD
 
 ### CI — [`ci.yml`](../.github/workflows/ci.yml)
 
-**触发条件：** 推送到 master/main/develop、PR → master/main/develop、`workflow_call`、手动触发
+**触发条件：** 推送到 master/main/develop/feature 分支、PR → master/main/develop/feature、`workflow_call`、手动触发
 
 | Job        | 职责                                         |
 | ---------- | -------------------------------------------- |
@@ -572,7 +728,7 @@ graph TD
 | `validate`           | 调用 ci.yml 执行完整验证                     | 共享    | 始终                                                 |
 | `build`              | 构建分发包 + twine check                     | 共享    | 始终                                                 |
 | `pre-release-github` | 创建 prerelease Release + 上传 assets        | Phase 1 | 标签推送                                             |
-| `testpypi`           | 发布到 TestPyPI                              | Phase 1 | 标签推送 / 手动                                      |
+| `testpypi`           | 发布到 TestPyPI（OIDC）                      | Phase 1 | 标签推送 / 手动                                      |
 | `approval`           | 人工审批门禁（Environment Protection Rules） | Gate    | 标签推送（需 pre-release + testpypi 完成）           |
 | `promote-release`    | 将 prerelease 提升为正式 Release             | Phase 2 | 审批通过                                             |
 | `pypi`               | 发布到 PyPI（OIDC 可信发布）                 | Phase 2 | promote-release 成功 / release published（fallback） |
@@ -626,15 +782,17 @@ graph TD
 
 **关键 Action 版本：**
 
-- `actions/checkout@v6`
-- `astral-sh/setup-uv@v7`
-- `actions/setup-node@v6`
-- `actions/github-script@v8`
-- `actions/upload-artifact@v7`
-- `actions/download-artifact@v8`
-- `codecov/codecov-action@v5`
-- `peter-evans/create-pull-request@v8`
-- `anthropics/claude-code-action@v1`
+| Action                              | 版本  | 用途             |
+| ----------------------------------- | ----- | ---------------- |
+| `actions/checkout`                  | v6    | 代码检出         |
+| `astral-sh/setup-uv`                | v7    | uv 安装          |
+| `actions/upload-artifact`           | v7    | 产物上传         |
+| `actions/download-artifact`         | v8    | 产物下载         |
+| `codecov/codecov-action`            | v5    | 覆盖率上传       |
+| `peter-evans/create-pull-request`   | v8    | 依赖 PR 创建     |
+| `softprops/action-gh-release`       | v2    | GitHub Release   |
+| `pypa/gh-action-pypi-publish`       | v1    | PyPI/TestPyPI 发布 |
+| `anthropics/claude-code-action`     | v1    | 代码审查         |
 
 **PyPI 可信发布：**
 
@@ -736,40 +894,6 @@ class NegentropyPerceivesService:
         logger.info("Extraction completed successfully")
 ```
 
-### 异步调试
-
-```python
-import asyncio
-
-async def debug_async_function():
-    """调试异步函数"""
-    try:
-        result = await some_async_operation()
-        print(f"Result: {result}")
-    except Exception as e:
-        print(f"Error: {e}")
-        raise
-
-asyncio.run(debug_async_function())
-```
-
-### 浏览器调试
-
-```python
-@pytest.mark.requires_browser
-async def test_with_browser_debugging():
-    """启用浏览器调试的测试"""
-    from negentropy.perceives.scraping import AntiDetectionScraper
-
-    scraper = AntiDetectionScraper()
-    options = {
-        "headless": False,
-        "devtools": True,
-        "slow_mo": 1000  # 慢速执行
-    }
-    # ...
-```
-
 ### 测试调试
 
 #### 环境准备
@@ -790,44 +914,7 @@ uv run pytest --pdb                  # 失败时进入 PDB 调试器
 uv run pytest --durations=0          # 所有测试执行时间
 ```
 
-在测试代码中设置断点：
-
-```python
-def test_debug_example():
-    import pdb; pdb.set_trace()  # 断点
-    assert True
-```
-
-### 常见问题解决
-
-#### 浏览器驱动问题
-
-```bash
-# 重新安装 Playwright
-uv run playwright install --force
-
-# 或使用系统浏览器
-export PLAYWRIGHT_BROWSERS_PATH=/usr/bin
-```
-
-#### 测试超时问题
-
-```bash
-# 增加超时时间或跳过慢速测试
-uv run pytest -m "not slow" --timeout=300
-```
-
-#### 类型检查错误
-
-```bash
-# 逐步修复类型问题
-uv run mypy src/negentropy/perceives/ --ignore-missing-imports
-
-# 或使用宽松模式
-uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
-```
-
-#### 测试常见问题速查
+### 常见问题速查
 
 | 问题类型   | 症状                         | 解决方案                                                                                           |
 | ---------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -835,20 +922,11 @@ uv run mypy src/negentropy/perceives/ --disable-error-code=var-annotated
 | **网络**   | 请求超时或连接失败           | `uv run pytest -k "not requires_network"` 或 `uv run pytest --timeout=30`                          |
 | **异步**   | 异步测试挂起或超时           | 确认 `asyncio_mode = "auto"` 已配置；加 `--timeout=60`                                             |
 | **资源**   | 内存不足或执行缓慢           | `uv run pytest -n 1` 串行执行；`rm -rf .pytest_cache/` 清理缓存                                    |
-
-#### CI/CD 相关
-
-| 问题                         | 解决方案                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------- |
-| 构建失败                     | 检查 CI 日志中的测试/lint 失败                                                |
-| 发布失败                     | 验证 PyPI 可信发布配置与环境设置                                              |
-| 依赖 PR 创建失败             | 检查 Actions 权限（Settings → Actions → Workflow permissions）                |
-| 代码审查未执行               | 验证 `ANTHROPIC_API_KEY` 已配置                                               |
-| 代码审查告警但未阻塞         | 查看 `review.yml` 中 Claude 步骤日志，通常是模型限流、超时或外部服务异常      |
-| 覆盖率下降                   | 为新代码添加测试                                                              |
-| 审批门禁报错                 | 确认仓库 Settings → Environments → production 已创建并配置 Required Reviewers |
-| Pre-Release 后 workflow 停滞 | 正常行为——需在 GitHub Actions 页面手动审批 production 环境                    |
-| PyPI 发布失败（Phase 2）     | Pre-Release 已转为正式 Release；可手动 re-run pypi job 或联系 PyPI support    |
+| **CI/CD**  | 构建失败                     | 检查 CI 日志中的测试/lint 失败                                                |
+| **CI/CD**  | 发布失败                     | 验证 PyPI 可信发布配置与环境设置                                              |
+| **CI/CD**  | 代码审查未执行               | 验证 `ANTHROPIC_API_KEY` 已配置                                               |
+| **CI/CD**  | 审批门禁报错                 | 确认仓库 Settings → Environments → production 已创建并配置 Required Reviewers |
+| **CI/CD**  | Pre-Release 后 workflow 停滞 | 正常行为——需在 GitHub Actions 页面手动审批 production 环境                    |
 
 更多调试命令详见 [用户指南 > 开发者命令速查](./user-guide.md#开发者命令速查)。
 
