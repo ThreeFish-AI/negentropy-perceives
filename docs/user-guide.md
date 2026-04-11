@@ -517,19 +517,19 @@ Negentropy Perceives 采用基于 [pydantic-settings](https://docs.pydantic.dev/
 
 #### Docling PDF 引擎
 
-| 环境变量                                                  | 类型   | 默认值  | 约束                            | 说明                                                     |
-| --------------------------------------------------------- | ------ | ------- | ------------------------------- | -------------------------------------------------------- |
-| `NEGENTROPY_PERCEIVES_DOCLING_ENABLED`                    | `bool` | `false` | -                               | 启用 Docling 作为可选 PDF 提取引擎                       |
-| `NEGENTROPY_PERCEIVES_DOCLING_OCR_ENABLED`                | `bool` | `true`  | -                               | 为扫描版 PDF 启用 OCR                                    |
-| `NEGENTROPY_PERCEIVES_DOCLING_TABLE_EXTRACTION_ENABLED`   | `bool` | `true`  | -                               | 启用 Docling 高级表格提取                                |
-| `NEGENTROPY_PERCEIVES_DOCLING_FORMULA_EXTRACTION_ENABLED` | `bool` | `true`  | -                               | 启用 Docling 数学公式提取（MPS 上自动禁用）              |
-| `NEGENTROPY_PERCEIVES_MINERU_ENABLED`                     | `bool` | `false` | -                               | 启用 MinerU（最佳 LaTeX 公式提取）                       |
-| `NEGENTROPY_PERCEIVES_MINERU_DEVICE`                      | `str`  | `auto`  | `auto` / `cpu` / `mlx` / `cuda` | MinerU 设备选择                                          |
-| `NEGENTROPY_PERCEIVES_MINERU_BACKEND`                     | `str`  | `auto`  | `auto` / `pipeline` / `vlm`     | MinerU 后端选择                                          |
-| `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                   |
-| `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                 |
-| `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker） |
-| `NEGENTROPY_PERCEIVES_PIPELINE` | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
+| 环境变量                                                  | 类型   | 默认值  | 约束                            | 说明                                                            |
+| --------------------------------------------------------- | ------ | ------- | ------------------------------- | --------------------------------------------------------------- |
+| `NEGENTROPY_PERCEIVES_DOCLING_ENABLED`                    | `bool` | `false` | -                               | 启用 Docling 作为可选 PDF 提取引擎                              |
+| `NEGENTROPY_PERCEIVES_DOCLING_OCR_ENABLED`                | `bool` | `true`  | -                               | 为扫描版 PDF 启用 OCR                                           |
+| `NEGENTROPY_PERCEIVES_DOCLING_TABLE_EXTRACTION_ENABLED`   | `bool` | `true`  | -                               | 启用 Docling 高级表格提取                                       |
+| `NEGENTROPY_PERCEIVES_DOCLING_FORMULA_EXTRACTION_ENABLED` | `bool` | `true`  | -                               | 启用 Docling 数学公式提取（MPS 上自动禁用）                     |
+| `NEGENTROPY_PERCEIVES_MINERU_ENABLED`                     | `bool` | `false` | -                               | 启用 MinerU（最佳 LaTeX 公式提取）                              |
+| `NEGENTROPY_PERCEIVES_MINERU_DEVICE`                      | `str`  | `auto`  | `auto` / `cpu` / `mlx` / `cuda` | MinerU 设备选择                                                 |
+| `NEGENTROPY_PERCEIVES_MINERU_BACKEND`                     | `str`  | `auto`  | `auto` / `pipeline` / `vlm`     | MinerU 后端选择                                                 |
+| `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                          |
+| `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                        |
+| `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker）        |
+| `NEGENTROPY_PERCEIVES_PIPELINE`                           | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 配置验证规则
 
@@ -1299,19 +1299,19 @@ _Source: Page 3_
 
 以下环境变量控制 PDF 提取引擎的启用和行为：
 
-| 环境变量                                                  | 类型   | 默认值  | 约束                            | 说明                                                     |
-| --------------------------------------------------------- | ------ | ------- | ------------------------------- | -------------------------------------------------------- |
-| `NEGENTROPY_PERCEIVES_DOCLING_ENABLED`                    | `bool` | `false` | -                               | 启用 Docling 作为可选 PDF 提取引擎                       |
-| `NEGENTROPY_PERCEIVES_DOCLING_OCR_ENABLED`                | `bool` | `true`  | -                               | 为扫描版 PDF 启用 OCR                                    |
-| `NEGENTROPY_PERCEIVES_DOCLING_TABLE_EXTRACTION_ENABLED`   | `bool` | `true`  | -                               | 启用 Docling 高级表格提取                                |
-| `NEGENTROPY_PERCEIVES_DOCLING_FORMULA_EXTRACTION_ENABLED` | `bool` | `true`  | -                               | 启用 Docling 数学公式提取（MPS 上自动禁用）              |
-| `NEGENTROPY_PERCEIVES_MINERU_ENABLED`                     | `bool` | `false` | -                               | 启用 MinerU（最佳 LaTeX 公式提取）                       |
-| `NEGENTROPY_PERCEIVES_MINERU_DEVICE`                      | `str`  | `auto`  | `auto` / `cpu` / `mlx` / `cuda` | MinerU 设备选择                                          |
-| `NEGENTROPY_PERCEIVES_MINERU_BACKEND`                     | `str`  | `auto`  | `auto` / `pipeline` / `vlm`     | MinerU 后端选择                                          |
-| `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                   |
-| `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                 |
-| `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker） |
-| `NEGENTROPY_PERCEIVES_PIPELINE` | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
+| 环境变量                                                  | 类型   | 默认值  | 约束                            | 说明                                                            |
+| --------------------------------------------------------- | ------ | ------- | ------------------------------- | --------------------------------------------------------------- |
+| `NEGENTROPY_PERCEIVES_DOCLING_ENABLED`                    | `bool` | `false` | -                               | 启用 Docling 作为可选 PDF 提取引擎                              |
+| `NEGENTROPY_PERCEIVES_DOCLING_OCR_ENABLED`                | `bool` | `true`  | -                               | 为扫描版 PDF 启用 OCR                                           |
+| `NEGENTROPY_PERCEIVES_DOCLING_TABLE_EXTRACTION_ENABLED`   | `bool` | `true`  | -                               | 启用 Docling 高级表格提取                                       |
+| `NEGENTROPY_PERCEIVES_DOCLING_FORMULA_EXTRACTION_ENABLED` | `bool` | `true`  | -                               | 启用 Docling 数学公式提取（MPS 上自动禁用）                     |
+| `NEGENTROPY_PERCEIVES_MINERU_ENABLED`                     | `bool` | `false` | -                               | 启用 MinerU（最佳 LaTeX 公式提取）                              |
+| `NEGENTROPY_PERCEIVES_MINERU_DEVICE`                      | `str`  | `auto`  | `auto` / `cpu` / `mlx` / `cuda` | MinerU 设备选择                                                 |
+| `NEGENTROPY_PERCEIVES_MINERU_BACKEND`                     | `str`  | `auto`  | `auto` / `pipeline` / `vlm`     | MinerU 后端选择                                                 |
+| `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                          |
+| `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                        |
+| `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker）        |
+| `NEGENTROPY_PERCEIVES_PIPELINE`                           | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 12. batch_convert_pdfs_to_markdown - 批量 PDF 转 Markdown
 

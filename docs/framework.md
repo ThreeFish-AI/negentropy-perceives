@@ -76,14 +76,14 @@ graph LR
 
 ### 工具清单（6 个）
 
-| 模块                                                               | 领域       | 工具                                 | 功能                                            |
-| ------------------------------------------------------------------ | ---------- | ------------------------------------ | ----------------------------------------------- |
-| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取   | `extract_links`                      | 链接提取与分类                                  |
-|                                                                    |            | `get_page_info`                      | 页面元数据获取                                  |
-| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py)     | 内容转换   | `convert_webpage_to_markdown`        | 网页转 Markdown（method="auto" 时优先 Pipeline） |
-|                                                                    |            | `batch_convert_webpages_to_markdown` | 批量网页转换                                    |
-| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py)               | PDF 处理   | `convert_pdf_to_markdown`            | PDF 转 Markdown（method="auto" 时优先 Pipeline） |
-|                                                                    |            | `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                            |
+| 模块                                                               | 领域     | 工具                                 | 功能                                             |
+| ------------------------------------------------------------------ | -------- | ------------------------------------ | ------------------------------------------------ |
+| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取 | `extract_links`                      | 链接提取与分类                                   |
+|                                                                    |          | `get_page_info`                      | 页面元数据获取                                   |
+| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py)     | 内容转换 | `convert_webpage_to_markdown`        | 网页转 Markdown（method="auto" 时优先 Pipeline） |
+|                                                                    |          | `batch_convert_webpages_to_markdown` | 批量网页转换                                     |
+| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py)               | PDF 处理 | `convert_pdf_to_markdown`            | PDF 转 Markdown（method="auto" 时优先 Pipeline） |
+|                                                                    |          | `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                             |
 
 ### 响应模型层
 
@@ -99,15 +99,15 @@ graph LR
 
 ### 核心组件
 
-| 模块                                                                             | 类/函数               | 职责                                               |
-| -------------------------------------------------------------------------------- | --------------------- | -------------------------------------------------- |
-| [`base.py`](../src/negentropy/perceives/pipeline/base.py)                        | `Stage` / `StageResult` / `StageTool` | Stage 基类、执行结果包装与工具协议（鸭子类型） |
-| [`competitive.py`](../src/negentropy/perceives/pipeline/competitive.py)          | `CompetitiveStage`    | 多工具并行竞争 Stage，择优返回最佳结果             |
-| [`registry.py`](../src/negentropy/perceives/pipeline/registry.py)                | `@register_tool`      | 装饰器式全局工具注册表，按名称注册、获取和列举工具 |
-| [`scheduler.py`](../src/negentropy/perceives/pipeline/scheduler.py)              | `StageScheduler`      | Stage 调度器，支持降级模式与竞争模式               |
-| [`orchestrator.py`](../src/negentropy/perceives/pipeline/orchestrator.py)        | `PipelineOrchestrator` | Pipeline 编排器，串联多个 Stage 并支持并行组       |
-| [`models.py`](../src/negentropy/perceives/pipeline/models.py)                    | 数据模型              | 所有 Stage 间传递的 dataclass 定义                 |
-| [`convenience.py`](../src/negentropy/perceives/pipeline/convenience.py)          | `run_pdf_pipeline()` / `run_webpage_pipeline()` | 高级便捷 API，屏蔽编排细节 |
+| 模块                                                                      | 类/函数                                         | 职责                                               |
+| ------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------- |
+| [`base.py`](../src/negentropy/perceives/pipeline/base.py)                 | `Stage` / `StageResult` / `StageTool`           | Stage 基类、执行结果包装与工具协议（鸭子类型）     |
+| [`competitive.py`](../src/negentropy/perceives/pipeline/competitive.py)   | `CompetitiveStage`                              | 多工具并行竞争 Stage，择优返回最佳结果             |
+| [`registry.py`](../src/negentropy/perceives/pipeline/registry.py)         | `@register_tool`                                | 装饰器式全局工具注册表，按名称注册、获取和列举工具 |
+| [`scheduler.py`](../src/negentropy/perceives/pipeline/scheduler.py)       | `StageScheduler`                                | Stage 调度器，支持降级模式与竞争模式               |
+| [`orchestrator.py`](../src/negentropy/perceives/pipeline/orchestrator.py) | `PipelineOrchestrator`                          | Pipeline 编排器，串联多个 Stage 并支持并行组       |
+| [`models.py`](../src/negentropy/perceives/pipeline/models.py)             | 数据模型                                        | 所有 Stage 间传递的 dataclass 定义                 |
+| [`convenience.py`](../src/negentropy/perceives/pipeline/convenience.py)   | `run_pdf_pipeline()` / `run_webpage_pipeline()` | 高级便捷 API，屏蔽编排细节                         |
 
 ### 架构总览
 
@@ -215,18 +215,18 @@ graph TD
     style S9 fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
 ```
 
-| Stage | 名称                 | 描述                                       | 模式   |
-| ----- | -------------------- | ------------------------------------------ | ------ |
-| S0    | 预处理               | PDF 源验证、下载、格式检测与页面范围解析   | 降级   |
-| S1    | 文档扫描             | 轻量级文档特征分析（页数、表格、公式、图片、布局复杂度） | 降级   |
-| S2    | 版面分析             | 检测文档物理布局结构，确定正确阅读顺序     | 竞争   |
-| S3    | 文本提取             | 从各文本区域提取纯文本，保留段落结构与标题层级 | 降级   |
-| S4    | 表格提取             | 结构化表格识别与 Markdown 表格生成         | 竞争   |
-| S5    | 公式提取             | 数学公式检测与 LaTeX 转换                  | 竞争   |
-| S6    | 图片提取             | 图片提取、分类与 caption 生成              | 降级   |
-| S7    | 代码检测             | 代码块识别与编程语言推断                   | 竞争   |
-| S8    | 组装                 | 将各 Stage 产出按阅读顺序组装为 Markdown   | 降级   |
-| S9    | 资源打包             | 整理提取的资源文件，生成最终输出包         | 降级   |
+| Stage | 名称     | 描述                                                     | 模式 |
+| ----- | -------- | -------------------------------------------------------- | ---- |
+| S0    | 预处理   | PDF 源验证、下载、格式检测与页面范围解析                 | 降级 |
+| S1    | 文档扫描 | 轻量级文档特征分析（页数、表格、公式、图片、布局复杂度） | 降级 |
+| S2    | 版面分析 | 检测文档物理布局结构，确定正确阅读顺序                   | 竞争 |
+| S3    | 文本提取 | 从各文本区域提取纯文本，保留段落结构与标题层级           | 降级 |
+| S4    | 表格提取 | 结构化表格识别与 Markdown 表格生成                       | 竞争 |
+| S5    | 公式提取 | 数学公式检测与 LaTeX 转换                                | 竞争 |
+| S6    | 图片提取 | 图片提取、分类与 caption 生成                            | 降级 |
+| S7    | 代码检测 | 代码块识别与编程语言推断                                 | 竞争 |
+| S8    | 组装     | 将各 Stage 产出按阅读顺序组装为 Markdown                 | 降级 |
+| S9    | 资源打包 | 整理提取的资源文件，生成最终输出包                       | 降级 |
 
 ### WebPage Pipeline（S1 - S12）
 
@@ -265,39 +265,20 @@ graph TD
     style WS12 fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
 ```
 
-| Stage | 名称         | 描述                                           | 模式   |
-| ----- | ------------ | ---------------------------------------------- | ------ |
-| S1    | 合规检查     | 检查目标 URL 的 robots.txt 规则与基本合法性     | 降级   |
-| S2    | 网页获取     | HTTP 或浏览器抓取目标网页完整 HTML（三级降级链） | 降级   |
-| S3    | 反检测降级   | 使用隐身浏览器技术绕过反爬检测                 | 降级   |
-| S4    | 主内容提取   | 识别并提取主要文章内容，移除导航栏/广告/侧边栏 | 竞争   |
-| S5    | HTML 清洗    | 清理残余脚本/样式，保护数学和代码元素           | 降级   |
-| S6    | 公式提取     | 检测并提取页面中的数学公式，转换为 LaTeX        | 降级   |
-| S7    | 代码识别     | 识别 HTML 中的代码块，保留语法高亮信息          | 降级   |
-| S8    | 表格提取     | 提取 HTML 表格结构，生成 Markdown 表格          | 降级   |
-| S9    | 图片提取     | 提取页面图片信息，可选下载并嵌入                | 降级   |
-| S10   | Markdown 转换 | 将清洗后的 HTML 转换为 Markdown                 | 竞争   |
-| S11   | 排版格式化   | 排版优化、段落间距归一化、表格对齐              | 降级   |
-| S12   | 资源打包     | 聚合处理结果，构建最终输出                      | 降级   |
-
-### 工具简化（12 → 6）
-
-为聚焦核心转换能力并消除低价值工具的维护负担，MCP 工具从 12 个精简至 6 个：
-
-| 操作   | 工具名称                      | 原因                   |
-| ------ | ----------------------------- | ---------------------- |
-| 删除   | `scrape_webpage`              | 由 Pipeline 内部 Stage 覆盖 |
-| 删除   | `scrape_multiple_webpages`    | 由 Pipeline 内部 Stage 覆盖 |
-| 删除   | `scrape_with_stealth`         | 反检测逻辑内化至 Pipeline S3 |
-| 删除   | `fill_and_submit_form`        | 非核心，复杂度高       |
-| 删除   | `extract_structured_data`     | 低使用率，CSS 选择器逻辑可由 LLM 完成 |
-| 删除   | `check_robots_txt`            | 内化至 WebPage Pipeline S1 |
-| 保留   | `extract_links`               | 独立价值，无可替代     |
-| 保留   | `get_page_info`               | 独立价值，无可替代     |
-| 保留   | `convert_webpage_to_markdown` | 核心转换入口           |
-| 保留   | `batch_convert_webpages_to_markdown` | 批量转换入口           |
-| 保留   | `convert_pdf_to_markdown`     | 核心转换入口           |
-| 保留   | `batch_convert_pdfs_to_markdown` | 批量转换入口           |
+| Stage | 名称          | 描述                                             | 模式 |
+| ----- | ------------- | ------------------------------------------------ | ---- |
+| S1    | 合规检查      | 检查目标 URL 的 robots.txt 规则与基本合法性      | 降级 |
+| S2    | 网页获取      | HTTP 或浏览器抓取目标网页完整 HTML（三级降级链） | 降级 |
+| S3    | 反检测降级    | 使用隐身浏览器技术绕过反爬检测                   | 降级 |
+| S4    | 主内容提取    | 识别并提取主要文章内容，移除导航栏/广告/侧边栏   | 竞争 |
+| S5    | HTML 清洗     | 清理残余脚本/样式，保护数学和代码元素            | 降级 |
+| S6    | 公式提取      | 检测并提取页面中的数学公式，转换为 LaTeX         | 降级 |
+| S7    | 代码识别      | 识别 HTML 中的代码块，保留语法高亮信息           | 降级 |
+| S8    | 表格提取      | 提取 HTML 表格结构，生成 Markdown 表格           | 降级 |
+| S9    | 图片提取      | 提取页面图片信息，可选下载并嵌入                 | 降级 |
+| S10   | Markdown 转换 | 将清洗后的 HTML 转换为 Markdown                  | 竞争 |
+| S11   | 排版格式化    | 排版优化、段落间距归一化、表格对齐               | 降级 |
+| S12   | 资源打包      | 聚合处理结果，构建最终输出                       | 降级 |
 
 ### 配置驱动
 
@@ -486,18 +467,18 @@ graph TD
 
 各模块通过规范路径导入（旧路径仍可通过 shim 文件兼容使用）：
 
-| 用途          | 导入路径                                                                         |
-| ------------- | -------------------------------------------------------------------------------- |
-| 网页抓取      | `from negentropy.perceives.scraping import WebScraper`                           |
-| 反检测抓取    | `from negentropy.perceives.scraping import AntiDetectionScraper`                 |
-| 表单处理      | `from negentropy.perceives.scraping import FormHandler`                          |
-| 浏览器会话    | `from negentropy.perceives.scraping import selenium_session, playwright_session` |
-| PDF 处理      | `from negentropy.perceives.pdf.processor import PDFProcessor`                    |
-| 增强 PDF      | `from negentropy.perceives.pdf.enhanced import EnhancedPDFProcessor`             |
-| Markdown 转换 | `from negentropy.perceives.markdown.converter import MarkdownConverter`          |
+| 用途          | 导入路径                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| 网页抓取      | `from negentropy.perceives.scraping import WebScraper`                                                   |
+| 反检测抓取    | `from negentropy.perceives.scraping import AntiDetectionScraper`                                         |
+| 表单处理      | `from negentropy.perceives.scraping import FormHandler`                                                  |
+| 浏览器会话    | `from negentropy.perceives.scraping import selenium_session, playwright_session`                         |
+| PDF 处理      | `from negentropy.perceives.pdf.processor import PDFProcessor`                                            |
+| 增强 PDF      | `from negentropy.perceives.pdf.enhanced import EnhancedPDFProcessor`                                     |
+| Markdown 转换 | `from negentropy.perceives.markdown.converter import MarkdownConverter`                                  |
 | Pipeline 编排 | `from negentropy.perceives.pipeline import PipelineOrchestrator, run_pdf_pipeline, run_webpage_pipeline` |
-| 基础设施      | `from negentropy.perceives.infra import rate_limiter, retry_manager`             |
-| SDK 客户端    | `from negentropy.perceives.sdk import NegentropyPerceivesClient`                 |
+| 基础设施      | `from negentropy.perceives.infra import rate_limiter, retry_manager`                                     |
+| SDK 客户端    | `from negentropy.perceives.sdk import NegentropyPerceivesClient`                                         |
 
 ---
 
