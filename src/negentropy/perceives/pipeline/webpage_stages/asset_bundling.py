@@ -102,7 +102,7 @@ class BuiltinBundlerTool:
             try:
                 domain = urlparse(ctx.url).netloc
             except Exception:
-                pass
+                logger.debug("URL 域名解析失败: %s", ctx.url, exc_info=True)
 
         # 链接数统计（从 Markdown 中匹配）
         import re

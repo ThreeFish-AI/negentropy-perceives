@@ -13,11 +13,10 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from ..base import Stage, StageResult, StageTool
+from ..base import Stage, StageResult
 from ..models import LayoutAnalysisOutput, LayoutRegion, PreprocessingOutput
 
 logger = logging.getLogger(__name__)

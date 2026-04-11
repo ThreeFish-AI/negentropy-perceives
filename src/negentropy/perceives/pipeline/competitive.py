@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Generic, List, Optional, TypeVar
+from typing import Callable, List, Optional, TypeVar
 
 from .base import Stage, StageResult, StageTool
 
