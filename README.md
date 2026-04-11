@@ -1,123 +1,162 @@
 <h1 align="center">Negentropy Perceives</h1>
 
 <p align="center">
-  <strong>面向下一代智能体的全天候感知引擎 (商业级 MCP Server)</strong><br/><br/>
-  赋予 AI Agent 真正的“千里眼 x 顺风耳”。无论是动态加载的 SPA 网页、严苛的反爬虫矩阵，还是排版极其复杂的学术论文 PDF，统统手到擒来，咀嚼转化成最纯净清爽的 Markdown 原浆，直接投喂大模型。
+  <strong>面向 AI Agent 的全天候感知引擎 · 商业级 MCP Server</strong><br/><br/>
+  把网页和 PDF 变成干净的 Markdown，直接投喂大模型。
 </p>
 
 <p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
-  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/pypi/v/negentropy-perceives?color=orange" alt="PyPI" /></a>
+  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/badge/PyPI-0.2.0a1-orange" alt="PyPI" /></a>
   <a href="https://github.com/ThreeFish-AI/negentropy-perceives/stargazers"><img src="https://img.shields.io/github/stars/ThreeFish-AI/negentropy-perceives?style=social" alt="Stars" /></a>
   <img src="https://img.shields.io/badge/status-alpha-orange?logo=statuspage&logoColor=white" alt="Alpha" />
 </p>
 
 <p align="center">
-  <b>MCP 原生支持</b> · <b>10+ 级流水线降级处理</b> · <b>LLM 智能裁决模式</b>
+  <b>6 MCP Tools</b> · <b>Pipeline 编排</b> · <b>5 引擎 PDF</b> · <b>LLM 智能编排</b>
 </p>
 
-<br />
+---
 
-## ✨ 为什么它是您的首选？
+## 为什么需要 Negentropy Perceives？
 
-当下的各种 AI 智能体项目中，信息感知这类“脏活累活”往往最容易随着时间推移变得极其丑陋且脆弱。基于**正交分解与熵减 (Negentropy)** 的底层工程哲学，我们替你彻底封锁了底层网络通信与格式解构的混沌，只向你的沙箱池中注入无可争议的确定性：
+- 🌐 **网页抓取远比想象中复杂** — SPA 动态渲染、反爬机制、广告干扰，AI Agent 面对的真实网页不是 `requests.get` 能搞定的。内置 4 种抓取策略（simple / selenium / stealth\_selenium / stealth\_playwright），12 Stage 流水线自动清洗，所见即所得。
+- 📑 **PDF 转换总是丢东西** — 表格错位、公式消失、多栏排版混乱，通用工具处理学术论文和财报常常翻车。5 大专业引擎按降级链自动选择，`smart` 模式甚至能让 LLM 裁决多引擎竞争结果，再难啃的 PDF 也不在话下。
+- 🧠 **Agent 需要干净数据，不是 HTML** — 大模型吃 Markdown，但市面上的方案要么只做网页、要么只做 PDF，还需要你自己拼装。6 个 MCP 工具统一覆盖链接提取、页面信息、网页/PDF 转 Markdown，批量处理开箱即用。
+- 🏗️ **生产环境不是 Demo** — 裸调 API 遇到限流就崩，遇到超时就挂。指数退避重试、速率限制、内存缓存、代理轮换——这些"脏活"我们已经帮你埋好了，你只管专注业务逻辑。
 
-- 🕵️ **Web 隐形刺客**: 面对重度渲染的 SPA 和严防死守的反扒策略？引擎内置 5 级防线穿透机制（从极速并发到无头隐身浏览器轮换）。所见即所得，各类瀑布流如同探囊取物。
-- 📑 **PDF 绞肉机**: 不要再妥协于错位的表格或丢失的符号。独创“引擎打擂”机制，启动 `Smart` 模式即可召唤 LLM 亲自督战，裁判调度 Docling、PyMuPDF 等 7 大专业引擎并发解构，精准萃取 LaTeX 公式、复杂表格矩阵甚至深层版面特征。
-- 🦾 **工业级重载底座**: 摒弃玩具级的粗暴封装。内核植入指数量级退避重试网络、多重限速熔断防御，以及激进的内存预载机制 (Cache)。依托全双工 `asyncio` 跑满机器单节点极限吞吐量。
-- 🔌 **零摩擦的 MCP 接驳**: 坚决拥抱标准 Model Context Protocol 协议规范。依托 HTTP / STDIO / SSE 标准传输模式，抛弃冗杂代码胶水，一键免密注入 Claude Desktop 或 Cursor 环境。
+## 快速上手 (Quick Start)
 
-## 🚀 经典 Quick Start
-
-只需不足百秒，开启通向干净数据的任意门。
-
-### 1. 毫秒级装载
+### 1. 安装
 
 ```bash
-# 推荐使用极速丝滑的 uv 部署环境（提示: 需要 Python 3.13+）
+# 推荐使用 uv（需要 Python 3.13+）
 uv add negentropy-perceives
 ```
 
-### 2. 轰鸣启动引擎
-
-一键挂载，开箱即用：
+### 2. 启动
 
 ```bash
-negentropy-perceives  # 服务已就绪：正默认监听 localhost:8081 提供 MCP-HTTP 通道
+negentropy-perceives  # 默认监听 localhost:8081，HTTP 模式
 ```
 
-### 3. 一行代码见证感知力
-
-通过自带的高阶 SDK 体验何为“瞬间感知”：
+### 3. 调用
 
 ```python
 import asyncio
 from negentropy.perceives.sdk import NegentropyPerceivesClient
 
-async def perceive_world():
-    # 瞬间链接本地引擎底座
+async def main():
     async with NegentropyPerceivesClient() as client:
         result = await client.convert_webpage_to_markdown(
-            url="https://zh.wikipedia.org/wiki/熵",
+            url="https://example.com",
         )
-        print("====== 萃取原浆 ======")
-        print(result.markdown_content[:250], "......\n")
-        print(f"📊 从噪音中汲取纯净字词: {result.word_count}")
+        print(result.markdown_content[:200])
+        print(f"Word count: {result.word_count}")
 
-asyncio.run(perceive_world())
+asyncio.run(main())
 ```
 
-> 💡 **进阶锦囊**: 首次深呼吸运转时，底座会自动生成专属的配置要塞至 `~/.negentropy/perceives.config.yaml`。里面潜藏着各类高端玩法的解锁机关。
+> 首次启动时会自动生成配置文件至 `~/.negentropy/perceives.config.yaml`，支持环境变量、YAML、CLI 参数三种配置方式。
 
-## 🛠️ 决胜数据黑洞的军火库
+## 核心能力
 
-我们拒绝拿只能跑通 Demo 的短命积木忽悠人。底座出场即标配 6 把锋利无匹的“手术刀”，由底层并发核心强劲驱动，专治乱象频发的数字深渊：
+### 工具总览
 
-**🌐 Web 空间的降维打击**
+| 工具 | 功能 | 适用场景 |
+| :--- | :--- | :--- |
+| `extract_links` | 提取网页链接，支持域名过滤 | 站点地图、链接审计 |
+| `get_page_info` | 获取页面元数据（状态码、内容类型等） | 预检目标页面 |
+| `convert_webpage_to_markdown` | 网页转 Markdown | 单页内容提取 |
+| `batch_convert_webpages_to_markdown` | 批量网页转 Markdown | 知识库构建、站点归档 |
+| `convert_pdf_to_markdown` | PDF 转 Markdown | 学术论文、财报处理 |
+| `batch_convert_pdfs_to_markdown` | 批量 PDF 转 Markdown | 文档批量数字化 |
 
-- `convert_webpage_to_markdown`：**单兵网页蒸馏釜**。面对重度渲染的 SPA 应用或严密反爬风控？它能从容切入，绝情剥离成吨的广告与内容侧边栏，完美定格语义树，甚至能将图片提纯为 Base64 无损嵌于结果内。所见即所得。
-- `batch_convert_webpages_to_markdown`：**超线程洗稿集群**。单线作战太磨叽？直接向它投喂一份庞大的 URL 阵列。异步引擎拉满配置，万千冗杂的动态页面眨眼间即可并行碾碎、蒸馏为清脆的顶级大模型语料。
+### Web 抓取策略
 
-**📄 硬核 PDF 的叹息之墙**
+| 方法 | 说明 |
+| :--- | :--- |
+| `auto` | 智能选择（推荐） |
+| `simple` | HTTP 请求，适合静态页面 |
+| `selenium` | 浏览器渲染，支持 JS 动态页面 |
+| `stealth_selenium` | 隐身 Selenium，绕过反爬 |
+| `stealth_playwright` | 隐身 Playwright，轻量反检测 |
 
-- `convert_pdf_to_markdown`：**骨灰级解构台**。还在因财报里的跨页畸形表格或学术顶会里的高密 LaTeX 公式而抓狂？抛给它！启动专属的 `smart 模式` 召唤多核心引擎竞技互搏，无损还原高维的图文混排。再难啃的 PDF 也给你嚼碎成最丝滑的文本流。
-- `batch_convert_pdfs_to_markdown`：**全天候重装推土机**。彻底无视本地文件系统与远端云地址边界。不用管报表堆积如山，一口气推入并发洗稿队列，让你的专属 Knowledge Base 体验一把“暴风吸入”的爽快感。
+### PDF 引擎
 
-**🔦 前沿阵地的情报嗅探**
+| 引擎 | 特长 | GPU 加速 |
+| :--- | :--- | :--- |
+| Docling | AI 布局分析、表格识别 | CUDA / MPS / XPU |
+| MinerU | 深度学习结构分析，LaTeX 公式 | CUDA / MLX |
+| Marker | 学术文档，Nougat 模型 | CUDA |
+| PyMuPDF | 快速文本提取 | — |
+| PyPDF | 基础降级兜底 | — |
 
-- `extract_links`：**全域链路雷达**。它是大模型尝试“涌现与全自动漫游”的开路先锋。抛入一个靶点，瞬间摸出整站的爬行拓扑图，并支持防波堤级别的隐秘内外链精确剔除。
-- `get_page_info`：**超频状态谍报兵**。在决定倾听长文前，为何不在毫秒内先掠取一发目标网站的状态码、载荷体量与隐性 Meta 标识？它专为你那充满好奇心的 Agent 提供绝佳的潜入行动预判依据。
+> `auto` 模式按 Docling → MinerU → Marker → PyMuPDF → PyPDF 降级链自动选择。`smart` 模式启用 LLM 编排多引擎并行竞争并择优融合。
 
-## 🗺️ 架构剖析与高阶子路径 (模块引路)
+## 架构全景图
 
-在“功能正交分层”的信条下，我们备齐了 4 条截然不同的探险子径。阁下打算向何处发测？
+```mermaid
+graph TD
+    A["SDK 层<br/>NegentropyPerceivesClient"] -.->|"HTTP Transport"| T["MCP 工具层<br/>6 Tools · @app.tool()"]
+    T --> P["Pipeline 层<br/>Stage 编排 · 竞争/降级"]
+    T --> B["处理引擎层<br/>Scraping · PDF · Markdown"]
+    P --> B
+    B --> C["基础设施层<br/>RateLimiter · Cache · Metrics · ErrorHandler · Retry"]
+    C --> D["配置层<br/>pydantic-settings · 环境变量"]
 
-| 探索域                      | 您将在此挖掘的宝藏...                                                                                                                   | 传送门                                     |
-| :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------- |
-| **📘 用户与作战指南**       | 6 大硬核 MCP 施法工具的终极参数图表、各类批处理实战组合拳、无缝接入 Claude Desktop 的快捷通道，以及 YAML 重金四层防线的优先级解构。     | `👉 `[前往用户指南](./docs/user-guide.md)  |
-| **🏗️ 解析引擎的全景蓝图**   | 建立在有向无环图 (DAG) 上的 5 级沉降深网管线、引擎角斗比赛与融合判分的底层逻辑、主打死磕 OOM (Out Of Memory) 护栏的防御性编码设计手记。 | `👉 `[纵览架构设计](./docs/framework.md)   |
-| **🛠️ 二次魔改与共创者契约** | TDD 本地极速炼丹环境的重生法则、苛求完美（但能大幅降低心智负担）的 PR 准入红线准则。                                                    | `👉 `[深入开发指引](./docs/development.md) |
-| **📜 脱胎换骨的里程史书**   | 回首每个 Alpha / Beta 里我们铲除了多少荒唐 Bug，又酝酿着哪些即将颠覆传统的野望。                                                        | `👉 `[查阅 CHANGELOG](CHANGELOG.md)        |
+    style A fill:#4c1d95,stroke:#a78bfa,color:#ffffff
+    style T fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
+    style P fill:#b45309,stroke:#f59e0b,color:#ffffff
+    style B fill:#166534,stroke:#22c55e,color:#ffffff
+    style C fill:#134e4a,stroke:#14b8a6,color:#ffffff
+    style D fill:#581c87,stroke:#9333ea,color:#ffffff
+```
 
-## 🤝 社区联合作战网络
+5 层正交架构：SDK → MCP 工具 → Pipeline 编排 → 处理引擎 → 基础设施，配置层贯穿全局。PDF Pipeline 10 Stage + WebPage Pipeline 12 Stage，支持降级和竞争两种执行模式。
 
-万维网页与海量非结构化文本的另一面是噪音深渊，唯有持续的代码演进方可稳步前行。
-若您手中正握有将混沌拉回秩序的灵感，请务必不吝赐教：
+## 接入 MCP Client
 
-1. 动键盘前，烦请顺路翻转一页 [开发指南](./docs/development.md) 校对贡献坐标系。
-2. 将您的重磅想法掷向 [Issue 板](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 或是直接提送带有改变战局力量的 [PR 通道](https://github.com/ThreeFish-AI/negentropy-perceives/pulls)。
+在 Claude Desktop 的 `claude_desktop_config.json` 中添加：
 
-## ⚖️ 知识产权与数字边界共识
+```json
+{
+  "mcpServers": {
+    "negentropy-perceives": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "git+https://github.com/ThreeFish-AI/data-negentropy.perceives.git@v0.2.0a1",
+        "negentropy-perceives"
+      ]
+    }
+  }
+}
+```
 
-全套底层源码依照最通透开放的 [MIT](LICENSE) 先锋许可协议颁发，© 2026 [ThreeFish-AI](https://github.com/ThreeFish-AI) 全权解释所有架构逻辑。
+> 支持三种传输模式：STDIO（本地开发）、HTTP（生产推荐）、SSE（兼容模式）。完整配置参见 [用户指南](./docs/user-guide.md#mcp-server-配置)。
+
+## 文档导航
+
+| 文档 | 内容 | 适合谁 |
+| :--- | :--- | :--- |
+| [用户指南](./docs/user-guide.md) | 6 个工具参数详解、MCP Server 配置、SDK 接口、高级场景 | 所有用户 |
+| [架构设计](./docs/framework.md) | 5 层架构、Pipeline 编排、引擎降级链、Smart 模式 | 架构师 / 贡献者 |
+| [开发指南](./docs/development.md) | 环境搭建、测试体系、CI/CD、PR 规范 | 开发者 |
+| [更新日志](CHANGELOG.md) | 版本历史与变更记录 | 所有人 |
+
+## 社区与贡献
+
+欢迎贡献代码或提出建议：
+
+1. 贡献前请先阅读 [开发指南](./docs/development.md)
+2. 提交 [Issue](https://github.com/ThreeFish-AI/negentropy-perceives/issues) 或 [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls)
+
+## 许可证
+
+[MIT](LICENSE) License, © 2026 [ThreeFish-AI](https://github.com/ThreeFish-AI)
 
 > [!WARNING]
->
-> **写在执行回车键前**
->
-> 技术力是一种到达真理的途径，绝非盲操的借口。我们交付这柄吹毛断发的利刃，但深切反对无节制、掠夺式的野蛮数据收割。
->
-> 敬请以无上敬畏之心，时刻遵守并爱护目标服务器与服务方 (TOS) 的运作边界。在释放大规模自动抓取的咒语前，主动系牢温和请求频率的缰绳。
->
-> 工具纵是冰冷钢铁，但驱动其意志的人类及智能体，当为文明本身。
+> 请遵守目标网站的服务条款（TOS），合理控制请求频率。本工具仅供合法合规的数据获取场景使用。
