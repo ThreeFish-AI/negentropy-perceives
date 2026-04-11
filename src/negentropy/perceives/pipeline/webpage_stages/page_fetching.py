@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Dict
 
 from ..base import StageResult
 from ..models import StageContext
@@ -196,7 +196,7 @@ def _extract_title_from_html(ctx: StageContext) -> None:
         if title_tag:
             ctx.title = title_tag.get_text(strip=True)
     except Exception:
-        pass
+        logger.debug("HTML title 提取失败", exc_info=True)
 
 
 # Stage 本地工具映射

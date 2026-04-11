@@ -27,10 +27,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..base import Stage, StageResult, StageTool
+from ..base import Stage, StageResult
 from ..models import (
     AssemblyOutput,
-    ExtractedImageV2,
     ImageExtractionOutput,
     PipelineResult,
     PreprocessingOutput,

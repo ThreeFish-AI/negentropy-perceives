@@ -15,7 +15,6 @@ from .models import (
     CodeDetectionOutput,
     FormulaExtractionOutput,
     ImageExtractionOutput,
-    LayoutAnalysisOutput,
     PipelineResult,
     PreprocessingInput,
     PreprocessingOutput,
@@ -147,7 +146,7 @@ async def run_pdf_pipeline(
     preprocessing_output = preprocessing_result.output
 
     # 收集各 Stage 输出
-    layout_output = _unwrap(stage_results.get("layout_analysis"))
+    _unwrap(stage_results.get("layout_analysis"))  # layout 已在 assembly 中消费
     text_output = _unwrap(stage_results.get("text_extraction"))
     table_output = _unwrap(stage_results.get("table_extraction"))
     formula_output = _unwrap(stage_results.get("formula_extraction"))

@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from ..base import Stage, StageResult, StageTool
+from ..base import Stage, StageResult
 from ..models import (
     DocumentCharacteristics,
     PreprocessingInput,

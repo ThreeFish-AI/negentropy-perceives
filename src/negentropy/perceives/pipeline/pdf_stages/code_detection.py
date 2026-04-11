@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Dict, List
 
-from ..base import Stage, StageResult, StageTool
+from ..base import Stage, StageResult
 from ..models import (
     CodeDetectionOutput,
     ExtractedCodeBlock,
@@ -175,7 +175,7 @@ class AlgorithmDetectorTool:
 
     def is_available(self) -> bool:
         try:
-            from ...markdown.algorithm_detector import detect_algorithm_regions
+            from ...markdown.algorithm_detector import detect_algorithm_regions  # noqa: F401
 
             return True
         except ImportError:
@@ -192,7 +192,6 @@ class AlgorithmDetectorTool:
         try:
             from ...markdown.algorithm_detector import (
                 detect_algorithm_regions,
-                wrap_as_code_fence,
             )
             from ...pdf._imports import import_fitz
 
