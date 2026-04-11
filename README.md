@@ -1,54 +1,177 @@
-Data Extractor is a commercial-grade MCP Server built on FastMCP, offering robust capabilities to read, extract, and localize (into Markdown) content from web pages and PDFs with both text and images. It is purpose-built for long-term deployment in enterprise environments.
+[English](./README.md) | [简体中文](./docs/zh-CN/README.md)
 
-## 🛠️ MCP Server Core Tools (14)
+<h1 align="center">Negentropy Perceives</h1>
 
-### Web Page
+<p align="center">
+  <strong>The Perception Engine for AI Agents · Enterprise-Grade MCP Server</strong><br/><br/>
+  Distilling web pages and PDFs into clean Markdown nectar, ready to be fed directly to your LLM.
+</p>
 
-| 工具名称                               | 功能描述           | 主要参数                                                                                            |
-| -------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------- |
-| **scrape_webpage**                     | 单页面抓取         | `url`, `method`(自动选择), `extract_config`(选择器配置), `wait_for_element`(CSS 选择器)             |
-| **scrape_multiple_webpages**           | 批量页面抓取       | `urls`(列表), `method`(统一方法), `extract_config`(全局配置)                                        |
-| **scrape_with_stealth**                | 反检测抓取         | `url`, `method`(selenium/playwright), `scroll_page`(滚动加载), `wait_for_element`                   |
-| **fill_and_submit_form**               | 表单自动化         | `url`, `form_data`(选择器:值), `submit`(是否提交), `submit_button_selector`                         |
-| **extract_links**                      | 专业链接提取       | `url`, `filter_domains`(域名过滤), `exclude_domains`(排除域名), `internal_only`(仅内部)             |
-| **extract_structured_data**            | 结构化数据提取     | `url`, `data_type`(all/contact/social/content/products/addresses)                                   |
-| **get_page_info**                      | 页面信息获取       | `url`(目标 URL) - 返回标题、状态码、元数据                                                          |
-| **check_robots_txt**                   | 爬虫规则检查       | `url`(域名 URL) - 检查 robots.txt 规则                                                              |
-| **convert_webpage_to_markdown**        | 页面转 Markdown    | `url`, `method`, `extract_main_content`(提取主内容), `embed_images`(嵌入图片), `formatting_options` |
-| **batch_convert_webpages_to_markdown** | 批量 Markdown 转换 | `urls`(列表), `method`, `extract_main_content`, `embed_images`, `embed_options`                     |
+<p align="center">
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Python-3.13+-blue?logo=python&logoColor=white" alt="Python" /></a>
+  <a href="https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
+  <a href="https://pypi.org/project/negentropy-perceives/"><img src="https://img.shields.io/pypi/v/negentropy-perceives?color=orange" alt="PyPI" /></a>
+  <a href="https://github.com/ThreeFish-AI/negentropy-perceives/stargazers"><img src="https://img.shields.io/github/stars/ThreeFish-AI/negentropy-perceives?style=social" alt="Stars" /></a>
+  <img src="https://img.shields.io/badge/status-alpha-orange?logo=statuspage&logoColor=white" alt="Alpha" />
+</p>
 
-### PDF Document
-
-| 工具名称                           | 功能描述        | 主要参数                                                                            |
-| ---------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
-| **convert_pdf_to_markdown**        | PDF 转 Markdown | `pdf_source`(URL/路径), `method`(auto/pymupdf/pypdf), `page_range`, `output_format` |
-| **batch_convert_pdfs_to_markdown** | 批量 PDF 转换   | `pdf_sources`(列表), `method`, `page_range`, `output_format`, `include_metadata`    |
-
-### Service Management
-
-| 工具名称               | 功能描述     | 主要参数                                  |
-| ---------------------- | ------------ | ----------------------------------------- |
-| **get_server_metrics** | 性能指标监控 | 无参数 - 返回请求统计、性能指标、缓存情况 |
-| **clear_cache**        | 缓存管理     | 无参数 - 清空所有缓存数据                 |
-
-## 🎯 Quick Navigation
-
-- [用户指南](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/6-User-Guide.md)
-- [架构设计](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/1-Framework.md)
-- [开发指南](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/2-Development.md)
-- [测试指南](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/3-Testing.md)
-- [配置系统](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/4-Configuration.md)
-- [常用指令](https://github.com/ThreeFish-AI/data-extractor/blob/master/docs/5-Commands.md)
-- [版本里程](https://github.com/ThreeFish-AI/data-extractor/blob/master/CHANGELOG.md)
-
-## 🤝 Contribution
-
-欢迎提交 [Issue](https://github.com/ThreeFish-AI/data-extractor/issues) 和 [Pull Request](https://github.com/ThreeFish-AI/data-extractor/pulls) 来改进这个项目。
-
-## 📄 License
-
-MIT License - 详见 [LICENSE](LICENSE) 文件
+<p align="center">
+  <b>6 MCP Tools</b> · <b>Pipeline Orchestration</b> · <b>5-Engine PDF Decoding</b> · <b>LLM Smart Evaluation</b>
+</p>
 
 ---
 
-**注意**: 请负责任地使用此工具，遵守网站的使用条款和 robots.txt 规则，尊重网站的知识产权。
+## ✨ Why Negentropy Perceives?
+
+In the vast ecosystem of AI agent projects, the "dirty work" of information perception often degenerates into fragile, unmaintainable chaos over time. Grounded in our core engineering philosophy of **Orthogonal Decomposition and Entropy Reduction (Negentropy)**, we completely quarantine the mess of low-level network communications and format deconstruction. We only inject pure, undisputed certainty into your sandbox:
+
+- 🕵️ **Web Page to Markdown**: Facing heavily-rendered SPAs and fortified anti-scraping defenses? The engine comes armed with a built-in 5-tier penetration mechanism (ranging from hyper-concurrency to headless stealth browser rotation). "What You See Is What You Get" — tearing through waterfall setups is a walk in the park.
+- 📑 **PDF to Markdown**: Stop compromising over misaligned tables and mangled characters. Powered by our proprietary "Engine Arena" mechanism, engaging `Smart` mode summons an LLM as the ultimate referee. It coordinates 7 specialized engines (including Docling, PyMuPDF, etc.) performing concurrent deconstruction to precisely extract LaTeX formulas, gnarly table matrices, and deep layout structures.
+- 🦾 **Heavy-Duty Infrastructure**: Abandon toy-grade SDK wrappers. Our core is hardwired with resilient exponential backoffs, multi-layered rate-limiting circuit breakers, and aggressive memory caching mechanisms. Riding on full-duplex `asyncio`, it maxes out the absolute throughput limit of a single node.
+- 🔌 **Native MCP Integration**: We firmly embrace the pristine Model Context Protocol specification. Leveraging standard HTTP / STDIO / SSE transports, it abandons redundant glue code for seamless, zero-friction injection into Claude Desktop or Cursor environments.
+
+---
+
+## Quick Start
+
+### 1. Millisecond Loading
+
+```bash
+# We recommend using uv (Python 3.13+ required)
+uv add negentropy-perceives
+```
+
+### 2. Ignite the Engine
+
+```bash
+uv run negentropy-perceives  # Defaults to listening on localhost:8081, HTTP mode
+```
+
+> 💡 **Advanced Arsenal**: Upon first launch, Negentropy Perceives will auto-generate its configuration at `~/.negentropy/perceives.config.yaml`. Hidden inside are the switches for high-tier warfare.
+
+### 3. Witness True Perception
+
+```python
+import asyncio
+from negentropy.perceives.sdk import NegentropyPerceivesClient
+
+async def perceive_world():
+    async with NegentropyPerceivesClient() as client:
+        result = await client.convert_webpage_to_markdown(
+            url="https://en.wikipedia.org/wiki/Entropy",
+        )
+        print("====== Pure Nectar Extracted ======")
+        print(result.markdown_content[:250], "......\n")
+        print(f"📊 Pure words retrieved from the noise: {result.word_count}")
+
+asyncio.run(perceive_world())
+```
+
+### 4. Connect the MCP Client
+
+Add the following to your `claude_desktop_config.json` in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "negentropy-perceives": {
+      "type": "http",
+      "url": "http://localhost:8081/mcp"
+    }
+  }
+}
+```
+
+> Supports three transport modes: STDIO (local dev), HTTP (production-recommended), and SSE (compatibility mode). See the [User Guide](./docs/user-guide.md#mcp-server-配置) for the comprehensive configuration.
+
+---
+
+## Core Capabilities
+
+### Toolkit Overview
+
+| Tool                                 | Function                                              | Use Case                               |
+| :----------------------------------- | :---------------------------------------------------- | :------------------------------------- |
+| `extract_links`                      | Extract webpage links, supports domain filtering      | Site map discovery, link audits        |
+| `get_page_info`                      | Fetch page metadata (status code, content type, etc.) | Target page pre-flight check           |
+| `convert_webpage_to_markdown`        | Webpage to Markdown                                   | Granular single-page extraction        |
+| `batch_convert_webpages_to_markdown` | Batch Webpages to Markdown                            | Knowledge base building, site archives |
+| `convert_pdf_to_markdown`            | PDF to Markdown                                       | Academic papers, financial reports     |
+| `batch_convert_pdfs_to_markdown`     | Batch PDFs to Markdown                                | Mass document digitization             |
+
+> [!WARNING]
+>
+> Please adhere to the targeted website's Terms of Service (TOS) and sensibly restrict request frequencies. This tool is intended exclusively for legal and compliant data acquisition.
+
+### Web Scraping Strategies
+
+| Method               | Description                                    |
+| :------------------- | :--------------------------------------------- |
+| `auto`               | Smart selection (Recommended)                  |
+| `simple`             | Standard HTTP request, ideal for static pages  |
+| `selenium`           | Browser rendering, seamlessly executes JS      |
+| `stealth_selenium`   | Covert Selenium, shatters anti-scraping blocks |
+| `stealth_playwright` | Stealth Playwright, lightweight anti-detection |
+
+### PDF Engines
+
+| Engine  | Specialty                               | GPU Acceleration |
+| :------ | :-------------------------------------- | :--------------- |
+| Docling | AI layout analysis, table recognition   | CUDA / MPS / XPU |
+| MinerU  | Deep learning structure analysis, LaTeX | CUDA / MLX       |
+| Marker  | Academic documents, Nougat model        | CUDA             |
+| PyMuPDF | Lightning-fast text extraction          | —                |
+| PyPDF   | Absolute baseline fallback              | —                |
+
+> In `auto` mode, the system cascades through a graceful degradation chain: Docling → MinerU → Marker → PyMuPDF → PyPDF. Activating `smart` mode enlists an LLM to orchestrate a competitive parallel run across engines, ultimately fusing the optimum output.
+
+---
+
+## Architectural Landscape
+
+```mermaid
+graph TD
+    A["SDK Layer<br/>NegentropyPerceivesClient"] -.->|"HTTP Transport"| T["MCP Tool Layer<br/>6 Tools · @app.tool()"]
+    T --> P["Pipeline Layer<br/>Stage Orchestration · Competition/Fallback"]
+    T --> B["Processing Engine Layer<br/>Scraping · PDF · Markdown"]
+    P --> B
+    B --> C["Infrastructure Layer<br/>RateLimiter · Cache · Metrics · ErrorHandler · Retry"]
+    C --> D["Configuration Layer<br/>pydantic-settings · Env Vars"]
+
+    style A fill:#4c1d95,stroke:#a78bfa,color:#ffffff
+    style T fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
+    style P fill:#b45309,stroke:#f59e0b,color:#ffffff
+    style B fill:#166534,stroke:#22c55e,color:#ffffff
+    style C fill:#134e4a,stroke:#14b8a6,color:#ffffff
+    style D fill:#581c87,stroke:#9333ea,color:#ffffff
+```
+
+A 5-tier orthogonal architecture: SDK → MCP Tools → Pipeline Orchestration → Processing Engines → Infrastructure, with the Configuration Layer interweaving through everything. Featuring a 10-Stage PDF Pipeline and a 12-Stage WebPage Pipeline that strictly enforce both fallback and competitive execution models.
+
+---
+
+## Documentation Navigator
+
+| Document                                   | Content                                                                   | Who is it for             |
+| :----------------------------------------- | :------------------------------------------------------------------------ | :------------------------ |
+| [User Guide](./docs/user-guide.md)         | Deep dive into 6 tools, MCP Server setup, SDK interfaces, advanced tweaks | All Users                 |
+| [Architecture Design](./docs/framework.md) | 5-tier architecture, Pipeline orchestration, engine fallbacks, Smart Mode | Architects / Contributors |
+| [Developer Guide](./docs/development.md)   | Environment setup, test framework, CI/CD, PR guidelines                   | Developers                |
+| [Changelog](CHANGELOG.md)                  | Release history and change logs                                           | Everyone                  |
+
+> 🌐 **Chinese Documentation**: [中文版 README](./docs/zh-CN/README.md)
+
+---
+
+## Community & Contributions
+
+Beyond the World Wide Web and massive unstructured texts lies an abyss of noise. Only through relentless code evolution can we forge ahead steadily. If you hold the inspiration to pull chaos back into order, please do not hesitate to share:
+
+1. Before striking your keyboard, flip through the [Developer Guide](./docs/development.md) along the way.
+2. Hurl your paradigm-shifting ideas at our [Issues](https://github.com/ThreeFish-AI/negentropy-perceives/issues) or directly submit a [Pull Request](https://github.com/ThreeFish-AI/negentropy-perceives/pulls) armed with game-changing power.
+
+---
+
+<p align="center">
+  <a href="LICENSE">MIT</a> License, © 2026 <a href="https://github.com/ThreeFish-AI">ThreeFish-AI</a>
+</p>

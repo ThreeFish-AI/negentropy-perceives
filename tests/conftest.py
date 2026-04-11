@@ -1,28 +1,20 @@
 """Pytest configuration and shared fixtures."""
 
 import pytest
-import asyncio
 import tempfile
 from unittest.mock import Mock, AsyncMock
 
-from extractor.config import DataExtractorSettings
-from extractor.scraper import WebScraper
-from extractor.advanced_features import AntiDetectionScraper, FormHandler
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+from negentropy.perceives.config import NegentropyPerceivesSettings
+from negentropy.perceives.scraping import WebScraper
+from negentropy.perceives.scraping import AntiDetectionScraper
+from negentropy.perceives.scraping import FormHandler
 
 
 @pytest.fixture
 def test_config():
     """Test configuration with safe defaults."""
-    return DataExtractorSettings(
-        server_name="Test Data Extractor",
+    return NegentropyPerceivesSettings(
+        server_name="Test Negentropy Perceives",
         server_version="1.0.0-test",
         enable_javascript=False,
         use_random_user_agent=False,

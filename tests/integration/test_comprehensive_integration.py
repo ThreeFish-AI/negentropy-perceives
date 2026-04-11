@@ -1,71 +1,32 @@
 """
-## 综合集成测试 (`test_comprehensive_integration.py`)
+综合集成测试 — 正交结构
 
-### 端到端功能测试
+按照关注点分离原则，将端到端集成测试拆分为以下正交维度：
 
-#### 1. TestComprehensiveIntegration - 综合功能测试
-
-- **完整转换流程**: 测试从网页抓取到 Markdown 转换的完整流程
-- **高级格式化集成**: 测试所有格式化功能的协同工作
-- **真实网站测试**: 测试实际新闻文章、技术博客的转换效果
-- **批量转换工作流**: 测试混合成功/失败结果的批量处理
-- **配置动态应用**: 测试转换过程中配置选项的动态应用
-
-#### 2. TestPerformanceAndLoad - 性能与负载测试
-
-- **并发性能测试**: 测试同时处理 20 个 URL 的并发能力
-- **大内容处理**: 测试大型网页内容的转换性能
-- **内存使用监控**: 测试长时间运行的内存稳定性
-- **响应时间测试**: 测试各种场景下的响应时间要求
-- **系统资源监控**: 测试 CPU 和内存资源使用情况
-
-#### 3. TestErrorResilienceAndRecovery - 错误恢复与韧性测试
-
-- **网络错误处理**: 测试网络超时、连接失败的恢复能力
-- **部分失败处理**: 测试批量操作中部分失败的处理逻辑
-- **资源耗尽恢复**: 测试系统资源不足时的自动恢复
-- **异常场景覆盖**: 测试各种异常情况下的系统稳定性
-- **故障转移机制**: 测试组件故障时的自动切换能力
-
-#### 4. TestRealWorldScenarios - 真实场景测试
-
-- **新闻文章转换**: 测试复杂新闻网站的内容提取和格式化
-- **技术博客处理**: 测试包含代码块的技术内容转换
-- **电商页面测试**: 测试产品页面的结构化数据提取
-- **多媒体内容**: 测试包含图片、视频的页面处理
-- **多语言支持**: 测试中文、英文等多语言内容处理
-
-### TestSystemHealthAndDiagnostics - 系统健康诊断
-
-#### 组件初始化验证
-
-- **服务器组件检查**: 验证所有核心组件正确初始化
-- **工具注册完整性**: 确保所有 14 个 MCP 工具正确注册
-- **依赖关系验证**: 检查组件间依赖关系的正确性
-- **配置一致性检查**: 验证系统配置的一致性和有效性
-
-#### 系统韧性测试
-
-- **并发访问测试**: 测试多个客户端同时访问的稳定性
-- **长期运行测试**: 测试系统长期运行的稳定性
-- **资源泄漏检测**: 监控和检测潜在的内存泄漏
-- **故障恢复能力**: 测试系统从故障状态的自动恢复能力
+1. TestMarkdownPipeline    — 端到端 Markdown 转换流水线
+2. TestErrorResilience     — 错误恢复与韧性
+3. TestPerformanceAndLoad  — 性能与负载
+4. TestSystemHealth        — 系统健康与指标
+5. TestSecurityCompliance  — 安全与合规
+6. TestBackwardCompatibility — 向后兼容
 """
 
+import os
 import pytest
 import asyncio
 import time
 from unittest.mock import patch, AsyncMock
 
-from extractor.server import app
+from negentropy.perceives.tools import app
+from negentropy.perceives.config import settings
+from tests.integration.tooling import get_tool_map
 
 
-class TestComprehensiveIntegration:
-    """
-    综合功能测试
-
-    测试从网页抓取到 Markdown 转换的完整流程、高级格式化功能、真实网站转换效果等
-    """
+# ---------------------------------------------------------------------------
+# 1. 端到端 Markdown 转换流水线
+# ---------------------------------------------------------------------------
+class TestMarkdownPipeline:
+    """端到端 Markdown 转换流水线测试"""
 
     @pytest.fixture
     def sample_html_content(self):
@@ -87,14 +48,14 @@ class TestComprehensiveIntegration:
                         </header>
                         <div class="content">
                             <p>This is the main content of the article with <strong>bold</strong> and <em>italic</em> text.</p>
-                            
+
                             <h2>Features Demonstrated</h2>
                             <ul>
                                 <li>HTML to Markdown conversion</li>
                                 <li>Advanced formatting options</li>
                                 <li>Content extraction</li>
                             </ul>
-                            
+
                             <table>
                                 <thead>
                                     <tr>
@@ -116,11 +77,11 @@ class TestComprehensiveIntegration:
                                     </tr>
                                 </tbody>
                             </table>
-                            
+
                             <blockquote>
                                 <p>This is an important quote that demonstrates blockquote formatting.</p>
                             </blockquote>
-                            
+
                             <h3>Code Example</h3>
                             <pre><code>def process_data(data):
     # Process the input data
@@ -129,9 +90,9 @@ class TestComprehensiveIntegration:
         if item.is_valid():
             result.append(item.transform())
     return result</code></pre>
-                            
+
                             <p>Here's an image: <img src="/assets/diagram.png" alt="system-diagram"></p>
-                            
+
                             <p>And a link to <a href="https://example.com/docs">documentation</a>.</p>
                         </div>
                     </article>
@@ -164,11 +125,11 @@ class TestComprehensiveIntegration:
     ):
         """Test the complete markdown conversion pipeline from scraping to formatting."""
         # Get the convert_webpage_to_markdown tool
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
         # Mock the web scraping
-        with patch("extractor.server.web_scraper") as mock_scraper:
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
             mock_scraper.scrape_url = AsyncMock(
                 return_value=mock_successful_scrape_result
             )
@@ -235,7 +196,7 @@ class TestComprehensiveIntegration:
     @pytest.mark.asyncio
     async def test_batch_conversion_with_mixed_results(self):
         """Test batch conversion with a mix of successful and failed results."""
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         batch_tool = tools["batch_convert_webpages_to_markdown"]
 
         # Create mixed results - some success, some failures
@@ -253,7 +214,7 @@ class TestComprehensiveIntegration:
             },
         ]
 
-        with patch("extractor.server.web_scraper") as mock_scraper:
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
             mock_scraper.scrape_multiple_urls = AsyncMock(return_value=mixed_results)
 
             urls = ["https://site1.com", "https://site2.com", "https://site3.com"]
@@ -280,131 +241,9 @@ class TestComprehensiveIntegration:
             assert results[2].success is True  # Third should succeed
 
     @pytest.mark.asyncio
-    async def test_error_resilience_and_recovery(self):
-        """Test system resilience when various components fail."""
-        tools = await app.get_tools()
-        convert_tool = tools["convert_webpage_to_markdown"]
-
-        # Test with invalid URL that should cause an error
-        with patch("extractor.server.web_scraper") as mock_scraper:
-            # Mock a scraping failure
-            mock_scraper.scrape_url = AsyncMock(
-                side_effect=Exception("Network timeout error")
-            )
-
-            result = await convert_tool.fn(
-                url="https://invalid-site.com",
-                method="auto",
-                extract_main_content=True,
-                include_metadata=True,
-                custom_options=None,
-                formatting_options=None,
-                wait_for_element=None,
-                embed_images=False,
-                embed_options=None,
-            )
-
-            # Should handle errors gracefully
-            # When scraping fails, the tool should return with success=False
-            assert (
-                result.success is False
-            )  # Tool execution failed due to scraping error
-            assert result.error is not None  # Error information provided
-
-    @pytest.mark.asyncio
-    async def test_performance_under_load(self):
-        """Test system performance under simulated load."""
-        tools = await app.get_tools()
-        batch_tool = tools["batch_convert_webpages_to_markdown"]
-
-        # Create a large number of mock results
-        num_urls = 20
-        mock_results = []
-        for i in range(num_urls):
-            mock_results.append(
-                {
-                    "url": f"https://example.com/page-{i}",
-                    "title": f"Page {i}",
-                    "content": {
-                        "html": f"<html><body><h1>Page {i}</h1><p>Content for page {i}</p></body></html>"
-                    },
-                }
-            )
-
-        with patch("extractor.server.web_scraper") as mock_scraper:
-            mock_scraper.scrape_multiple_urls = AsyncMock(return_value=mock_results)
-
-            start_time = time.time()
-            urls = [f"https://example.com/page-{i}" for i in range(num_urls)]
-            result = await batch_tool.fn(
-                urls=urls,
-                method="simple",
-                extract_main_content=True,
-                include_metadata=True,
-                custom_options=None,
-                embed_images=False,
-                embed_options=None,
-            )
-            duration = time.time() - start_time
-
-            assert result.success is True
-            assert result.successful_count == num_urls
-
-            # Performance should be reasonable (less than 30 seconds for 20 pages)
-            assert duration < 30.0
-
-            # Calculate rough performance metrics
-            pages_per_second = num_urls / duration
-            assert (
-                pages_per_second > 0.5
-            )  # Should process at least 0.5 pages per second
-
-    @pytest.mark.asyncio
-    async def test_concurrent_requests_handling(self):
-        """Test handling of multiple concurrent requests."""
-        tools = await app.get_tools()
-        convert_tool = tools["convert_webpage_to_markdown"]
-
-        mock_result = {
-            "url": "https://concurrent-test.com",
-            "title": "Concurrent Test",
-            "content": {"html": "<html><body><h1>Concurrent</h1></body></html>"},
-        }
-
-        with patch("extractor.server.web_scraper") as mock_scraper:
-            mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
-
-            # Create multiple concurrent requests
-            tasks = []
-            num_concurrent = 5
-
-            for i in range(num_concurrent):
-                task = convert_tool.fn(
-                    url=f"https://concurrent-test.com/page-{i}",
-                    method="auto",
-                    extract_main_content=True,
-                    include_metadata=True,
-                    custom_options=None,
-                    formatting_options=None,
-                    wait_for_element=None,
-                    embed_images=False,
-                    embed_options=None,
-                )
-                tasks.append(task)
-
-            # Execute all tasks concurrently
-            results = await asyncio.gather(*tasks)
-
-            # All should succeed
-            for result in results:
-                assert result.success is True
-                assert result.success is True
-                assert "# Concurrent" in result.markdown_content
-
-    @pytest.mark.asyncio
     async def test_data_integrity_throughout_pipeline(self):
         """Test that data integrity is maintained throughout the processing pipeline."""
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
         # Test with content that could be corrupted during processing
@@ -430,7 +269,7 @@ class TestComprehensiveIntegration:
             "content": {"html": tricky_html},
         }
 
-        with patch("extractor.server.web_scraper") as mock_scraper:
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
             mock_scraper.scrape_url = AsyncMock(return_value=tricky_result)
 
             # Prepare request parameters
@@ -467,7 +306,7 @@ class TestComprehensiveIntegration:
     @pytest.mark.asyncio
     async def test_edge_cases_and_boundary_conditions(self):
         """Test various edge cases and boundary conditions."""
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
         # Test edge cases
@@ -510,7 +349,7 @@ class TestComprehensiveIntegration:
                 "content": {"html": edge_case["html"]},
             }
 
-            with patch("extractor.server.web_scraper") as mock_scraper:
+            with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
                 mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
 
                 result = await convert_tool.fn(
@@ -538,7 +377,7 @@ class TestComprehensiveIntegration:
     @pytest.mark.asyncio
     async def test_configuration_flexibility(self):
         """Test that various configuration combinations work correctly."""
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
         sample_result = {
@@ -577,7 +416,7 @@ class TestComprehensiveIntegration:
             },
         ]
 
-        with patch("extractor.server.web_scraper") as mock_scraper:
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
             mock_scraper.scrape_url = AsyncMock(return_value=sample_result)
 
             for config in config_combinations:
@@ -598,70 +437,52 @@ class TestComprehensiveIntegration:
                 assert result.markdown_content is not None
 
 
-class TestSystemHealthAndMonitoring:
-    """Integration tests for system health and monitoring capabilities."""
+# ---------------------------------------------------------------------------
+# 2. 错误恢复与韧性
+# ---------------------------------------------------------------------------
+class TestErrorResilience:
+    """错误恢复与韧性测试"""
 
     @pytest.mark.asyncio
-    async def test_metrics_collection_integration(self):
-        """Test that metrics are collected properly during operations."""
-        tools = await app.get_tools()
-        metrics_tool = tools["get_server_metrics"]
+    async def test_error_resilience_and_recovery(self):
+        """Test system resilience when various components fail."""
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
-        # Perform some operations first
-        mock_result = {
-            "url": "https://metrics-test.com",
-            "title": "Metrics Test",
-            "content": {"html": "<html><body><h1>Test</h1></body></html>"},
-        }
+        # Test with invalid URL that should cause an error
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
+            # Mock a scraping failure
+            mock_scraper.scrape_url = AsyncMock(
+                side_effect=Exception("Network timeout error")
+            )
 
-        with patch("extractor.server.web_scraper") as mock_scraper:
-            mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
+            result = await convert_tool.fn(
+                url="https://invalid-site.com",
+                method="auto",
+                extract_main_content=True,
+                include_metadata=True,
+                custom_options=None,
+                formatting_options=None,
+                wait_for_element=None,
+                embed_images=False,
+                embed_options=None,
+            )
 
-            # Perform several operations
-            for i in range(3):
-                await convert_tool.fn(
-                    url=f"https://metrics-test.com/page-{i}",
-                    method="auto",
-                    extract_main_content=True,
-                    include_metadata=True,
-                    custom_options=None,
-                    formatting_options=None,
-                    wait_for_element=None,
-                    embed_images=False,
-                    embed_options=None,
-                )
-
-        # Check metrics
-        metrics_result = await metrics_tool.fn()
-
-        assert metrics_result.success is True
-        # Check that we have some metrics data (the exact keys may vary)
-        # Check for expected metrics fields based on actual MetricsResponse structure
-        assert hasattr(metrics_result, "total_requests")
-        assert hasattr(metrics_result, "method_usage")
-        assert hasattr(metrics_result, "cache_stats")
-
-    @pytest.mark.asyncio
-    async def test_cache_integration(self):
-        """Test cache functionality integration."""
-        tools = await app.get_tools()
-        clear_cache_tool = tools["clear_cache"]
-
-        # Clear cache
-        result = await clear_cache_tool.fn()
-
-        assert result.success is True
-        assert hasattr(result, "message")
+            # Should handle errors gracefully
+            # When scraping fails, the tool should return with success=False
+            assert (
+                result.success is False
+            )  # Tool execution failed due to scraping error
+            assert result.error is not None  # Error information provided
 
     @pytest.mark.asyncio
     async def test_error_logging_and_handling(self):
         """Test that errors are properly logged and handled."""
-        tools = await app.get_tools()
+        tools = await get_tool_map()
         convert_tool = tools["convert_webpage_to_markdown"]
 
         # Simulate various error conditions
-        with patch("extractor.server.web_scraper") as mock_scraper:
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
             # Network error simulation
             mock_scraper.scrape_url = AsyncMock(side_effect=Exception("Network error"))
 
@@ -680,3 +501,243 @@ class TestSystemHealthAndMonitoring:
             # Should handle error gracefully
             assert result.success is False
             assert result.error is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_input_handling(self):
+        """测试无效输入处理"""
+        # 所有工具都应该存在并能处理基本的验证
+        tools = await get_tool_map()
+
+        critical_tools = [
+            "extract_links",
+            "convert_webpage_to_markdown",
+            "convert_pdf_to_markdown",
+            "get_page_info",
+        ]
+
+        for tool_name in critical_tools:
+            assert tool_name in tools, f"关键工具 {tool_name} 未注册"
+            tool = tools[tool_name]
+            assert tool is not None, f"工具 {tool_name} 为None"
+
+    @pytest.mark.asyncio
+    async def test_resource_exhaustion_handling(self):
+        """测试资源耗尽处理"""
+        # 模拟资源耗尽情况
+        with patch("tempfile.mkdtemp") as mock_mkdtemp:
+            mock_mkdtemp.side_effect = OSError("磁盘空间不足")
+
+            # 系统应该能够优雅地处理这种情况
+            pdf_tool = await app.get_tool("convert_pdf_to_markdown")
+            assert pdf_tool is not None
+
+
+# ---------------------------------------------------------------------------
+# 3. 性能与负载
+# ---------------------------------------------------------------------------
+class TestPerformanceAndLoad:
+    """性能与负载测试"""
+
+    @pytest.mark.asyncio
+    async def test_performance_under_load(self):
+        """Test system performance under simulated load."""
+        tools = await get_tool_map()
+        batch_tool = tools["batch_convert_webpages_to_markdown"]
+
+        # Create a large number of mock results
+        num_urls = 20
+        mock_results = []
+        for i in range(num_urls):
+            mock_results.append(
+                {
+                    "url": f"https://example.com/page-{i}",
+                    "title": f"Page {i}",
+                    "content": {
+                        "html": f"<html><body><h1>Page {i}</h1><p>Content for page {i}</p></body></html>"
+                    },
+                }
+            )
+
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
+            mock_scraper.scrape_multiple_urls = AsyncMock(return_value=mock_results)
+
+            start_time = time.time()
+            urls = [f"https://example.com/page-{i}" for i in range(num_urls)]
+            result = await batch_tool.fn(
+                urls=urls,
+                method="simple",
+                extract_main_content=True,
+                include_metadata=True,
+                custom_options=None,
+                embed_images=False,
+                embed_options=None,
+            )
+            duration = time.time() - start_time
+
+            assert result.success is True
+            assert result.successful_count == num_urls
+
+            # Performance should be reasonable (less than 30 seconds for 20 pages)
+            assert duration < 30.0
+
+            # Calculate rough performance metrics
+            pages_per_second = num_urls / duration
+            assert (
+                pages_per_second > 0.5
+            )  # Should process at least 0.5 pages per second
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_handling(self):
+        """Test handling of multiple concurrent requests."""
+        tools = await get_tool_map()
+        convert_tool = tools["convert_webpage_to_markdown"]
+
+        mock_result = {
+            "url": "https://concurrent-test.com",
+            "title": "Concurrent Test",
+            "content": {"html": "<html><body><h1>Concurrent</h1></body></html>"},
+        }
+
+        with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
+            mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
+
+            # Create multiple concurrent requests
+            tasks = []
+            num_concurrent = 5
+
+            for i in range(num_concurrent):
+                task = convert_tool.fn(
+                    url=f"https://concurrent-test.com/page-{i}",
+                    method="auto",
+                    extract_main_content=True,
+                    include_metadata=True,
+                    custom_options=None,
+                    formatting_options=None,
+                    wait_for_element=None,
+                    embed_images=False,
+                    embed_options=None,
+                )
+                tasks.append(task)
+
+            # Execute all tasks concurrently
+            results = await asyncio.gather(*tasks)
+
+            # All should succeed
+            for result in results:
+                assert result.success is True
+                assert result.success is True
+                assert "# Concurrent" in result.markdown_content
+
+    @pytest.mark.asyncio
+    async def test_memory_usage_integration(self):
+        """测试内存使用集成"""
+        try:
+            import psutil
+        except ImportError:
+            pytest.skip("psutil not available for memory monitoring")
+
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss
+
+        # 执行一系列操作
+        tools = await get_tool_map()
+
+        # 访问所有工具
+        for tool_name in tools.keys():
+            tool = await app.get_tool(tool_name)
+            assert tool is not None
+
+        final_memory = process.memory_info().rss
+        memory_increase = final_memory - initial_memory
+
+        # 内存增长应该在合理范围内（比如小于50MB）
+        assert memory_increase < 50 * 1024 * 1024, (
+            f"内存增长 {memory_increase / 1024 / 1024:.1f}MB 过大"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 4. 系统健康与指标
+# ---------------------------------------------------------------------------
+class TestSystemHealth:
+    """系统健康与指标测试"""
+
+    @pytest.mark.asyncio
+    async def test_configuration_validation(self):
+        """测试配置验证"""
+        # 验证关键配置项
+        assert settings.server_name is not None
+        assert settings.server_version is not None
+        assert settings.concurrent_requests > 0
+        assert settings.request_timeout > 0
+        assert settings.browser_timeout > 0
+
+        # 验证工具能够使用这些配置
+        tools = await get_tool_map()
+        assert len(tools) == 6
+
+
+# ---------------------------------------------------------------------------
+# 5. 安全与合规
+# ---------------------------------------------------------------------------
+class TestSecurityCompliance:
+    """安全与合规测试"""
+
+    @pytest.mark.asyncio
+    async def test_robots_txt_compliance_integration(self):
+        """测试robots.txt合规性集成（已迁移到 Pipeline S1）"""
+        # robots.txt 合规检查已从 MCP 工具层迁移到 Pipeline compliance_check Stage
+        # 此测试验证合规配置仍可通过 settings 访问
+        assert settings.rate_limit_requests_per_minute > 0
+        assert settings.download_delay >= 0
+
+    @pytest.mark.asyncio
+    async def test_user_agent_and_rate_limiting(self):
+        """测试User-Agent和速率限制"""
+        # 验证配置中的User-Agent和速率限制设置
+        assert settings.use_random_user_agent is not None
+        assert settings.default_user_agent is not None
+        assert settings.rate_limit_requests_per_minute > 0
+
+        # 验证核心工具存在
+        convert_tool = await app.get_tool("convert_webpage_to_markdown")
+        extract_tool = await app.get_tool("extract_links")
+
+        assert convert_tool is not None
+        assert extract_tool is not None
+
+
+# ---------------------------------------------------------------------------
+# 6. 向后兼容
+# ---------------------------------------------------------------------------
+class TestBackwardCompatibility:
+    """向后兼容测试"""
+
+    @pytest.mark.asyncio
+    async def test_api_backward_compatibility(self):
+        """测试API向后兼容性"""
+        # 验证所有预期的工具仍然存在
+        expected_core_tools = [
+            "extract_links",
+            "convert_webpage_to_markdown",
+            "convert_pdf_to_markdown",
+        ]
+
+        tools = await get_tool_map()
+
+        for tool_name in expected_core_tools:
+            assert tool_name in tools, f"核心工具 {tool_name} 缺失，可能破坏向后兼容性"
+
+    @pytest.mark.asyncio
+    async def test_tool_interface_stability(self):
+        """测试工具接口稳定性"""
+        tools = await get_tool_map()
+
+        # 验证所有工具都有稳定的接口
+        for tool_name, tool in tools.items():
+            assert tool is not None
+            assert hasattr(tool, "name")
+            assert hasattr(tool, "description")
+            assert tool.name == tool_name
+            assert isinstance(tool.description, str)
+            assert len(tool.description) > 0

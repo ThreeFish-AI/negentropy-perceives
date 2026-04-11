@@ -2,115 +2,123 @@
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.package-dir]
+"" = "src"
+
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["extractor*"]
+where = ["src"]
+include = ["negentropy*"]
 exclude = ["tests*", "reports*", "htmlcov*", "scripts*"]
 
+[tool.setuptools.package-data]
+"negentropy.perceives" = ["config.default.yaml"]
+
 [project]
-name = "mcp-data-extractor"
-version = "0.1.6.1"
+name = "negentropy-perceives"
+version = "0.2.0a1"
 description = "A commercial-grade MCP Server built on FastMCP, offering robust capabilities to read, extract, and localize (into Markdown) content from web pages and PDFs with both text and images. It is purpose-built for long-term deployment in enterprise environments."
 readme = "README.md"
-requires-python = ">=3.12"
-authors = [{ name = "Aurelius", email = "aureliusshu@gmail.com" }]
+requires-python = ">=3.13"
+authors = [{ name = "ThreeFish-AI", email = "threefish.ai@gmail.com" }]
 license = "MIT"
-keywords = ["mcp", "web-crawler", "scrapy", "pdf", "markdown"]
+keywords = ["mcp", "web-crawler", "pdf", "markdown"]
+
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
-    "fastmcp>=2.13.0",
-    "scrapy>=2.11.0",
-    "aiohttp>=3.9.0",
+    # --- MCP 框架 ---
+    "fastmcp>=3.1.0",
+    # --- 网页抓取 ---
+    "aiohttp>=3.13.0",
     "beautifulsoup4>=4.14.0",
-    "lxml>=5.0.0",
-    "requests>=2.32.0",
-    "selenium>=4.20.0",
-    "playwright>=1.45.0",
+    "fake-useragent>=2.2.0",
+    "requests>=2.33.0",
+    # --- 浏览器自动化 ---
+    "playwright>=1.58.0",
+    "selenium>=4.41.0",
     "undetected-chromedriver>=3.5.0",
-    "fake-useragent>=1.5.0",
-    "python-dotenv>=1.0.0",
-    "pydantic>=2.8.0",
-    "pydantic-settings>=2.0.0",
-    "httpx>=0.27.0",
-    "twisted>=24.7.0",
-    "ruff>=0.12.12",
-    "markitdown>=0.1.4",
-    "pypdf>=6.4.0",  # CVE-2025-66019: Monitor for security updates
-    "pymupdf>=1.26.4",
-    "setuptools>=75.0.0",
-    "mcp>=1.23.0",
-    "urllib3>=2.6.0",
+    # --- PDF 处理 ---
+    "markitdown>=0.1.5",
+    "pymupdf>=1.27.0",
+    "pypdf>=6.10.0",  # 修复 CVE-2026-33699, GHSA-3crg-w4f6-42mx
+    # --- PDF 引擎 ---
+    "docling>=2.70.0",  # PDF 处理引擎 (GPU 加速)
+    # --- 数据模型与配置 ---
+    "pydantic>=2.12.0",
+    "pydantic-settings>=2.13.0",
+    "pyyaml>=6.0",              # YAML 配置文件解析
+    # --- 运行时基础设施 ---
+    "setuptools>=82.0.0",  # 运行时补丁：undetected-chromedriver 依赖 pkg_resources（distutils），Python 3.12+ 已从标准库移除
 ]
 
+[project.urls]
+"Source Code" = "https://github.com/ThreeFish-AI/negentropy-perceives"
+"User Guide" = "https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md"
+"Bug Tracker" = "https://github.com/ThreeFish-AI/negentropy-perceives/issues"
+
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=6.0.0",
-    "pytest-html>=4.1.0",
-    "pytest-json-report>=1.5.0",
-    "pytest-mock>=3.14.0",
-    "pytest-xdist>=3.6.0",
-    "mypy>=1.10.0",
-    "pre-commit>=3.8.0",
-    "coverage[toml]>=7.6.0",
+llm = [
+    "litellm>=1.70.0",
+]
+# 可选 PDF 引擎（安装后通过 is_available() 自动检测）
+mineru = [
+    "mineru>=3.0.1",
+]
+marker = [
+    "marker-pdf>=1.10.2",
+]
+all-engines = [
+    "docling>=2.70.0",
+    "mineru>=3.0.1",
+    "marker-pdf>=1.10.2",
 ]
 
 [project.scripts]
-mcp-data-extractor = "extractor.server:main"
+negentropy-perceives = "negentropy.perceives.apps.app:main"
 
 [tool.pytest.ini_options]
-minversion = "8.0"
+minversion = "9.0"
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = [
     "-ra",
     "--strict-config",
-    "--strict-markers", 
+    "--strict-markers",
     "--disable-warnings",
     "--tb=short",
     "-v",
-    "--cov=extractor",
-    "--cov-report=html:htmlcov",
-    "--cov-report=term-missing",
-    "--cov-report=xml:coverage.xml",
-    "--cov-report=json:coverage.json",
-    "--html=tests/reports/test-report.html",
-    "--self-contained-html",
-    "--json-report",
-    "--json-report-file=tests/reports/test-results.json"
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests", 
     "requires_network: marks tests that require network access",
-    "requires_browser: marks tests that require browser setup"
+    "requires_browser: marks tests that require browser setup",
+    "requires_gpu: marks tests that require GPU acceleration (MPS/CUDA/XPU)",
+    "requires_llm: marks tests that require LLM API access (smart mode, orchestration)",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 log_cli = true
-log_cli_level = "INFO"
+log_cli_level = "WARNING"
 log_cli_format = "%(asctime)s [%(levelname)8s] %(name)s: %(message)s"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 [tool.coverage.run]
-source = ["extractor"]
+source = ["src/negentropy/perceives"]
 omit = [
-    "extractor/__init__.py",
+    "src/negentropy/perceives/__init__.py",
     "tests/*",
     "venv/*",
     ".venv/*",
-    "setup.py"
 ]
 branch = true
 parallel = true
@@ -134,7 +142,7 @@ exclude_lines = [
 
 [tool.coverage.html]
 directory = "htmlcov"
-title = "Data Extractor Test Coverage Report"
+title = "Negentropy Perceives Test Coverage Report"
 
 [tool.coverage.xml]
 output = "tests/reports/coverage.xml"
@@ -143,21 +151,48 @@ output = "tests/reports/coverage.xml"
 output = "tests/reports/coverage.json"
 
 [tool.mypy]
-python_version = "3.12"
-warn_return_any = true
+python_version = "3.13"
+warn_return_any = false          # 代码尚未全量标注，待类型覆盖率提升后逐步启用
 warn_unused_configs = true
-disallow_untyped_defs = true
+disallow_untyped_defs = false    # 同上，待类型覆盖率提升后逐步启用
+ignore_missing_imports = true    # 全局兜底：第三方库缺少 py.typed 或 stub
+
+[[tool.mypy.overrides]]
+module = [
+    "scrapy.*",
+    "undetected_chromedriver.*",
+    "fake_useragent.*",
+    "playwright.*",
+    "bs4.*",
+    "selenium.*",
+    "fastmcp.*",
+]
+ignore_missing_imports = true
+
+[tool.uv]
+# Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
+override-dependencies = ["pillow>=12.0.0"]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "mypy>=1.10.0",
-    "pre-commit>=3.8.0",
-    "types-requests>=2.32.4.20250809",
-    "bandit>=1.9.2",
-    "pytest-html>=4.1.1",
+    # --- 测试框架 ---
+    "coverage[toml]>=7.13.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.1.0",
+    "pytest-html>=4.2.0",
     "pytest-json-report>=1.5.0",
+    "pytest-mock>=3.15.0",
+    "pytest-timeout>=2.3.0",
+    "pytest-xdist>=3.8.0",
+    # --- 代码质量 ---
+    "mypy>=1.19.0",
+    "ruff>=0.15.0",
+    "types-PyYAML>=6.0",
+    "types-requests>=2.32.4.20260107",
+    # --- 安全审计 ---
+    "bandit>=1.9.4",
     "pip-audit>=2.10.0",
+    # --- 工程工具 ---
+    "pre-commit>=4.5.0",
 ]
-

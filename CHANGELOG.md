@@ -4,42 +4,64 @@ Published to PyPI: https://pypi.org/project/negentropy-perceives/0.2.0a1/
 
 # Changelog
 
-All notable changes to the Data Extractor project will be documented in this file.
+All notable changes to the Negentropy Perceives project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## **v0.1.6 (2025/11/27)** - PDF 增强功能与内容深度提取
+## v0.3.0-fix.1 — CI 流水线修复
 
-- ✨ **Transport 支持**: 新增 StreamableHTTP、SSE 传输模式支持，默认使用 StreamableHTTP
-- ✨ **PDF 增强处理**: 新增增强版 PDF 处理器，支持图像、表格、数学公式的深度提取
-  - **🖼️ 图像提取**: 从 PDF 中提取图像并保存为本地文件或 base64 嵌入，支持尺寸调整和质量优化
-  - **📊 表格转换**: 智能识别 PDF 表格并转换为标准 Markdown 表格格式，保持数据结构完整性
-  - **🧮 公式提取**: 识别并提取 LaTeX 格式的数学公式，支持内联和块级公式格式保持
-  - **📝 结构化输出**: 自动生成包含提取资源的结构化 Markdown 文档，提供详细的提取统计信息
-  - **⚙️ 高级配置**: 新增 enhanced_options 参数，支持自定义输出目录、图像格式、质量控制等高级配置
+> 修复 GitHub Actions CI 全线失败问题，恢复 7/7 Job 全绿。
 
-## **v0.1.5 (2025/09/12)** - MCP 工具标准化
+### 🔧 修复
 
-- **MCP 工具标准化**: 统一使用 Annotated[*, Field(...)] 参数约束模式，提供清晰的参数描述和示例
-- **输出模式优化**: 增强响应模型描述，提升 MCP Client 兼容性
+- **Ruff 代码检查 (34 错)** — 清除 Pipeline 模块中 32 个未使用导入（F401）、1 个未使用变量（F841）、1 个 availability-check 导入标记（noqa）
+- **Ruff 格式化 (24 files)** — 统一 Pipeline + Tools 模块代码格式（`ruff format`）
+- **Bandit 安全扫描 (B110)** — 将 `asset_bundling.py` 和 `page_fetching.py` 中 2 处空 `except: pass` 替换为 `logging.debug()` 异常日志
+- **文档完整性测试** — 创建 `docs/configuration.md` 重定向页，修复 `test_configuration_doc_exists` 断言
+- **表格覆盖度测试** — 修正 `test_docs_configuration.py` 正则表达式，兼容 Markdown 表格列对齐空格
+- **安全依赖升级** — `cryptography` 46.0.6 → 46.0.7 (CVE-2026-39892)、`pypdf` 6.9.2 → 6.10.0 (GHSA-3crg-w4f6-42mx)
+- **CVE 豁免** — `transformers` CVE-2026-1839 暂时豁免（修复版本 5.0.0rc3 为 major 跳升，需单独评估）
+- **Mypy 类型检查 (93 错)** — 修复此前被 ruff 失败遮蔽的全部预存 mypy 错误：
+  - `callable` → `Callable[[Any], Any]`：修正 `figure_text_filter.py` 中 4 处类型注解误用
+  - 隐式 Optional 修复：`converter.py` 中 `str = None` → `Optional[str] = None`
+  - 类型安全加固：`processor.py` `Optional[EnhancedPDFProcessor]` 注解、`config.py` `transport_mode` Literal 化、`engine.py` driver 类型注解
+  - 添加 `types-PyYAML` 开发依赖解决 `yaml` 模块 import-untyped 错误
+  - 精准 `# type: ignore[error-code]` 注释处理 BeautifulSoup 联合类型等 ~70 处无法通过代码修改解决的类型问题
 
-## **v0.1.4 (2025/09/06)**
+## v0.3.0 — 流水线觉醒，工具瘦身
 
-- **测试体系优化**: 219 个测试用例，通过率 98.6%+，包含单元测试和强化集成测试
+> 引入 Stage 化 Pipeline 编排框架，将文档处理拆解为可组合、可竞争的流水线；同时精简 MCP 工具至 6 个，聚焦核心转换能力。
 
-## v0.1.3 (2025-09-06)
+### ✨ 核心亮点
 
-- **Markdown 转换功能**: 新增 2 个 MCP 工具，包含页面转 Markdown 和批量转换功能
-- **测试体系优化**: 162 个测试用例 (131 个单元测试 + 31 个集成测试)，通过率 99.4%
+- **Pipeline 编排框架** — 全新 `pipeline/` 子包，Stage 基类 + 竞争 Stage + 工具注册表 + 调度器 + 编排器，配置驱动
+- **PDF Pipeline（S0-S9）** — 10 阶段管线：预处理 → 文档扫描 → 版面分析 → 并行提取（文本/表格/公式/图片/代码） → 组装 → 资源打包
+- **WebPage Pipeline（S1-S12）** — 12 阶段管线：合规检查 → 网页获取 → 反检测 → 主内容提取 → 并行抽取（公式/代码/表格/图片） → Markdown 转换 → 资源打包
+- **竞争模式** — 不稳定 Stage（版面分析、表格/公式/代码识别、主内容提取）支持多工具并行竞争、择优返回
+- **工具精简（12 → 6）** — 删除 6 个低价值/可内化工具，保留核心转换入口；`method="auto"` 优先走 Pipeline，降级走原有路径
 
-## v0.1.2 (2025-09-06)
+### 🔧 更多特性
 
-- **测试体系搭建**: 建立完整的单元测试和集成测试体系，初始化 19 个基础测试
+- **配置驱动**: `config.default.yaml` 新增 `pipeline:` 节，Stage 级工具列表、rank 排序、竞争参数全部可配置
+- **引擎级门控**: `docling_enabled` / `mineru_enabled` / `marker_enabled` 统一控制 Pipeline 中的引擎可用性
+- **PASSTHROUGH_KEYS**: 配置展平桥接函数新增 `pipeline` 透传，保持嵌套结构完整性
 
-## v0.1.1 (2025-09-05)
+## v0.2.0 — 隐身的眼睛，睁开了
 
-- **核心重构**: 包名从 `scrapy_mcp` 重构为 `extractor`，项目入口命令统一为 `data-extractor`，提升项目结构清晰度
+> 给 AI Agent 装上一双能看懂网页和 PDF 的眼睛，而且这双眼睛会隐身。
 
-## v0.1.0 (2025-08-26)
+### ✨ 核心亮点
 
-- **初始发布**: 核心的网页爬取 MCP Server 实现，10 个专业爬取工具
+- **复杂 PDF，一句话搞定** — 5 引擎自动降级 + LLM 三阶段编排（分析→并行调度→择优融合）
+- **反爬墙？穿墙** — Selenium / Playwright 隐身双引擎，鼠标轨迹 + 随机延迟，无感绕过
+- **网页→Markdown，9 道工序精炼** — 去噪、表格对齐、代码检测、排版复原，一步到位
+- **12 工具 · 6 领域 · 5 层架构** — 退避 + 限速 + 缓存三层弹性护盾，生产级底座
+
+### 🔧 更多特性
+
+- **结构化提取**: CSS 选择器精准映射 + 5 种数据模板，内置 robots.txt 合规检查
+- **PDF 深度内容**: 表格识别、LaTeX 公式保持、图像 base64 嵌入，增强模式可选
+- **4 层配置体系**: 内置默认 → 用户 YAML → 环境变量 → CLI（pydantic-settings 驱动）
+- **多传输模式**: STDIO / StreamableHTTP / SSE，默认 StreamableHTTP，开箱即用
+- **异步 SDK**: NegentropyPerceivesClient，类型安全，async/await 原生
+- **批量并发**: 网页批抓、PDF 批转均走 asyncio，吞吐拉满

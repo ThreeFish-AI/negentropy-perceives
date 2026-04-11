@@ -1,1 +1,1 @@
-"""Integration tests for Data Extractor MCP tools."""
+"""Integration tests for Negentropy Perceives MCP tools."""

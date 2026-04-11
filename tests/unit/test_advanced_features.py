@@ -3,8 +3,8 @@
 
 ### AntiDetectionScraper 反检测测试
 
-测试无痕 Chrome 浏览器抓取、Playwright 隐身抓取、鼠标移动、滚动等行为模拟、
-CDP 命令和隐身脚本注入、浏览器启动失败等异常场景。
+测试无状态编排层：隐身方法路由、上下文管理器委托、行为模拟（滚动 / 鼠标移动）、
+整页数据提取门面。
 
 ### FormHandler 表单处理测试
 
@@ -13,68 +13,43 @@ WebDriverWait 元素等待功能、元素未找到等异常处理。
 """
 
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from contextlib import asynccontextmanager
+from unittest.mock import Mock, patch, AsyncMock
 
-from extractor.advanced_features import AntiDetectionScraper, FormHandler
+from negentropy.perceives.scraping.anti_detection import (
+    AntiDetectionScraper,
+    _scroll_page_selenium,
+    _scroll_page_playwright,
+    _simulate_human_behavior_selenium,
+    _simulate_human_behavior_playwright,
+)
+from negentropy.perceives.scraping.content_extraction import (
+    extract_page_data_selenium,
+    extract_page_data_playwright,
+)
+from negentropy.perceives.scraping.form_handler import FormHandler
 
 
 class TestAntiDetectionScraper:
     """
-    AntiDetectionScraper 反检测测试
+    AntiDetectionScraper 反检测测试（无状态版本）
 
-    - **Undetected Chrome**: 测试无痕 Chrome 浏览器抓取
-    - **Playwright 隐身**: 测试 Playwright 反检测抓取
-    - **人类行为模拟**: 测试鼠标移动、滚动等行为模拟
-    - **隐身设置应用**: 测试 CDP 命令和隐身脚本注入
-    - **错误处理**: 测试浏览器启动失败等异常场景
+    - **方法路由**: 测试 selenium / playwright / 无效方法路由
+    - **异常处理**: 测试异常时返回错误字典
     """
 
     def setup_method(self):
-        """
-        测试前准备 - 初始化反检测爬虫实例
-
-        确保每个测试都有干净的状态，避免测试间的相互影响
-        """
         self.scraper = AntiDetectionScraper()
 
-    def teardown_method(self):
-        """
-        测试后清理 - 确保资源正确释放
-
-        清理浏览器驱动器、Playwright 实例等资源，防止内存泄漏
-        """
-        # 确保清理资源
-        try:
-            asyncio.create_task(self.scraper.cleanup())
-        except Exception:
-            pass
-
     def test_scraper_initialization(self):
-        """
-        测试反检测爬虫初始化
-
-        验证 AntiDetectionScraper 实例包含所有必要的属性和方法：
-        - scrape_with_stealth 方法存在
-        - 用户代理设置存在
-        - 各种浏览器实例初始为 None
-        """
+        """测试反检测爬虫初始化（无状态）。"""
         assert self.scraper is not None
         assert hasattr(self.scraper, "scrape_with_stealth")
-        assert hasattr(self.scraper, "ua")
-        assert self.scraper.driver is None
-        assert self.scraper.page is None
-        assert self.scraper.browser is None
-        assert self.scraper.context is None
-        assert self.scraper.playwright is None
+        assert hasattr(self.scraper, "cleanup")
 
     @pytest.mark.asyncio
     async def test_invalid_stealth_method(self):
-        """
-        测试无效隐身方法的错误处理
-
-        验证当传入无效的隐身方法时，系统能够正确处理并返回适当的错误信息
-        """
+        """测试无效隐身方法的错误处理。"""
         result = await self.scraper.scrape_with_stealth(
             "https://example.com", method="invalid_method"
         )
@@ -85,12 +60,8 @@ class TestAntiDetectionScraper:
 
     @pytest.mark.asyncio
     async def test_scraping_exception_handling(self):
-        """
-        测试网络错误和异常处理
-
-        验证当爬取过程中发生异常时，系统能够优雅地处理并返回错误信息
-        """
-        with patch.object(self.scraper, "_scrape_with_selenium_stealth") as mock_scrape:
+        """测试网络错误和异常处理。"""
+        with patch.object(self.scraper, "_scrape_selenium") as mock_scrape:
             mock_scrape.side_effect = Exception("Network error")
 
             result = await self.scraper.scrape_with_stealth(
@@ -100,92 +71,44 @@ class TestAntiDetectionScraper:
             assert "error" in result
             assert "Network error" in result["error"]
 
-    @pytest.mark.asyncio
-    async def test_cleanup_called_after_scraping(self):
-        """
-        测试爬取后自动调用资源清理
-
-        验证每次爬取操作完成后都会自动调用 cleanup 方法，确保资源正确释放
-        """
-        with (
-            patch.object(self.scraper, "_scrape_with_selenium_stealth") as mock_scrape,
-            patch.object(self.scraper, "cleanup") as mock_cleanup,
-        ):
-            mock_scrape.return_value = {"title": "Test", "content": {}}
-
-            await self.scraper.scrape_with_stealth(
-                "https://example.com", method="selenium"
-            )
-
-            mock_cleanup.assert_called_once()
-
 
 class TestSeleniumStealth:
     """
     Selenium 隐身功能测试
 
-    测试使用 undetected-chromedriver 进行反检测爬取的功能，包括
-    人类行为模拟、页面滚动、数据提取等
+    测试使用上下文管理器进行反检测爬取的编排流程，包括
+    行为模拟、页面滚动、等待元素委托等。
     """
 
     def setup_method(self):
-        """
-        测试前准备 - 初始化 Selenium 隐身爬虫
-
-        为每个测试创建独立的爬虫实例，确保测试隔离性
-        """
         self.scraper = AntiDetectionScraper()
 
-    def teardown_method(self):
-        """
-        测试后清理 - 清理 Selenium 资源
-
-        确保 Chrome 驱动器等资源被正确释放
-        """
-        try:
-            asyncio.create_task(self.scraper.cleanup())
-        except Exception:
-            pass
-
-    @patch("extractor.advanced_features.uc.Chrome")
-    @patch("selenium.webdriver.support.ui.WebDriverWait")
-    @patch.object(AntiDetectionScraper, "_scroll_page_selenium")
-    @patch.object(AntiDetectionScraper, "_simulate_human_behavior_selenium")
-    @patch.object(AntiDetectionScraper, "_extract_data_selenium")
-    @patch("asyncio.sleep")
+    @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._scroll_page_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._random_delay")
+    @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
     @pytest.mark.asyncio
     async def test_selenium_stealth_scraping_success(
-        self,
-        mock_sleep,
-        mock_extract,
-        mock_simulate,
-        mock_scroll,
-        mock_wait,
-        mock_chrome,
+        self, mock_session, mock_delay, mock_scroll, mock_simulate, mock_extract
     ):
-        """
-        测试 Selenium 隐身爬取成功场景
-
-        验证完整的反检测爬取流程：
-        - undetected-chromedriver 启动
-        - 页面导航和加载
-        - 人类行为模拟执行
-        - 数据正确提取
-        - 资源正确清理
-        """
-        # 模拟Chrome驱动器
+        """测试 Selenium 隐身爬取成功场景。"""
         mock_driver = Mock()
         mock_driver.current_url = "https://example.com/final"
-        mock_chrome.return_value = mock_driver
 
-        # 模拟数据提取
+        @asynccontextmanager
+        async def fake_session(url, *, wait_for_element=None):
+            yield mock_driver
+
+        mock_session.side_effect = fake_session
+        mock_delay.return_value = None
         mock_extract.return_value = {
             "title": "Test Page",
             "content": {"text": "Test content"},
             "meta_description": "Test description",
         }
 
-        result = await self.scraper._scrape_with_selenium_stealth(
+        result = await self.scraper._scrape_selenium(
             "https://example.com",
             extract_config=None,
             wait_for_element=None,
@@ -196,119 +119,110 @@ class TestSeleniumStealth:
         assert result["url"] == "https://example.com/final"
         assert result["content"]["text"] == "Test content"
 
-        # 验证调用了必要的方法
-        mock_driver.get.assert_called_once_with("https://example.com")
-        mock_simulate.assert_called_once()
-        mock_extract.assert_called_once()
-        # scroll_page=False，所以不应该调用滚动
+        mock_simulate.assert_called_once_with(mock_driver)
+        mock_extract.assert_called_once_with(mock_driver, None)
         mock_scroll.assert_not_called()
 
-    @patch("extractor.advanced_features.uc.Chrome")
-    @patch("selenium.webdriver.support.ui.WebDriverWait")
-    @patch.object(AntiDetectionScraper, "_scroll_page_selenium")
-    @patch("asyncio.sleep")
+    @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._scroll_page_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._random_delay")
+    @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
     @pytest.mark.asyncio
     async def test_selenium_stealth_with_scroll(
-        self, mock_sleep, mock_scroll, mock_wait, mock_chrome
+        self, mock_session, mock_delay, mock_scroll, mock_simulate, mock_extract
     ):
-        """测试Selenium隐身爬取带滚动"""
+        """测试 Selenium 隐身爬取带滚动。"""
         mock_driver = Mock()
         mock_driver.current_url = "https://example.com"
-        mock_chrome.return_value = mock_driver
 
-        with (
-            patch.object(self.scraper, "_extract_data_selenium") as mock_extract,
-            patch.object(self.scraper, "_simulate_human_behavior_selenium"),
-        ):
-            mock_extract.return_value = {"title": "Test", "content": {}}
+        @asynccontextmanager
+        async def fake_session(url, *, wait_for_element=None):
+            yield mock_driver
 
-            await self.scraper._scrape_with_selenium_stealth(
-                "https://example.com",
-                extract_config=None,
-                wait_for_element=None,
-                scroll_page=True,
-            )
+        mock_session.side_effect = fake_session
+        mock_delay.return_value = None
+        mock_extract.return_value = {"title": "Test", "content": {}}
 
-            mock_scroll.assert_called_once()
+        await self.scraper._scrape_selenium(
+            "https://example.com",
+            extract_config=None,
+            wait_for_element=None,
+            scroll_page=True,
+        )
 
-    @patch("extractor.advanced_features.uc.Chrome")
-    @patch("extractor.advanced_features.WebDriverWait")
-    @patch("extractor.advanced_features.EC.presence_of_element_located")
-    @patch("asyncio.sleep")
+        mock_scroll.assert_called_once_with(mock_driver)
+
+    @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch("negentropy.perceives.scraping.anti_detection._random_delay")
+    @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
     @pytest.mark.asyncio
     async def test_selenium_wait_for_element(
-        self, mock_sleep, mock_presence, mock_wait, mock_chrome
+        self, mock_session, mock_delay, mock_simulate, mock_extract
     ):
-        """测试Selenium等待特定元素"""
+        """测试 Selenium 等待特定元素（委托给上下文管理器）。"""
         mock_driver = Mock()
-        mock_chrome.return_value = mock_driver
-        mock_wait_instance = Mock()
-        mock_wait.return_value = mock_wait_instance
+        mock_driver.current_url = "https://example.com"
 
-        with (
-            patch.object(self.scraper, "_extract_data_selenium") as mock_extract,
-            patch.object(self.scraper, "_simulate_human_behavior_selenium"),
-        ):
-            mock_extract.return_value = {"title": "Test", "content": {}}
+        @asynccontextmanager
+        async def fake_session(url, *, wait_for_element=None):
+            assert wait_for_element == ".loading-spinner"
+            yield mock_driver
 
-            await self.scraper._scrape_with_selenium_stealth(
-                "https://example.com",
-                extract_config=None,
-                wait_for_element=".loading-spinner",
-                scroll_page=False,
-            )
+        mock_session.side_effect = fake_session
+        mock_delay.return_value = None
+        mock_extract.return_value = {"title": "Test", "content": {}}
 
-            mock_wait_instance.until.assert_called_once()
+        await self.scraper._scrape_selenium(
+            "https://example.com",
+            extract_config=None,
+            wait_for_element=".loading-spinner",
+            scroll_page=False,
+        )
 
-    @patch("extractor.advanced_features.random.randint")
-    @patch("extractor.advanced_features.random.uniform")
+    @patch("negentropy.perceives.scraping.anti_detection.random.randint")
+    @patch("negentropy.perceives.scraping.anti_detection.random.uniform")
     @patch("asyncio.sleep")
     @pytest.mark.asyncio
     async def test_selenium_page_scrolling(
         self, mock_sleep, mock_uniform, mock_randint
     ):
-        """测试Selenium页面滚动"""
-        # 模拟随机值
+        """测试 Selenium 页面滚动（模块级函数）。"""
         mock_randint.return_value = 300
         mock_uniform.return_value = 1.0
 
-        # 模拟驱动器
         mock_driver = Mock()
 
-        # Mock execute_script to handle multiple calls
         def mock_execute_script(script):
             if "scrollHeight" in script:
-                return 1000  # Fixed height to stop scrolling
-            else:
-                return None  # For scrollBy calls
+                return 1000
+            return None
 
         mock_driver.execute_script.side_effect = mock_execute_script
-        self.scraper.driver = mock_driver
 
-        await self.scraper._scroll_page_selenium()
+        await _scroll_page_selenium(mock_driver)
 
-        # 验证滚动调用
         assert mock_driver.execute_script.call_count >= 2
         mock_sleep.assert_called()
 
-    @patch("extractor.advanced_features.ActionChains")
-    @patch("extractor.advanced_features.random.randint")
-    @patch("extractor.advanced_features.random.uniform")
+    @patch("negentropy.perceives.scraping.anti_detection.ActionChains")
+    @patch("negentropy.perceives.scraping.anti_detection.random.randint")
+    @patch("negentropy.perceives.scraping.anti_detection.random.uniform")
     @patch("asyncio.sleep")
     @pytest.mark.asyncio
     async def test_selenium_human_behavior_simulation(
         self, mock_sleep, mock_uniform, mock_randint, mock_action_chains
     ):
-        """测试Selenium人类行为模拟"""
-        mock_randint.side_effect = [3, 100, 200, 300, 400, 500, 600]  # 次数和坐标
+        """测试 Selenium 人类行为模拟（模块级函数）。"""
+        mock_randint.side_effect = [3, 100, 200, 300, 400, 500, 600]
         mock_uniform.return_value = 1.0
 
         mock_driver = Mock()
         mock_actions = Mock()
         mock_action_chains.return_value = mock_actions
-        self.scraper.driver = mock_driver
 
-        await self.scraper._simulate_human_behavior_selenium()
+        await _simulate_human_behavior_selenium(mock_driver)
 
         mock_action_chains.assert_called_once_with(mock_driver)
         mock_actions.perform.assert_called_once()
@@ -316,42 +230,36 @@ class TestSeleniumStealth:
 
 
 class TestPlaywrightStealth:
-    """测试Playwright隐身功能"""
+    """Playwright 隐身功能测试。"""
 
     def setup_method(self):
-        """测试前准备"""
         self.scraper = AntiDetectionScraper()
 
-    def teardown_method(self):
-        """测试后清理"""
-        try:
-            asyncio.create_task(self.scraper.cleanup())
-        except Exception:
-            pass
-
-    @patch.object(AntiDetectionScraper, "_setup_playwright_browser")
-    @patch.object(AntiDetectionScraper, "_scroll_page_playwright")
-    @patch.object(AntiDetectionScraper, "_simulate_human_behavior_playwright")
-    @patch.object(AntiDetectionScraper, "_extract_data_playwright")
-    @patch("asyncio.sleep")
+    @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_playwright")
+    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright")
+    @patch("negentropy.perceives.scraping.anti_detection._scroll_page_playwright")
+    @patch("negentropy.perceives.scraping.anti_detection._random_delay")
+    @patch("negentropy.perceives.scraping.anti_detection.stealth_playwright_session")
     @pytest.mark.asyncio
     async def test_playwright_stealth_scraping_success(
-        self, mock_sleep, mock_extract, mock_simulate, mock_scroll, mock_setup
+        self, mock_session, mock_delay, mock_scroll, mock_simulate, mock_extract
     ):
-        """测试Playwright隐身爬取成功"""
-        # 模拟页面
+        """测试 Playwright 隐身爬取成功。"""
         mock_page = AsyncMock()
         mock_page.url = "https://example.com/final"
-        mock_page.goto = AsyncMock()
-        self.scraper.page = mock_page
 
-        # 模拟数据提取
+        @asynccontextmanager
+        async def fake_session(url, *, wait_for_element=None):
+            yield mock_page
+
+        mock_session.side_effect = fake_session
+        mock_delay.return_value = None
         mock_extract.return_value = {
             "title": "Test Page",
             "content": {"text": "Test content"},
         }
 
-        result = await self.scraper._scrape_with_playwright_stealth(
+        result = await self.scraper._scrape_playwright(
             "https://example.com",
             extract_config=None,
             wait_for_element=None,
@@ -361,156 +269,133 @@ class TestPlaywrightStealth:
         assert result["title"] == "Test Page"
         assert result["url"] == "https://example.com/final"
 
-        mock_setup.assert_called_once()
-        mock_page.goto.assert_called_once()
-        mock_simulate.assert_called_once()
-        mock_extract.assert_called_once()
+        mock_simulate.assert_called_once_with(mock_page)
+        mock_extract.assert_called_once_with(mock_page, None)
         mock_scroll.assert_not_called()
 
-    @patch.object(AntiDetectionScraper, "_setup_playwright_browser")
-    @patch("asyncio.sleep")
+    @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_playwright")
+    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright")
+    @patch("negentropy.perceives.scraping.anti_detection._random_delay")
+    @patch("negentropy.perceives.scraping.anti_detection.stealth_playwright_session")
     @pytest.mark.asyncio
-    async def test_playwright_wait_for_element(self, mock_sleep, mock_setup):
-        """测试Playwright等待特定元素"""
+    async def test_playwright_wait_for_element(
+        self, mock_session, mock_delay, mock_simulate, mock_extract
+    ):
+        """测试 Playwright 等待特定元素（委托给上下文管理器）。"""
         mock_page = AsyncMock()
-        mock_page.goto = AsyncMock()
-        mock_page.wait_for_selector = AsyncMock()
-        self.scraper.page = mock_page
+        mock_page.url = "https://example.com"
 
-        with (
-            patch.object(self.scraper, "_extract_data_playwright") as mock_extract,
-            patch.object(self.scraper, "_simulate_human_behavior_playwright"),
-        ):
-            mock_extract.return_value = {"title": "Test", "content": {}}
+        @asynccontextmanager
+        async def fake_session(url, *, wait_for_element=None):
+            assert wait_for_element == ".content"
+            yield mock_page
 
-            await self.scraper._scrape_with_playwright_stealth(
-                "https://example.com",
-                extract_config=None,
-                wait_for_element=".content",
-                scroll_page=False,
-            )
+        mock_session.side_effect = fake_session
+        mock_delay.return_value = None
+        mock_extract.return_value = {"title": "Test", "content": {}}
 
-            mock_page.wait_for_selector.assert_called_once()
+        await self.scraper._scrape_playwright(
+            "https://example.com",
+            extract_config=None,
+            wait_for_element=".content",
+            scroll_page=False,
+        )
 
     @pytest.mark.asyncio
     async def test_playwright_page_scrolling(self):
-        """测试Playwright页面滚动"""
+        """测试 Playwright 页面滚动（模块级函数）。"""
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock()
-        self.scraper.page = mock_page
 
-        await self.scraper._scroll_page_playwright()
+        await _scroll_page_playwright(mock_page)
 
         mock_page.evaluate.assert_called_once()
-        # 验证传递的JavaScript代码包含滚动逻辑
         js_code = mock_page.evaluate.call_args[0][0]
         assert "scrollBy" in js_code
         assert "Promise" in js_code
 
-    @patch("extractor.advanced_features.random.randint")
-    @patch("extractor.advanced_features.random.uniform")
+    @patch("negentropy.perceives.scraping.anti_detection.random.randint")
+    @patch("negentropy.perceives.scraping.anti_detection.random.uniform")
     @patch("asyncio.sleep")
     @pytest.mark.asyncio
     async def test_playwright_human_behavior_simulation(
         self, mock_sleep, mock_uniform, mock_randint
     ):
-        """测试Playwright人类行为模拟"""
+        """测试 Playwright 人类行为模拟（模块级函数）。"""
         mock_randint.side_effect = [3, 100, 200, 300, 400, 500, 600]
         mock_uniform.return_value = 0.5
 
         mock_page = AsyncMock()
         mock_mouse = AsyncMock()
         mock_page.mouse = mock_mouse
-        self.scraper.page = mock_page
 
-        await self.scraper._simulate_human_behavior_playwright()
+        await _simulate_human_behavior_playwright(mock_page)
 
-        # 验证鼠标移动被调用
         assert mock_mouse.move.call_count > 0
         mock_sleep.assert_called()
 
 
 class TestDataExtraction:
-    """测试数据提取功能"""
+    """测试整页数据提取门面（函数位于 content_extraction/pages.py）。"""
 
-    def setup_method(self):
-        """测试前准备"""
-        self.scraper = AntiDetectionScraper()
-
-    def teardown_method(self):
-        """测试后清理"""
-        try:
-            asyncio.create_task(self.scraper.cleanup())
-        except Exception:
-            pass
-
-    @patch("bs4.BeautifulSoup")
+    @patch("negentropy.perceives.scraping.content_extraction.pages.BeautifulSoup")
     @pytest.mark.asyncio
     async def test_selenium_data_extraction_default(self, mock_beautifulsoup):
-        """测试Selenium默认数据提取"""
-        # 模拟驱动器
+        """测试 Selenium 默认数据提取。"""
         mock_driver = Mock()
         mock_driver.title = "Test Page"
         mock_driver.current_url = "https://example.com"
         mock_driver.page_source = "<html><body><h1>Test</h1></body></html>"
 
-        # 模拟meta描述元素
         mock_meta_element = Mock()
         mock_meta_element.get_attribute.return_value = "Test description"
         mock_driver.find_element.return_value = mock_meta_element
 
-        # 模拟BeautifulSoup
         mock_soup = Mock()
         mock_soup.get_text.return_value = "Test content"
         mock_soup.find_all.return_value = []
         mock_beautifulsoup.return_value = mock_soup
 
-        self.scraper.driver = mock_driver
-
-        result = await self.scraper._extract_data_selenium(extract_config=None)
+        result = extract_page_data_selenium(mock_driver, extract_config=None)
 
         assert result["title"] == "Test Page"
         assert result["meta_description"] == "Test description"
         assert result["content"]["text"] == "Test content"
         assert result["content"]["links"] == []
 
-    @patch("bs4.BeautifulSoup")
+    @patch("negentropy.perceives.scraping.content_extraction.pages.BeautifulSoup")
     @pytest.mark.asyncio
     async def test_selenium_data_extraction_with_config(self, mock_beautifulsoup):
-        """测试Selenium配置化数据提取"""
+        """测试 Selenium 配置化数据提取。"""
+        from selenium.common.exceptions import NoSuchElementException
+
         mock_driver = Mock()
         mock_driver.title = "Test Page"
         mock_driver.current_url = "https://example.com"
         mock_driver.page_source = "<html></html>"
 
-        # 模拟meta描述不存在
-        from selenium.common.exceptions import NoSuchElementException
-
         def mock_find_element(by, selector):
             if "meta[name='description']" in selector:
                 raise NoSuchElementException()
-            # For the link extraction
             mock_element = Mock()
             mock_element.get_attribute.return_value = "href_value"
             return mock_element
 
         mock_driver.find_element.side_effect = mock_find_element
 
-        # 模拟元素查找（多个元素）
         mock_element = Mock()
         mock_element.text = "Extracted text"
         mock_element.get_attribute.return_value = "href_value"
         mock_driver.find_elements.return_value = [mock_element]
 
         mock_beautifulsoup.return_value = Mock()
-        self.scraper.driver = mock_driver
 
         extract_config = {
             "titles": "h1",
             "link": {"selector": "a", "attr": "href", "multiple": False},
         }
 
-        result = await self.scraper._extract_data_selenium(extract_config)
+        result = extract_page_data_selenium(mock_driver, extract_config)
 
         assert result["title"] == "Test Page"
         assert result["meta_description"] is None
@@ -519,7 +404,7 @@ class TestDataExtraction:
 
     @pytest.mark.asyncio
     async def test_playwright_data_extraction_default(self):
-        """测试Playwright默认数据提取"""
+        """测试 Playwright 默认数据提取。"""
         mock_page = AsyncMock()
         mock_page.title.return_value = "Test Page"
         mock_page.url = "https://example.com"
@@ -527,9 +412,7 @@ class TestDataExtraction:
         mock_page.text_content.return_value = "Test content"
         mock_page.query_selector_all.return_value = []
 
-        self.scraper.page = mock_page
-
-        result = await self.scraper._extract_data_playwright(extract_config=None)
+        result = await extract_page_data_playwright(mock_page, extract_config=None)
 
         assert result["title"] == "Test Page"
         assert result["meta_description"] == "Test description"
@@ -538,12 +421,11 @@ class TestDataExtraction:
 
     @pytest.mark.asyncio
     async def test_playwright_data_extraction_with_config(self):
-        """测试Playwright配置化数据提取"""
+        """测试 Playwright 配置化数据提取。"""
         mock_page = AsyncMock()
         mock_page.title.return_value = "Test Page"
-        mock_page.get_attribute.return_value = None  # 无meta描述
+        mock_page.get_attribute.return_value = None
 
-        # 模拟元素
         mock_element = AsyncMock()
         mock_element.text_content.return_value = "Extracted text"
         mock_element.get_attribute.return_value = "href_value"
@@ -551,14 +433,12 @@ class TestDataExtraction:
         mock_page.query_selector_all.return_value = [mock_element]
         mock_page.query_selector.return_value = mock_element
 
-        self.scraper.page = mock_page
-
         extract_config = {
             "titles": "h1",
             "link": {"selector": "a", "attr": "href", "multiple": False},
         }
 
-        result = await self.scraper._extract_data_playwright(extract_config)
+        result = await extract_page_data_playwright(mock_page, extract_config)
 
         assert result["title"] == "Test Page"
         assert result["meta_description"] is None
@@ -567,60 +447,13 @@ class TestDataExtraction:
 
 
 class TestResourceCleanup:
-    """测试资源清理"""
+    """测试资源清理（无状态版本，cleanup 为空操作）。"""
 
     @pytest.mark.asyncio
-    async def test_cleanup_selenium_driver(self):
-        """测试清理Selenium驱动器"""
+    async def test_cleanup_no_op(self):
+        """cleanup 为空操作（资源由上下文管理器管理）。"""
         scraper = AntiDetectionScraper()
-
-        # 模拟驱动器
-        mock_driver = Mock()
-        scraper.driver = mock_driver
-
-        await scraper.cleanup()
-
-        mock_driver.quit.assert_called_once()
-        assert scraper.driver is None
-
-    @pytest.mark.asyncio
-    async def test_cleanup_playwright_resources(self):
-        """测试清理Playwright资源"""
-        scraper = AntiDetectionScraper()
-
-        # 模拟Playwright资源
-        mock_page = AsyncMock()
-        mock_context = AsyncMock()
-        mock_browser = AsyncMock()
-        mock_playwright = AsyncMock()
-
-        scraper.page = mock_page
-        scraper.context = mock_context
-        scraper.browser = mock_browser
-        scraper.playwright = mock_playwright
-
-        await scraper.cleanup()
-
-        mock_page.close.assert_called_once()
-        mock_context.close.assert_called_once()
-        mock_browser.close.assert_called_once()
-        mock_playwright.stop.assert_called_once()
-
-        assert scraper.page is None
-        assert scraper.context is None
-        assert scraper.browser is None
-        assert scraper.playwright is None
-
-    @pytest.mark.asyncio
-    async def test_cleanup_with_none_resources(self):
-        """测试清理空资源"""
-        scraper = AntiDetectionScraper()
-
-        # 所有资源都是None，应该正常执行
-        await scraper.cleanup()
-
-        # 不应该抛出异常
-        assert True
+        await scraper.cleanup()  # 不应抛出异常
 
 
 class TestFormHandler:
@@ -720,7 +553,7 @@ class TestFormHandler:
 class TestSeleniumFormHandling:
     """测试Selenium表单处理"""
 
-    @patch("extractor.advanced_features.Select")
+    @patch("negentropy.perceives.scraping.form_handler.Select")
     @pytest.mark.asyncio
     async def test_selenium_fill_select_field(self, mock_select):
         """测试Selenium填充选择框"""

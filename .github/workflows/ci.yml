@@ -2,120 +2,98 @@ name: CI
 
 on:
   push:
-    branches: [master, main, develop]
+    branches: [master, main, develop, "feature/**"]
   pull_request:
-    branches: [master, main, develop]
+    branches: [master, main, develop, "feature/**"]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
-  cross-platform-tests:
-    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+  test:
+    name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          version: "latest"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+          enable-cache: "true"
 
       - name: Run tests
-        run: uv run pytest -v --tb=short
+        run: uv run pytest -v --tb=short -n auto --timeout=300 -m "not slow"
+        timeout-minutes: 20
         env:
-          # Disable browser tests in CI to avoid complexity
-          DATA_EXTRACTOR_ENABLE_JAVASCRIPT: "false"
+          NEGENTROPY_PERCEIVES_ENABLE_JAVASCRIPT: "false"
 
-  code-quality-checks:
-    name: Lint and Format Check
+  lint:
+    name: Lint & Type Check
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run ruff linting
-        run: uv run ruff check extractor/
+        run: uv run ruff check src/negentropy/perceives/
 
       - name: Run ruff formatting check
-        run: uv run ruff format --check extractor/
+        run: uv run ruff format --check src/negentropy/perceives/
 
       - name: Run mypy type checking
-        run: uv run mypy extractor/
+        run: uv run mypy src/negentropy/perceives/
 
-  security-scan:
-    name: Security Scan
+  security:
+    name: Security Audit
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Install bandit
-        run: uv add --dev bandit[toml]
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run bandit security scan
         run: |
-          uv run bandit -r extractor/ -f json -o bandit-report.json || true
-          uv run bandit -r extractor/
+          uv run bandit -r src/negentropy/perceives/ -f json -o bandit-report.json || true
+          uv run bandit -r src/negentropy/perceives/
 
-      - name: Upload security scan results
-        uses: actions/upload-artifact@v4
+      - name: Run pip-audit vulnerability scan
+        run: |
+          uv run pip-audit --format=json --output=audit-report.json || true
+          # 忽略已知漏洞（暂无修复版本或需依赖升级评估）
+          # CVE-2026-4539 (pygments)：暂无修复版本
+          # CVE-2025-64340 / CVE-2026-27124 (fastmcp 3.1.1)：修复版本 3.2.0，待升级评估
+          # CVE-2026-1839 (transformers 4.x)：修复版本 5.0.0rc3，major 版本跳升，需评估兼容性
+          uv run pip-audit --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2025-64340 --ignore-vuln CVE-2026-27124 --ignore-vuln CVE-2026-1839
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: bandit-report
-          path: bandit-report.json
+          name: security-reports
+          path: |
+            bandit-report.json
+            audit-report.json
 
-  package-build-validation:
-    name: Build Package Test
+  build:
+    name: Build Package
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync
+          install-dev: "false"
 
       - name: Build package
         run: uv build
@@ -123,41 +101,33 @@ jobs:
       - name: Test installation from wheel
         run: |
           uv pip install dist/*.whl
-          uv run python -c "import extractor; print(f'Successfully imported extractor v{extractor.__version__}')" || uv run python -c "import extractor; print('Successfully imported extractor')"
+          uv run python -c "import negentropy.perceives; print(f'Successfully imported negentropy.perceives v{negentropy.perceives.__version__}')" || uv run python -c "import negentropy.perceives; print('Successfully imported negentropy.perceives')"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist-test
           path: dist/
           retention-days: 7
 
-  test-coverage-report:
+  coverage:
     name: Coverage Report
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --extra dev
+      - name: Setup Python with uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run tests with coverage
-        run: |
-          uv run pytest --cov=extractor --cov-report=xml --cov-report=html --cov-report=term
+        run: uv run pytest --cov=negentropy.perceives --cov-report=xml --cov-report=html --cov-report=term -n auto --timeout=300 -m "not slow"
+        timeout-minutes: 20
         env:
-          DATA_EXTRACTOR_ENABLE_JAVASCRIPT: "false"
+          NEGENTROPY_PERCEIVES_ENABLE_JAVASCRIPT: "false"
 
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: |
@@ -165,9 +135,9 @@ jobs:
             htmlcov/
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false

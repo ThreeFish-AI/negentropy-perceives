@@ -1,1 +1,1 @@
-"""Unit tests for Data Extractor components."""
+"""Unit tests for Negentropy Perceives components."""

@@ -9,14 +9,6 @@
 
 测试退避延迟计算 (1s, 2s, 4s, 8s...)、失败后重试成功场景、最大重试次数耗尽处理、不同异常的重试策略。
 
-### CacheManager 缓存管理器测试
-
-测试键值对存储和读取、TTL 过期清理、不存在键的处理、全局缓存清理功能、URL 和参数的哈希键生成。
-
-### MetricsCollector 指标收集器测试
-
-测试 HTTP 方法、状态码、响应时间记录、错误类型和数量统计、成功率、平均响应时间计算、统计数据重置功能。
-
 ### 工具函数测试
 
 测试 URL 格式验证 (http/https)、HTML 标签移除和空白符处理、数据提取配置格式验证、异步函数执行时间测量。
@@ -27,21 +19,10 @@ import asyncio
 import time
 from unittest.mock import patch, AsyncMock
 
-from extractor.utils import (
-    RateLimiter,
-    RetryManager,
-    CacheManager,
-    MetricsCollector,
-    ErrorHandler,
-    URLValidator,
-    TextCleaner,
-    ConfigValidator,
-    timing_decorator,
-    rate_limiter,
-    retry_manager,
-    cache_manager,
-    metrics_collector,
-)
+from negentropy.perceives.infra import RateLimiter, rate_limiter
+from negentropy.perceives.infra import RetryManager, retry_manager
+from negentropy.perceives.infra import URLValidator, TextCleaner
+from negentropy.perceives.tools._registry import normalize_extract_config
 
 
 class TestRateLimiter:
@@ -168,194 +149,6 @@ class TestRetryManager:
 
         assert delay_1 == 2.0
         assert delay_2 == 4.0
-
-
-class TestCacheManager:
-    """Test the CacheManager class."""
-
-    def test_cache_manager_initialization(self):
-        """Test CacheManager initializes correctly."""
-        manager = CacheManager(max_size=100, ttl_seconds=60)
-        assert manager.max_size == 100
-        assert manager.ttl_seconds == 60
-        assert len(manager.cache) == 0
-
-    def test_cache_set_and_get(self):
-        """Test setting and getting cache values."""
-        manager = CacheManager()
-
-        test_data = {"key": "value", "number": 42}
-        manager.set("test_url", "simple", test_data)
-
-        retrieved_data = manager.get("test_url", "simple")
-        assert retrieved_data == test_data
-
-    def test_cache_expiration(self):
-        """Test cache expiration."""
-        manager = CacheManager(ttl_seconds=1)
-
-        test_data = {"value": "test"}
-        manager.set("expire_url", "simple", test_data)
-
-        # Should be available immediately
-        assert manager.get("expire_url", "simple") == test_data
-
-        # Wait for expiration
-        time.sleep(1.1)
-
-        # Should be None after expiration
-        assert manager.get("expire_url", "simple") is None
-
-    def test_cache_miss(self):
-        """Test cache miss behavior."""
-        manager = CacheManager()
-
-        result = manager.get("nonexistent_url", "simple")
-        assert result is None
-
-    def test_cache_clear(self):
-        """Test cache clearing."""
-        manager = CacheManager()
-
-        test_data1 = {"value": "value1"}
-        test_data2 = {"value": "value2"}
-        manager.set("url1", "simple", test_data1)
-        manager.set("url2", "scrapy", test_data2)
-
-        manager.clear()
-
-        assert manager.get("url1", "simple") is None
-        assert manager.get("url2", "scrapy") is None
-
-    def test_generate_cache_key(self):
-        """Test cache key generation."""
-        manager = CacheManager()
-
-        key1 = manager._generate_key(
-            "https://example.com", "simple", {"param": "value"}
-        )
-        key2 = manager._generate_key(
-            "https://example.com", "simple", {"param": "different"}
-        )
-
-        assert key1 != key2
-        assert len(key1) == 32  # MD5 hash length
-
-
-class TestMetricsCollector:
-    """Test the MetricsCollector class."""
-
-    def test_metrics_collector_initialization(self):
-        """Test MetricsCollector initializes correctly."""
-        collector = MetricsCollector()
-        # Check that metrics dict is initialized with expected structure
-        assert "total_requests" in collector.metrics
-        assert "successful_requests" in collector.metrics
-        assert "failed_requests" in collector.metrics
-
-    def test_record_request(self):
-        """Test recording request metrics."""
-        collector = MetricsCollector()
-
-        collector.record_request("https://example.com", True, 1500, "simple")
-
-        stats = collector.get_stats()
-        assert stats["total_requests"] == 1
-        assert stats["successful_requests"] == 1
-        assert stats["failed_requests"] == 0
-
-    def test_record_error(self):
-        """Test recording error metrics."""
-        collector = MetricsCollector()
-
-        collector.record_request(
-            "https://example.com", False, 1000, "simple", "timeout"
-        )
-
-        stats = collector.get_stats()
-        assert stats["total_requests"] == 1
-        assert stats["failed_requests"] == 1
-        assert stats["error_categories"]["timeout"] == 1
-
-    def test_get_summary_statistics(self):
-        """Test summary statistics calculation."""
-        collector = MetricsCollector()
-
-        collector.record_request("https://example.com", True, 1000, "simple")
-        collector.record_request("https://test.com", False, 2000, "scrapy", "timeout")
-
-        stats = collector.get_stats()
-
-        assert stats["total_requests"] == 2
-        assert stats["successful_requests"] == 1
-        assert stats["failed_requests"] == 1
-        assert stats["success_rate"] == 0.5
-
-    def test_reset_metrics(self):
-        """Test resetting metrics."""
-        collector = MetricsCollector()
-
-        collector.record_request("https://example.com", True, 1000, "simple")
-        collector.reset()
-
-        stats = collector.get_stats()
-        assert stats["total_requests"] == 0
-
-
-class TestErrorHandler:
-    """Test the ErrorHandler class."""
-
-    def test_error_handler_initialization(self):
-        """Test ErrorHandler initializes correctly."""
-        # ErrorHandler is a static class, test its static methods
-        assert hasattr(ErrorHandler, "handle_scraping_error")
-
-    def test_categorize_error_timeout(self):
-        """Test timeout error categorization."""
-        timeout_error = Exception("Request timeout")
-        result = ErrorHandler.handle_scraping_error(
-            timeout_error, "https://example.com", "simple"
-        )
-
-        assert result["success"] is False
-        assert result["error"]["category"] == "timeout"
-
-    def test_categorize_error_connection(self):
-        """Test connection error categorization."""
-        connection_error = Exception("Connection refused")
-        result = ErrorHandler.handle_scraping_error(
-            connection_error, "https://example.com", "simple"
-        )
-
-        assert result["success"] is False
-        assert result["error"]["category"] == "connection"
-
-    def test_handle_error_logging(self):
-        """Test error handling and logging."""
-        error = Exception("Test error")
-
-        with patch("extractor.utils.logger") as mock_logger:
-            result = ErrorHandler.handle_scraping_error(
-                error, "https://example.com", "simple"
-            )
-
-            mock_logger.error.assert_called_once()
-            assert result["success"] is False
-
-    def test_should_retry_decision(self):
-        """Test retry decision logic based on error categories."""
-        # Test different error types
-        timeout_result = ErrorHandler.handle_scraping_error(
-            Exception("timeout"), "https://example.com", "simple"
-        )
-        assert timeout_result["error"]["category"] == "timeout"
-
-        connection_result = ErrorHandler.handle_scraping_error(
-            Exception("connection failed"), "https://example.com", "simple"
-        )
-        assert connection_result["error"]["category"] == "connection"
-
-
 class TestUtilityFunctions:
     """Test standalone utility functions."""
 
@@ -384,43 +177,28 @@ class TestUtilityFunctions:
         emails = TextCleaner.extract_emails(text_with_email)
         assert "test@example.com" in emails
 
-    def test_config_validator_validate_extraction_config(self):
-        """Test ConfigValidator extraction config validation."""
+    def test_normalize_extract_config_valid(self):
+        """Test normalize_extract_config with valid config."""
         valid_config = {
             "title": "h1",
             "content": {"selector": "p", "multiple": True, "attr": "text"},
         }
 
-        validated = ConfigValidator.validate_extract_config(valid_config)
+        validated = normalize_extract_config(valid_config)
         assert "title" in validated
         assert "content" in validated
 
-    def test_config_validator_invalid_config(self):
-        """Test ConfigValidator with invalid config."""
+    def test_normalize_extract_config_invalid(self):
+        """Test normalize_extract_config with invalid config."""
         invalid_config = {
             "title": 123,  # Should be string or dict
         }
 
         with pytest.raises(ValueError):
-            ConfigValidator.validate_extract_config(invalid_config)
-
-    @pytest.mark.asyncio
-    async def test_timing_decorator(self):
-        """Test timing decorator functionality."""
-
-        @timing_decorator
-        async def test_function():
-            await asyncio.sleep(0.01)  # Short sleep
-            return {"data": "result"}
-
-        result = await test_function()
-
-        assert result["data"] == "result"
-        assert "duration_ms" in result
+            normalize_extract_config(invalid_config)
 
     def test_global_instances(self):
         """Test global utility instances are properly initialized."""
         assert rate_limiter is not None
         assert retry_manager is not None
-        assert cache_manager is not None
-        assert metrics_collector is not None
+

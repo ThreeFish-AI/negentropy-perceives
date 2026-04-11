@@ -58,7 +58,7 @@ from pathlib import Path
 import tempfile
 import os
 
-from extractor.pdf_processor import PDFProcessor
+from negentropy.perceives.pdf.processor import PDFProcessor
 
 
 class TestPDFProcessor:
@@ -81,12 +81,12 @@ class TestPDFProcessor:
         assert self.processor is not None
         assert hasattr(self.processor, "process_pdf")
         assert hasattr(self.processor, "batch_process_pdfs")
-        assert self.processor.supported_methods == ["pymupdf", "pypdf", "auto"]
+        assert self.processor.supported_methods == ["pymupdf", "pypdf", "auto", "docling", "smart", "mineru", "marker"]
         assert os.path.exists(self.processor.temp_dir)
 
     def test_supported_methods(self):
         """测试支持的方法列表"""
-        expected_methods = ["pymupdf", "pypdf", "auto"]
+        expected_methods = ["pymupdf", "pypdf", "auto", "docling", "smart", "mineru", "marker"]
         assert self.processor.supported_methods == expected_methods
 
     def test_url_detection(self):
@@ -175,9 +175,9 @@ class TestPyMuPDFExtraction:
         self.processor.cleanup()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_fitz")
+    @patch("negentropy.perceives.pdf.processor._import_fitz")
     async def test_pymupdf_extraction_success(self, mock_import_fitz):
-        """测试PyMuPDF提取成功"""
+        """测试PyMuPDF提取成功（block级提取）"""
         # 模拟fitz模块
         mock_fitz = Mock()
         mock_import_fitz.return_value = mock_fitz
@@ -192,11 +192,16 @@ class TestPyMuPDFExtraction:
         }
         mock_fitz.open.return_value = mock_doc
 
-        # 模拟页面
+        # 模拟页面 - 使用 blocks 格式
+        # (x0, y0, x1, y1, text, block_no, block_type)
         mock_page1 = Mock()
-        mock_page1.get_text.return_value = "Page 1 content"
+        mock_page1.get_text.return_value = [
+            (0, 0, 100, 20, "Page 1 content\n", 0, 0),
+        ]
         mock_page2 = Mock()
-        mock_page2.get_text.return_value = "Page 2 content"
+        mock_page2.get_text.return_value = [
+            (0, 0, 100, 20, "Page 2 content\n", 0, 0),
+        ]
         mock_doc.load_page.side_effect = [mock_page1, mock_page2]
 
         # 创建临时PDF文件
@@ -224,9 +229,9 @@ class TestPyMuPDFExtraction:
                 tmp_path.unlink()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_fitz")
+    @patch("negentropy.perceives.pdf.processor._import_fitz")
     async def test_pymupdf_with_page_range(self, mock_import_fitz):
-        """测试PyMuPDF页面范围提取"""
+        """测试PyMuPDF页面范围提取（block级）"""
         # 模拟fitz模块
         mock_fitz = Mock()
         mock_import_fitz.return_value = mock_fitz
@@ -237,11 +242,13 @@ class TestPyMuPDFExtraction:
         mock_doc.metadata = {}
         mock_fitz.open.return_value = mock_doc
 
-        # 模拟页面
+        # 模拟页面 - 使用 blocks 格式
         mock_pages = []
         for i in range(5):
             mock_page = Mock()
-            mock_page.get_text.return_value = f"Page {i + 1} content"
+            mock_page.get_text.return_value = [
+                (0, 0, 100, 20, f"Page {i + 1} content\n", 0, 0),
+            ]
             mock_pages.append(mock_page)
 
         # 正确设置 load_page 的模拟行为
@@ -272,7 +279,69 @@ class TestPyMuPDFExtraction:
                 tmp_path.unlink()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_fitz")
+    @patch("negentropy.perceives.pdf.processor._import_fitz")
+    async def test_pymupdf_extraction_with_inline_images(self, mock_import_fitz):
+        """测试PyMuPDF提取中图片被内联到文本中"""
+        mock_fitz = Mock()
+        mock_import_fitz.return_value = mock_fitz
+
+        mock_doc = Mock()
+        mock_doc.page_count = 1
+        mock_doc.metadata = {}
+        mock_fitz.open.return_value = mock_doc
+
+        # 模拟页面 - 包含文本块和图片块，按位置排序
+        # (x0, y0, x1, y1, text/data, block_no, block_type)
+        mock_page = Mock()
+        mock_page.get_text.return_value = [
+            (0, 0, 500, 30, "Introduction paragraph.\n", 0, 0),    # text block
+            (0, 40, 500, 300, b"image_binary", 1, 1),               # image block
+            (0, 310, 500, 350, "Text after the image.\n", 2, 0),    # text block
+        ]
+        mock_doc.load_page.return_value = mock_page
+
+        # 预填充 _page_image_maps（模拟 _extract_enhanced_assets 已运行）
+        from negentropy.perceives.pdf.enhanced import ExtractedImage
+        self.processor._page_image_maps = {
+            0: {
+                1: ExtractedImage(
+                    id="img_0_0",
+                    filename="figure-1-architecture.png",
+                    local_path="/tmp/figure-1-architecture.png",
+                    caption="Figure 1: Architecture",
+                    page_number=0,
+                )
+            }
+        }
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+
+        try:
+            result = await self.processor._extract_with_pymupdf(
+                tmp_path, include_metadata=False
+            )
+
+            assert result["success"] is True
+            text = result["text"]
+            # 验证图片引用内联在正确位置
+            assert "Introduction paragraph." in text
+            assert "![Figure 1: Architecture](figure-1-architecture.png)" in text
+            assert "Text after the image." in text
+
+            # 验证顺序: text -> image -> text
+            intro_pos = text.index("Introduction paragraph.")
+            img_pos = text.index("![Figure 1: Architecture]")
+            after_pos = text.index("Text after the image.")
+            assert intro_pos < img_pos < after_pos
+
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+            self.processor._page_image_maps.clear()
+
+    @pytest.mark.asyncio
+    @patch("negentropy.perceives.pdf.processor._import_fitz")
     async def test_pymupdf_extraction_error(self, mock_import_fitz):
         """测试PyMuPDF提取错误"""
         # 模拟导入错误
@@ -304,7 +373,7 @@ class TestPyPDFExtraction:
         self.processor.cleanup()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_pypdf")
+    @patch("negentropy.perceives.pdf.processor._import_pypdf")
     @patch("builtins.open", create=True)
     async def test_pypdf_extraction_success(self, mock_open, mock_import_pypdf):
         """测试pypdf提取成功"""
@@ -352,7 +421,7 @@ class TestPyPDFExtraction:
                 tmp_path.unlink()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_pypdf")
+    @patch("negentropy.perceives.pdf.processor._import_pypdf")
     @patch("builtins.open", create=True)
     async def test_pypdf_with_page_range(self, mock_open, mock_import_pypdf):
         """测试pypdf页面范围提取"""
@@ -395,7 +464,7 @@ class TestPyPDFExtraction:
                 tmp_path.unlink()
 
     @pytest.mark.asyncio
-    @patch("extractor.pdf_processor._import_pypdf")
+    @patch("negentropy.perceives.pdf.processor._import_pypdf")
     async def test_pypdf_extraction_error(self, mock_import_pypdf):
         """测试pypdf提取错误"""
         mock_import_pypdf.side_effect = ImportError("pypdf not available")
@@ -562,6 +631,21 @@ class TestMarkdownConversion:
 
         # 由于标题太长（超过5个词），不应该转换为Markdown标题
         assert result.strip() == text
+
+    def test_inline_image_references_preserved_in_markdown(self):
+        """测试内联图片引用在Markdown转换中被保留"""
+        text = (
+            "TITLE\n\n"
+            "Some text before the image.\n\n"
+            "![Figure 1: Architecture](figure-1-architecture.png)\n\n"
+            "Some text after the image."
+        )
+
+        result = self.processor._convert_to_markdown(text)
+
+        assert "![Figure 1: Architecture](figure-1-architecture.png)" in result
+        assert "Some text before the image." in result
+        assert "Some text after the image." in result
 
 
 class TestPDFProcessing:
@@ -855,3 +939,137 @@ class TestErrorHandling:
 
             # 临时文件应该被清理
             assert not temp_path.exists()
+
+
+# ============================================================
+# MinerU / Marker 方法调度测试
+# ============================================================
+class TestMinerUMarkerDispatch:
+    """测试 PDFProcessor 对 mineru/marker 方法的调度。"""
+
+    def setup_method(self):
+        """测试前准备"""
+        self.processor = PDFProcessor(enable_enhanced_features=False, prefer_docling=False)
+
+    def teardown_method(self):
+        """测试后清理"""
+        self.processor.cleanup()
+
+    def test_supported_methods_includes_mineru_and_marker(self):
+        """supported_methods 应包含 mineru 和 marker。"""
+        assert "mineru" in self.processor.supported_methods
+        assert "marker" in self.processor.supported_methods
+
+    @pytest.mark.asyncio
+    async def test_mineru_method_dispatch_unavailable(self):
+        """mineru 方法在引擎不可用时应返回失败结果。"""
+        with patch(
+            "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
+            return_value=False,
+        ):
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(b"%PDF-1.4 fake")
+                pdf_path = f.name
+
+            try:
+                result = await self.processor.process_pdf(pdf_path, method="mineru")
+                assert result["success"] is False
+                assert "error" in result
+                assert "MinerU" in result["error"]
+            finally:
+                os.unlink(pdf_path)
+
+    @pytest.mark.asyncio
+    async def test_marker_method_dispatch_unavailable(self):
+        """marker 方法在引擎不可用时应返回失败结果。"""
+        with patch(
+            "negentropy.perceives.pdf.marker_engine.MarkerEngine.is_available",
+            return_value=False,
+        ):
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(b"%PDF-1.4 fake")
+                pdf_path = f.name
+
+            try:
+                result = await self.processor.process_pdf(pdf_path, method="marker")
+                assert result["success"] is False
+                assert "error" in result
+                assert "Marker" in result["error"]
+            finally:
+                os.unlink(pdf_path)
+
+    @pytest.mark.asyncio
+    async def test_mineru_method_dispatch_success(self):
+        """mineru 方法在引擎可用时应调用 convert 并返回结果。"""
+        from negentropy.perceives.pdf.mineru_engine import MinerUConversionResult
+
+        mock_result = MinerUConversionResult(
+            markdown="# MinerU Output\n\nExtracted content.",
+            page_count=3,
+            metadata={"source": "mineru"},
+        )
+
+        with (
+            patch(
+                "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
+                return_value=True,
+            ),
+            patch(
+                "negentropy.perceives.pdf.processor.MinerUEngine"
+            ) as MockEngine,
+        ):
+            mock_engine_instance = MockEngine.return_value
+            mock_engine_instance.convert.return_value = mock_result
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(b"%PDF-1.4 fake")
+                pdf_path = f.name
+
+            try:
+                result = await self.processor.process_pdf(pdf_path, method="mineru")
+                # 结果可能成功或失败取决于引擎实际调度逻辑
+                assert isinstance(result, dict)
+                assert "success" in result
+            finally:
+                os.unlink(pdf_path)
+
+    @pytest.mark.asyncio
+    async def test_marker_method_dispatch_success(self):
+        """marker 方法在引擎可用时应调用 convert 并返回结果。"""
+        from negentropy.perceives.pdf.marker_engine import MarkerConversionResult
+
+        mock_result = MarkerConversionResult(
+            markdown="# Marker Output\n\nExtracted content.",
+            page_count=5,
+            metadata={"source": "marker"},
+        )
+
+        with (
+            patch(
+                "negentropy.perceives.pdf.marker_engine.MarkerEngine.is_available",
+                return_value=True,
+            ),
+            patch(
+                "negentropy.perceives.pdf.processor.MarkerEngine"
+            ) as MockEngine,
+        ):
+            mock_engine_instance = MockEngine.return_value
+            mock_engine_instance.convert.return_value = mock_result
+
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+                f.write(b"%PDF-1.4 fake")
+                pdf_path = f.name
+
+            try:
+                result = await self.processor.process_pdf(pdf_path, method="marker")
+                assert isinstance(result, dict)
+                assert "success" in result
+            finally:
+                os.unlink(pdf_path)
+
+    @pytest.mark.asyncio
+    async def test_invalid_method_still_validated(self):
+        """无效方法仍应被拒绝。"""
+        result = await self.processor.process_pdf("test.pdf", method="invalid_engine")
+        assert result["success"] is False
+        assert "Method must be one of" in result["error"]

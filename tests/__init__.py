@@ -1,1 +1,1 @@
-"""Test package for Data Extractor."""
+"""Test package for Negentropy Perceives."""

@@ -41,10 +41,10 @@
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from bs4 import BeautifulSoup
 
-from extractor.markdown_converter import MarkdownConverter
+from negentropy.perceives.markdown.converter import MarkdownConverter
 
 
 class TestMarkdownConverter:
@@ -487,27 +487,6 @@ class TestContentExtraction:
         assert "Article Title" in result
         assert "Article content" in result
 
-    def test_text_paragraph_splitting(self):
-        """测试文本段落分割"""
-        text_content = """First paragraph with some content. Second paragraph starts here. 
-
-        Third paragraph after double newlines. Fourth paragraph continues the text flow."""
-
-        paragraphs = self.converter._split_text_into_paragraphs(text_content)
-
-        assert len(paragraphs) > 1
-        assert any("First paragraph" in p for p in paragraphs)
-        assert any("Third paragraph" in p for p in paragraphs)
-
-    def test_long_text_splitting(self):
-        """测试长文本分割"""
-        long_text = "This is a very long text. " * 20  # 创建很长的文本
-
-        paragraphs = self.converter._split_long_text(long_text, max_length=100)
-
-        assert len(paragraphs) > 1
-        for para in paragraphs:
-            assert len(para) <= 150  # 允许一些弹性
 
 
 class TestWebpageConversion:

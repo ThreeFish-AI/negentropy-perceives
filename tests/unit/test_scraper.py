@@ -3,7 +3,7 @@ Unit tests for WebScraper core functionality.
 
 ## WebScraper 引擎测试 (`test_scraper.py`)
 
-### DataExtractor 类测试
+### BeautifulSoup CSS 选择器提取测试
 
 测试基本 CSS 选择器数据提取、多元素提取、元素属性(href、src)提取和不存在选择器的处理。
 
@@ -17,12 +17,12 @@ import pytest
 from unittest.mock import patch, Mock
 from bs4 import BeautifulSoup
 
-from extractor.scraper import WebScraper
+from negentropy.perceives.scraping import WebScraper
 
 
-class TestDataExtractor:
+class TestCSSSelectorExtraction:
     """
-    DataExtractor 类测试
+    BeautifulSoup CSS 选择器提取测试
 
     - **简单选择器提取**: 测试基本 CSS 选择器数据提取
     - **多元素提取**: 测试 `multiple: true` 配置的多元素提取
@@ -83,6 +83,28 @@ class TestDataExtractor:
         nonexistent_multiple = soup.select(".nonexistent-class")
         assert len(nonexistent_multiple) == 0
 
+    def test_form_detection(self, sample_html):
+        """测试 HTML 表单元素检测"""
+        soup = BeautifulSoup(sample_html, "html.parser")
+        forms = soup.find_all("form")
+        assert len(forms) > 0
+
+        # 验证表单包含输入字段
+        form = forms[0]
+        inputs = form.find_all("input")
+        assert len(inputs) >= 2  # username and password
+
+    def test_list_extraction(self, sample_html):
+        """测试列表项提取"""
+        soup = BeautifulSoup(sample_html, "html.parser")
+        list_items = soup.select(".list li")
+        assert len(list_items) == 3
+
+        item_texts = [item.get_text() for item in list_items]
+        assert "Item 1" in item_texts
+        assert "Item 2" in item_texts
+        assert "Item 3" in item_texts
+
 
 class TestBasicScraping:
     """Test basic scraping functionality."""
@@ -137,12 +159,14 @@ class TestWebScraper:
         """
         测试 WebScraper 实例的正确创建和配置加载
 
-        验证 WebScraper 实例包含所有必要的组件 (scrapy_wrapper, selenium_scraper, simple_scraper)
+        验证 WebScraper 实例包含所有必要的组件 (http_scraper, selenium_scraper, simple_scraper)
         """
         assert scraper is not None
-        assert hasattr(scraper, "scrapy_wrapper")
+        assert hasattr(scraper, "http_scraper")
         assert hasattr(scraper, "selenium_scraper")
         assert hasattr(scraper, "simple_scraper")
+        # simple_scraper is backward-compat alias for http_scraper
+        assert scraper.simple_scraper is scraper.http_scraper
 
     def test_default_headers_generation(self, scraper):
         """
@@ -304,61 +328,21 @@ class TestWebScraper:
             pytest.skip("_extract_page_metadata method not found")
 
     @pytest.mark.asyncio
-    async def test_scrapy_method_mock(self, scraper):
-        """Test Scrapy method execution (mocked)."""
-        # Check if the method exists before testing
-        if hasattr(scraper, "_run_scrapy_spider"):
-            with patch.object(scraper, "_run_scrapy_spider") as mock_spider:
-                mock_spider.return_value = [
-                    {"url": "https://example.com", "content": "test"}
-                ]
+    async def test_scrapy_method_fallback_to_http(self, scraper):
+        """Test that scrapy method falls back to http_scraper."""
+        mock_result = {
+            "url": "https://example.com",
+            "status_code": 200,
+            "content": {"text": "test content"},
+        }
 
-                result = await scraper._scrape_with_scrapy("https://example.com")
+        with patch.object(
+            scraper.http_scraper, "scrape", return_value=mock_result
+        ):
+            result = await scraper.scrape_url(
+                "https://example.com", method="scrapy"
+            )
 
-                assert result["url"] == "https://example.com"
-                assert result["content"] == "test"
-        elif hasattr(scraper, "scrapy_wrapper"):
-            # Test through the scrapy_wrapper component
-            mock_result = {
-                "url": "https://example.com",
-                "status_code": 200,
-                "content": {"text": "test content"},
-            }
+            assert result["url"] == "https://example.com"
+            assert result["status_code"] == 200
 
-            with patch.object(
-                scraper.scrapy_wrapper, "scrape", return_value=[mock_result]
-            ):
-                result = await scraper.scrape_url(
-                    "https://example.com", method="scrapy"
-                )
-
-                assert result["url"] == "https://example.com"
-                assert result["status_code"] == 200
-        else:
-            # Skip test if neither method exists
-            pytest.skip("Scrapy method not found")
-
-    @pytest.mark.asyncio
-    async def test_method_selection_logic(self, scraper):
-        """Test automatic method selection logic."""
-        # Test that auto method defaults to something reasonable
-        with patch.object(scraper, "scrape_url") as mock_scrape:
-            mock_scrape.return_value = {"url": "test", "method": "simple"}
-
-            # This should not raise an error
-            result = await scraper.scrape_url("https://example.com", method="auto")
-
-            # Verify method selection worked
-            assert mock_scrape.called
-
-    def test_scraper_attributes(self, scraper):
-        """Test that scraper has expected attributes."""
-        # Test that the main components exist
-        assert hasattr(scraper, "simple_scraper")
-        assert hasattr(scraper, "scrapy_wrapper")
-        assert hasattr(scraper, "selenium_scraper")
-
-        # These components should not be None
-        assert scraper.simple_scraper is not None
-        assert scraper.scrapy_wrapper is not None
-        assert scraper.selenium_scraper is not None
