@@ -58,9 +58,7 @@ class DoclingCodeDetector:
                 page_range=input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="Docling 转换返回空结果"
-                )
+                return StageResult(success=False, error="Docling 转换返回空结果")
 
             code_blocks: List[ExtractedCodeBlock] = []
             for idx, cb in enumerate(result.code_blocks):
@@ -90,9 +88,7 @@ class DoclingCodeDetector:
 
         except Exception as e:
             logger.warning("Docling 代码块检测失败: %s", e)
-            return StageResult(
-                success=False, error=f"Docling 代码块检测失败: {e}"
-            )
+            return StageResult(success=False, error=f"Docling 代码块检测失败: {e}")
 
 
 class MarkerCodeDetector:
@@ -121,13 +117,9 @@ class MarkerCodeDetector:
             from ...pdf.marker_engine import MarkerEngine
 
             engine = MarkerEngine()
-            result = await asyncio.to_thread(
-                engine.convert, str(input_data.local_path)
-            )
+            result = await asyncio.to_thread(engine.convert, str(input_data.local_path))
             if result is None:
-                return StageResult(
-                    success=False, error="Marker 转换返回空结果"
-                )
+                return StageResult(success=False, error="Marker 转换返回空结果")
 
             code_blocks: List[ExtractedCodeBlock] = []
             for idx, cb in enumerate(result.code_blocks):
@@ -157,9 +149,7 @@ class MarkerCodeDetector:
 
         except Exception as e:
             logger.warning("Marker 代码块检测失败: %s", e)
-            return StageResult(
-                success=False, error=f"Marker 代码块检测失败: {e}"
-            )
+            return StageResult(success=False, error=f"Marker 代码块检测失败: {e}")
 
 
 class AlgorithmDetectorTool:
@@ -248,9 +238,7 @@ class AlgorithmDetectorTool:
 
         except Exception as e:
             logger.warning("算法检测器执行失败: %s", e)
-            return StageResult(
-                success=False, error=f"算法检测器执行失败: {e}"
-            )
+            return StageResult(success=False, error=f"算法检测器执行失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -269,9 +257,7 @@ _TOOLS: Dict[str, type] = {
 # ---------------------------------------------------------------------------
 
 
-class CodeDetectionStage(
-    Stage[PreprocessingOutput, CodeDetectionOutput]
-):
+class CodeDetectionStage(Stage[PreprocessingOutput, CodeDetectionOutput]):
     """S7: 代码块检测 Stage。"""
 
     STAGE_ID = "code_detection"
@@ -296,6 +282,4 @@ class CodeDetectionStage(
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
-        return StageResult(
-            success=False, error="无可用的代码块检测工具"
-        )
+        return StageResult(success=False, error="无可用的代码块检测工具")

@@ -34,6 +34,7 @@ class PlaywrightStealthTool:
     def is_available(self) -> bool:
         try:
             import playwright  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -97,6 +98,7 @@ class UndetectedChromeDriverTool:
     def is_available(self) -> bool:
         try:
             import undetected_chromedriver  # noqa: F401
+
             return True
         except ImportError:
             return False

@@ -81,7 +81,9 @@ class BuiltinBundlerTool:
         result = embed_images_in_markdown(
             ctx.markdown,
             max_images=int(embed_options.get("max_images", 50)),
-            max_bytes_per_image=int(embed_options.get("max_bytes_per_image", 2_000_000)),
+            max_bytes_per_image=int(
+                embed_options.get("max_bytes_per_image", 2_000_000)
+            ),
             timeout_seconds=int(embed_options.get("timeout_seconds", 10)),
         )
 
@@ -106,6 +108,7 @@ class BuiltinBundlerTool:
 
         # 链接数统计（从 Markdown 中匹配）
         import re
+
         link_pattern = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
         links = link_pattern.findall(markdown)
         link_count = len(links)

@@ -61,9 +61,7 @@ class PyMuPDFPreprocessor:
             # 1. 源解析：URL 下载或本地路径验证
             if is_pdf_url(input_data.source):
                 temp_dir = tempfile.mkdtemp(prefix="pdf_preprocess_")
-                local_path = await download_pdf_to_temp(
-                    input_data.source, temp_dir
-                )
+                local_path = await download_pdf_to_temp(input_data.source, temp_dir)
                 if local_path is None:
                     return StageResult(
                         success=False,
@@ -83,14 +81,10 @@ class PyMuPDFPreprocessor:
                 if input_data.password:
                     if not doc.authenticate(input_data.password):
                         doc.close()
-                        return StageResult(
-                            success=False, error="PDF 密码验证失败"
-                        )
+                        return StageResult(success=False, error="PDF 密码验证失败")
                 else:
                     doc.close()
-                    return StageResult(
-                        success=False, error="PDF 已加密，需提供密码"
-                    )
+                    return StageResult(success=False, error="PDF 已加密，需提供密码")
 
             # 3. 提取元数据
             metadata: Dict[str, Any] = {}
@@ -139,14 +133,10 @@ class PyMuPDFPreprocessor:
             )
 
         except ImportError as e:
-            return StageResult(
-                success=False, error=f"PyMuPDF 未安装: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 未安装: {e}")
         except Exception as e:
             logger.exception("预处理阶段异常")
-            return StageResult(
-                success=False, error=f"预处理失败: {e}"
-            )
+            return StageResult(success=False, error=f"预处理失败: {e}")
 
 
 class PyPDFPreprocessor:
@@ -179,9 +169,7 @@ class PyPDFPreprocessor:
             # 1. 源解析
             if is_pdf_url(input_data.source):
                 temp_dir = tempfile.mkdtemp(prefix="pdf_preprocess_")
-                local_path = await download_pdf_to_temp(
-                    input_data.source, temp_dir
-                )
+                local_path = await download_pdf_to_temp(input_data.source, temp_dir)
                 if local_path is None:
                     return StageResult(
                         success=False,
@@ -201,9 +189,7 @@ class PyPDFPreprocessor:
                 if input_data.password:
                     reader.decrypt(input_data.password)
                 else:
-                    return StageResult(
-                        success=False, error="PDF 已加密，需提供密码"
-                    )
+                    return StageResult(success=False, error="PDF 已加密，需提供密码")
 
             page_count = len(reader.pages)
 
@@ -245,14 +231,10 @@ class PyPDFPreprocessor:
             )
 
         except ImportError as e:
-            return StageResult(
-                success=False, error=f"pypdf 未安装: {e}"
-            )
+            return StageResult(success=False, error=f"pypdf 未安装: {e}")
         except Exception as e:
             logger.exception("pypdf 预处理阶段异常")
-            return StageResult(
-                success=False, error=f"预处理失败: {e}"
-            )
+            return StageResult(success=False, error=f"预处理失败: {e}")
 
 
 # ---------------------------------------------------------------------------

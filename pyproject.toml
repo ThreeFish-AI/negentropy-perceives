@@ -45,7 +45,7 @@ dependencies = [
     # --- PDF 处理 ---
     "markitdown>=0.1.5",
     "pymupdf>=1.27.0",
-    "pypdf>=6.9.2",  # 修复 CVE-2026-33699
+    "pypdf>=6.10.0",  # 修复 CVE-2026-33699, GHSA-3crg-w4f6-42mx
     # --- PDF 引擎 ---
     "docling>=2.70.0",  # PDF 处理引擎 (GPU 加速)
     # --- 数据模型与配置 ---

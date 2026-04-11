@@ -33,6 +33,7 @@ class MarkItDownTool:
     def is_available(self) -> bool:
         try:
             from markitdown import MarkItDown  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -41,7 +42,11 @@ class MarkItDownTool:
         """使用 MarkItDown 将 HTML 转换为 Markdown。"""
         from ...markdown.converter import MarkdownConverter
 
-        input_html = ctx.cleaned_html or ctx.metadata.get("main_content_html", "") or ctx.raw_html
+        input_html = (
+            ctx.cleaned_html
+            or ctx.metadata.get("main_content_html", "")
+            or ctx.raw_html
+        )
         if not input_html:
             return StageResult(
                 success=False,
@@ -95,6 +100,7 @@ class Html2TextTool:
     def is_available(self) -> bool:
         try:
             import html2text  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -110,7 +116,11 @@ class Html2TextTool:
                 engine_used=self.name,
             )
 
-        input_html = ctx.cleaned_html or ctx.metadata.get("main_content_html", "") or ctx.raw_html
+        input_html = (
+            ctx.cleaned_html
+            or ctx.metadata.get("main_content_html", "")
+            or ctx.raw_html
+        )
         if not input_html:
             return StageResult(
                 success=False,

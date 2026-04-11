@@ -71,7 +71,8 @@ jobs:
           # 忽略已知漏洞（暂无修复版本或需依赖升级评估）
           # CVE-2026-4539 (pygments)：暂无修复版本
           # CVE-2025-64340 / CVE-2026-27124 (fastmcp 3.1.1)：修复版本 3.2.0，待升级评估
-          uv run pip-audit --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2025-64340 --ignore-vuln CVE-2026-27124
+          # CVE-2026-1839 (transformers 4.x)：修复版本 5.0.0rc3，major 版本跳升，需评估兼容性
+          uv run pip-audit --ignore-vuln CVE-2026-4539 --ignore-vuln CVE-2025-64340 --ignore-vuln CVE-2026-27124 --ignore-vuln CVE-2026-1839
 
       - name: Upload security reports
         uses: actions/upload-artifact@v7

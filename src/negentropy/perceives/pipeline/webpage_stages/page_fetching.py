@@ -32,6 +32,7 @@ class AiohttpFetchTool:
     def is_available(self) -> bool:
         try:
             import aiohttp  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -48,10 +49,12 @@ class AiohttpFetchTool:
                 async with session.get(
                     url,
                     timeout=aiohttp.ClientTimeout(total=timeout_sec),
-                    headers={"User-Agent": ctx.config.get(
-                        "user_agent",
-                        "Mozilla/5.0 (compatible; NegentropyCrawler/1.0)",
-                    )},
+                    headers={
+                        "User-Agent": ctx.config.get(
+                            "user_agent",
+                            "Mozilla/5.0 (compatible; NegentropyCrawler/1.0)",
+                        )
+                    },
                 ) as resp:
                     resp.raise_for_status()
                     html = await resp.text()
@@ -87,6 +90,7 @@ class PlaywrightFetchTool:
     def is_available(self) -> bool:
         try:
             import playwright  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -136,6 +140,7 @@ class SeleniumFetchTool:
     def is_available(self) -> bool:
         try:
             from selenium import webdriver  # noqa: F401
+
             return True
         except ImportError:
             return False

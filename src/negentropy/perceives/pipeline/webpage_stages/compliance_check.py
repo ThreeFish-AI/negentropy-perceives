@@ -69,7 +69,9 @@ class RobotParserTool:
             import aiohttp
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(robots_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(
+                    robots_url, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
                     if resp.status == 200:
                         robots_content = await resp.text()
                     else:

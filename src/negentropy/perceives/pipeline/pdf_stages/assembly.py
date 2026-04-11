@@ -47,9 +47,7 @@ class BuiltinAssembler:
     def is_available(self) -> bool:
         return True
 
-    async def execute(
-        self, input_data: AssemblyInput
-    ) -> StageResult[AssemblyOutput]:
+    async def execute(self, input_data: AssemblyInput) -> StageResult[AssemblyOutput]:
         """组装 Markdown 文档。"""
         start = time.monotonic()
         try:
@@ -114,9 +112,7 @@ class BuiltinAssembler:
                     )
 
             # 2. 按阅读顺序排序
-            elements.sort(
-                key=lambda e: (e.page_number, e.reading_order)
-            )
+            elements.sort(key=lambda e: (e.page_number, e.reading_order))
 
             # 3. 拼接 Markdown
             markdown_parts: List[str] = []
@@ -161,24 +157,16 @@ class BuiltinAssembler:
                         len(input_data.text.blocks) if input_data.text else 0
                     ),
                     "tables": (
-                        input_data.tables.total_count
-                        if input_data.tables
-                        else 0
+                        input_data.tables.total_count if input_data.tables else 0
                     ),
                     "formulas": (
-                        len(input_data.formulas.formulas)
-                        if input_data.formulas
-                        else 0
+                        len(input_data.formulas.formulas) if input_data.formulas else 0
                     ),
                     "images": (
-                        input_data.images.total_count
-                        if input_data.images
-                        else 0
+                        input_data.images.total_count if input_data.images else 0
                     ),
                     "code_blocks": (
-                        input_data.code.total_count
-                        if input_data.code
-                        else 0
+                        input_data.code.total_count if input_data.code else 0
                     ),
                 },
             )
@@ -193,9 +181,7 @@ class BuiltinAssembler:
 
         except Exception as e:
             logger.exception("Markdown 组装失败")
-            return StageResult(
-                success=False, error=f"Markdown 组装失败: {e}"
-            )
+            return StageResult(success=False, error=f"Markdown 组装失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -301,14 +287,10 @@ class AssemblyStage(Stage[AssemblyInput, AssemblyOutput]):
     def stage_name(self) -> str:
         return self.STAGE_NAME
 
-    async def execute(
-        self, input_data: AssemblyInput
-    ) -> StageResult[AssemblyOutput]:
+    async def execute(self, input_data: AssemblyInput) -> StageResult[AssemblyOutput]:
         """执行 Markdown 组装。"""
         for tool_cls in _TOOLS.values():
             tool = tool_cls()
             if tool.is_available():
                 return await tool.execute(input_data)
-        return StageResult(
-            success=False, error="无可用的组装工具"
-        )
+        return StageResult(success=False, error="无可用的组装工具")

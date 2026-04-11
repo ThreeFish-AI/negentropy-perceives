@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 
-ScrapeMethod = Literal["auto", "simple", "selenium", "stealth_selenium", "stealth_playwright"]
+ScrapeMethod = Literal[
+    "auto", "simple", "selenium", "stealth_selenium", "stealth_playwright"
+]
 PDFMethod = Literal["auto", "pymupdf", "pypdf", "docling", "smart", "mineru", "marker"]
 PDFOutputFormat = Literal["markdown", "text"]
 

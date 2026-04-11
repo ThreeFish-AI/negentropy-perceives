@@ -126,9 +126,7 @@ class PyMuPDFTextExtractor:
 
         except Exception as e:
             logger.warning("PyMuPDF 文本提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"PyMuPDF 文本提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 文本提取失败: {e}")
 
 
 class DoclingTextExtractor:
@@ -160,9 +158,7 @@ class DoclingTextExtractor:
                 page_range=input_data.page_range,
             )
             if result is None or not result.markdown:
-                return StageResult(
-                    success=False, error="Docling 返回空结果"
-                )
+                return StageResult(success=False, error="Docling 返回空结果")
 
             # 将 Markdown 内容解析为 TextBlock 列表
             blocks: List[TextBlock] = []
@@ -219,9 +215,7 @@ class DoclingTextExtractor:
 
         except Exception as e:
             logger.warning("Docling 文本提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"Docling 文本提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"Docling 文本提取失败: {e}")
 
 
 class PyPDFTextExtractor:
@@ -298,9 +292,7 @@ class PyPDFTextExtractor:
 
         except Exception as e:
             logger.warning("pypdf 文本提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"pypdf 文本提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"pypdf 文本提取失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +336,4 @@ class TextExtractionStage(Stage[PreprocessingOutput, TextExtractionOutput]):
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
-        return StageResult(
-            success=False, error="无可用的文本提取工具"
-        )
+        return StageResult(success=False, error="无可用的文本提取工具")

@@ -36,6 +36,7 @@ class BeautifulSoupSanitizeTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -72,7 +73,9 @@ class BeautifulSoupSanitizeTool:
                 metadata={
                     "input_length": len(input_html),
                     "output_length": len(cleaned),
-                    "reduction_ratio": round(1 - len(cleaned) / max(len(input_html), 1), 3),
+                    "reduction_ratio": round(
+                        1 - len(cleaned) / max(len(input_html), 1), 3
+                    ),
                 },
             )
         except Exception as e:

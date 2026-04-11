@@ -125,18 +125,14 @@ class BuiltinBundler:
 
             # 4. 写入 Markdown 文件
             md_path = output_path / "document.md"
-            md_path.write_text(
-                input_data.assembly_output.markdown, encoding="utf-8"
-            )
+            md_path.write_text(input_data.assembly_output.markdown, encoding="utf-8")
 
             # 5. 生成元数据文件
             meta: Dict[str, Any] = {
                 "word_count": input_data.assembly_output.word_count,
                 "images": copied_images,
                 "engines_used": (
-                    input_data.assembly_output.metadata.get(
-                        "engine", "unknown"
-                    )
+                    input_data.assembly_output.metadata.get("engine", "unknown")
                 ),
             }
             if input_data.preprocessing:
@@ -164,9 +160,7 @@ class BuiltinBundler:
 
             if input_data.preprocessing:
                 result.page_count = input_data.preprocessing.page_count
-                result.characteristics = (
-                    input_data.preprocessing.characteristics
-                )
+                result.characteristics = input_data.preprocessing.characteristics
 
             elapsed = (time.monotonic() - start) * 1000
             return StageResult(
@@ -178,9 +172,7 @@ class BuiltinBundler:
 
         except Exception as e:
             logger.exception("资源打包失败")
-            return StageResult(
-                success=False, error=f"资源打包失败: {e}"
-            )
+            return StageResult(success=False, error=f"资源打包失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +212,4 @@ class AssetBundlingStage(Stage[_AssetBundlingInput, PipelineResult]):
             tool = tool_cls()
             if tool.is_available():
                 return await tool.execute(input_data)
-        return StageResult(
-            success=False, error="无可用的资源打包工具"
-        )
+        return StageResult(success=False, error="无可用的资源打包工具")

@@ -139,7 +139,9 @@ async def run_pdf_pipeline(
     if not preprocessing_result or not preprocessing_result.success:
         return PipelineResult(
             success=False,
-            error=preprocessing_result.error if preprocessing_result else "预处理 Stage 未执行",
+            error=preprocessing_result.error
+            if preprocessing_result
+            else "预处理 Stage 未执行",
         )
 
     # 从各 Stage 结果中构建 PipelineResult
@@ -165,20 +167,29 @@ async def run_pdf_pipeline(
                 if isinstance(preprocessing_output, PreprocessingOutput)
                 else None
             ),
-            tables_count=len(table_output.tables) if isinstance(table_output, TableExtractionOutput) else 0,
+            tables_count=len(table_output.tables)
+            if isinstance(table_output, TableExtractionOutput)
+            else 0,
             formulas_count=(
                 len(formula_output.formulas)
                 if isinstance(formula_output, FormulaExtractionOutput)
                 else 0
             ),
-            images_count=len(image_output.images) if isinstance(image_output, ImageExtractionOutput) else 0,
-            code_blocks_count=len(code_output.code_blocks) if isinstance(code_output, CodeDetectionOutput) else 0,
+            images_count=len(image_output.images)
+            if isinstance(image_output, ImageExtractionOutput)
+            else 0,
+            code_blocks_count=len(code_output.code_blocks)
+            if isinstance(code_output, CodeDetectionOutput)
+            else 0,
             engines_used=[
                 r.engine_used
                 for r in stage_results.values()
                 if hasattr(r, "engine_used") and r.engine_used
             ],
-            stage_results={k: {"success": v.success, "engine": v.engine_used} for k, v in stage_results.items()},
+            stage_results={
+                k: {"success": v.success, "engine": v.engine_used}
+                for k, v in stage_results.items()
+            },
             metadata=assembly_output.metadata,
         )
 
@@ -198,13 +209,19 @@ async def run_pdf_pipeline(
                 for r in stage_results.values()
                 if hasattr(r, "engine_used") and r.engine_used
             ],
-            stage_results={k: {"success": v.success, "engine": v.engine_used} for k, v in stage_results.items()},
+            stage_results={
+                k: {"success": v.success, "engine": v.engine_used}
+                for k, v in stage_results.items()
+            },
         )
 
     return PipelineResult(
         success=False,
         error="Pipeline 未能生成有效输出",
-        stage_results={k: {"success": v.success, "error": v.error} for k, v in stage_results.items()},
+        stage_results={
+            k: {"success": v.success, "error": v.error}
+            for k, v in stage_results.items()
+        },
     )
 
 
@@ -233,7 +250,10 @@ async def run_webpage_pipeline(
     """
     stages_config = _get_webpage_stages_config()
     if not stages_config:
-        return {"success": False, "error": "Pipeline 配置未找到（pipeline.webpage.stages 为空）"}
+        return {
+            "success": False,
+            "error": "Pipeline 配置未找到（pipeline.webpage.stages 为空）",
+        }
 
     # 确保导入 WebPage Stage 工具以触发注册
     from . import webpage_stages as _  # noqa: F401

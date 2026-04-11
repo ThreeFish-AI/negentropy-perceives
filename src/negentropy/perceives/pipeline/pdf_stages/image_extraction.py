@@ -117,9 +117,7 @@ class PyMuPDFImageExtractor:
 
         except Exception as e:
             logger.warning("PyMuPDF 图片提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"PyMuPDF 图片提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 图片提取失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +134,7 @@ _TOOLS: Dict[str, type] = {
 # ---------------------------------------------------------------------------
 
 
-class ImageExtractionStage(
-    Stage[PreprocessingOutput, ImageExtractionOutput]
-):
+class ImageExtractionStage(Stage[PreprocessingOutput, ImageExtractionOutput]):
     """S6: 图片提取 Stage。"""
 
     STAGE_ID = "image_extraction"
