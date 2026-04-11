@@ -98,7 +98,7 @@ class TestConfigGroupCompleteness:
     """user-guide.md 表格对 config.py 字段的覆盖完整性验证。"""
 
     TABLE_ROW_PATTERN = re.compile(
-        r"^\| `NEGENTROPY_PERCEIVES_(\w+)` \|", re.MULTILINE
+        r"^\| `NEGENTROPY_PERCEIVES_(\w+)`\s+\|", re.MULTILINE
     )
 
     def test_all_fields_in_tables(self, env_var_doc_content: str):
