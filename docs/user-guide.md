@@ -13,6 +13,8 @@ tags:
   - API Usage
 ---
 
+## 概述
+
 Negentropy Perceives 是一个基于 [FastMCP](https://github.com/jlowin/fastmcp) 框架构建的商业级数据提取与转换 MCP Server。它的核心使命很简单：**把网页和 PDF 变成干净的 Markdown**。6 个精心设计的 MCP 工具覆盖了链接提取、页面元数据获取、网页/PDF → Markdown 转换等核心场景，支持 STDIO / HTTP / SSE 三种传输模式，还有 Pipeline 编排、多引擎 PDF 处理、LLM 智能融合等企业级能力。
 
 **核心特性**

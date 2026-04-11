@@ -50,10 +50,10 @@ class TestSectionStructure:
 
     REQUIRED_H2_SECTIONS = [
         "概述",
-        "快速开始",
+        "快速入门",
         "开发者命令速查",
         "MCP Server 配置",
-        "MCP 工具详细",
+        "MCP 工具",
         "API 编程接口",
         "高级使用场景",
         "常见问题",
@@ -116,13 +116,25 @@ class TestOrthogonalityConstraints:
 class TestMcpToolCompleteness:
     """MCP 工具文档完整性验证。"""
 
-    EXPECTED_TOOL_COUNT = 12
+    EXPECTED_TOOL_COUNT = 6
     TOOL_HEADING_PATTERN = re.compile(r"^### (\d+)\. ", re.MULTILINE)
+    _H2_PATTERN = re.compile(r"^## ", re.MULTILINE)
+
+    @staticmethod
+    def _extract_mcp_tool_section(content: str) -> str:
+        """提取「MCP 工具」章节的内容，避免误匹配其他章节的编号。"""
+        start = content.find("## MCP 工具")
+        if start == -1:
+            return ""
+        next_h2 = TestMcpToolCompleteness._H2_PATTERN.search(content, start + 1)
+        end = next_h2.start() if next_h2 else len(content)
+        return content[start:end]
 
     def test_all_tools_documented(self, doc_content: str):
-        """文档包含所有 14 个 MCP 工具的文档。"""
+        """文档包含所有 6 个 MCP 工具的文档。"""
+        tool_section = self._extract_mcp_tool_section(doc_content)
         tool_numbers = [
-            int(n) for n in self.TOOL_HEADING_PATTERN.findall(doc_content)
+            int(n) for n in self.TOOL_HEADING_PATTERN.findall(tool_section)
         ]
         assert len(tool_numbers) >= self.EXPECTED_TOOL_COUNT, (
             f"仅找到 {len(tool_numbers)} 个工具文档，"
@@ -130,9 +142,10 @@ class TestMcpToolCompleteness:
         )
 
     def test_tool_numbers_continuous(self, doc_content: str):
-        """工具编号从 1 到 12 连续无遗漏。"""
+        """工具编号从 1 到 6 连续无遗漏。"""
+        tool_section = self._extract_mcp_tool_section(doc_content)
         tool_numbers = sorted(
-            int(n) for n in self.TOOL_HEADING_PATTERN.findall(doc_content)
+            int(n) for n in self.TOOL_HEADING_PATTERN.findall(tool_section)
         )
         for i in range(1, self.EXPECTED_TOOL_COUNT + 1):
             assert i in tool_numbers, f"缺少工具 #{i} 的文档"
