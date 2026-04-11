@@ -62,9 +62,7 @@ class MinerUFormulaExtractor:
                 input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="MinerU 转换返回空结果"
-                )
+                return StageResult(success=False, error="MinerU 转换返回空结果")
 
             formulas: List[ExtractedFormulaV2] = []
             for idx, f in enumerate(result.formulas):
@@ -78,12 +76,8 @@ class MinerUFormulaExtractor:
                     )
                 )
 
-            inline_count = sum(
-                1 for f in formulas if f.formula_type == "inline"
-            )
-            block_count = sum(
-                1 for f in formulas if f.formula_type == "block"
-            )
+            inline_count = sum(1 for f in formulas if f.formula_type == "inline")
+            block_count = sum(1 for f in formulas if f.formula_type == "block")
 
             output = FormulaExtractionOutput(
                 formulas=formulas,
@@ -102,9 +96,7 @@ class MinerUFormulaExtractor:
 
         except Exception as e:
             logger.warning("MinerU 公式提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"MinerU 公式提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"MinerU 公式提取失败: {e}")
 
 
 class DoclingFormulaExtractor:
@@ -136,9 +128,7 @@ class DoclingFormulaExtractor:
                 page_range=input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="Docling 转换返回空结果"
-                )
+                return StageResult(success=False, error="Docling 转换返回空结果")
 
             formulas: List[ExtractedFormulaV2] = []
             for idx, f in enumerate(result.formulas):
@@ -152,12 +142,8 @@ class DoclingFormulaExtractor:
                     )
                 )
 
-            inline_count = sum(
-                1 for f in formulas if f.formula_type == "inline"
-            )
-            block_count = sum(
-                1 for f in formulas if f.formula_type == "block"
-            )
+            inline_count = sum(1 for f in formulas if f.formula_type == "inline")
+            block_count = sum(1 for f in formulas if f.formula_type == "block")
 
             output = FormulaExtractionOutput(
                 formulas=formulas,
@@ -176,9 +162,7 @@ class DoclingFormulaExtractor:
 
         except Exception as e:
             logger.warning("Docling 公式提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"Docling 公式提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"Docling 公式提取失败: {e}")
 
 
 class PyMuPDFHeuristicFormulaExtractor:
@@ -250,12 +234,8 @@ class PyMuPDFHeuristicFormulaExtractor:
 
             doc.close()
 
-            inline_count = sum(
-                1 for f in formulas if f.formula_type == "inline"
-            )
-            block_count = sum(
-                1 for f in formulas if f.formula_type == "block"
-            )
+            inline_count = sum(1 for f in formulas if f.formula_type == "inline")
+            block_count = sum(1 for f in formulas if f.formula_type == "block")
 
             output = FormulaExtractionOutput(
                 formulas=formulas,
@@ -296,9 +276,7 @@ _TOOLS: Dict[str, type] = {
 # ---------------------------------------------------------------------------
 
 
-class FormulaExtractionStage(
-    Stage[PreprocessingOutput, FormulaExtractionOutput]
-):
+class FormulaExtractionStage(Stage[PreprocessingOutput, FormulaExtractionOutput]):
     """S5: 公式提取 Stage。"""
 
     STAGE_ID = "formula_extraction"
@@ -323,6 +301,4 @@ class FormulaExtractionStage(
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
-        return StageResult(
-            success=False, error="无可用的公式提取工具"
-        )
+        return StageResult(success=False, error="无可用的公式提取工具")

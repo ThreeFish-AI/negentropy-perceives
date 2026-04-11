@@ -147,7 +147,10 @@ async def convert_pdf_to_markdown(
                 )
                 if pipeline_result.success:
                     enhanced_assets = None
-                    if pipeline_result.images_count > 0 or pipeline_result.tables_count > 0:
+                    if (
+                        pipeline_result.images_count > 0
+                        or pipeline_result.tables_count > 0
+                    ):
                         enhanced_assets = {
                             "images_extracted": pipeline_result.images_count,
                             "tables_extracted": pipeline_result.tables_count,
@@ -168,7 +171,9 @@ async def convert_pdf_to_markdown(
                         enhanced_assets=enhanced_assets,
                     )
                 # Pipeline 失败时降级到传统路径
-                logger.info("Pipeline 路径失败，降级到传统路径: %s", pipeline_result.error)
+                logger.info(
+                    "Pipeline 路径失败，降级到传统路径: %s", pipeline_result.error
+                )
             except Exception as pipeline_exc:
                 logger.info("Pipeline 路径异常，降级到传统路径: %s", pipeline_exc)
 

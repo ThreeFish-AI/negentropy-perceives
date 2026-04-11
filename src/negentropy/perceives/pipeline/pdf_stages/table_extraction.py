@@ -57,9 +57,7 @@ class DoclingTableExtractor:
                 page_range=input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="Docling 转换返回空结果"
-                )
+                return StageResult(success=False, error="Docling 转换返回空结果")
 
             tables: List[ExtractedTableV2] = []
             for idx, table in enumerate(result.tables):
@@ -91,9 +89,7 @@ class DoclingTableExtractor:
 
         except Exception as e:
             logger.warning("Docling 表格提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"Docling 表格提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"Docling 表格提取失败: {e}")
 
 
 class PyMuPDFTableExtractor:
@@ -140,9 +136,7 @@ class PyMuPDFTableExtractor:
             for page_idx in range(start_page, end_page):
                 page = doc[page_idx]
                 # 使用 EnhancedPDFProcessor 的表格提取能力
-                page_tables = processor.extract_tables_with_geometry(
-                    page, page_idx
-                )
+                page_tables = processor.extract_tables_with_geometry(page, page_idx)
                 for extracted_table in page_tables:
                     tables.append(
                         ExtractedTableV2(
@@ -176,9 +170,7 @@ class PyMuPDFTableExtractor:
 
         except Exception as e:
             logger.warning("PyMuPDF 表格提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"PyMuPDF 表格提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 表格提取失败: {e}")
 
 
 class CamelotTableExtractor:
@@ -211,9 +203,7 @@ class CamelotTableExtractor:
                 end_p = input_data.page_range[1]
                 pages = f"{start_p}-{end_p}"
 
-            raw_tables = camelot.read_pdf(
-                str(input_data.local_path), pages=pages
-            )
+            raw_tables = camelot.read_pdf(str(input_data.local_path), pages=pages)
 
             tables: List[ExtractedTableV2] = []
             for idx, table in enumerate(raw_tables):
@@ -245,9 +235,7 @@ class CamelotTableExtractor:
 
         except Exception as e:
             logger.warning("Camelot 表格提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"Camelot 表格提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"Camelot 表格提取失败: {e}")
 
 
 class PDFPlumberTableExtractor:
@@ -335,9 +323,7 @@ class PDFPlumberTableExtractor:
 
         except Exception as e:
             logger.warning("pdfplumber 表格提取失败: %s", e)
-            return StageResult(
-                success=False, error=f"pdfplumber 表格提取失败: {e}"
-            )
+            return StageResult(success=False, error=f"pdfplumber 表格提取失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -382,6 +368,4 @@ class TableExtractionStage(Stage[PreprocessingOutput, TableExtractionOutput]):
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
-        return StageResult(
-            success=False, error="无可用的表格提取工具"
-        )
+        return StageResult(success=False, error="无可用的表格提取工具")

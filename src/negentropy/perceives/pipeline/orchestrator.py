@@ -87,9 +87,7 @@ class PipelineOrchestrator:
                 )
                 results.update(parallel_results)
                 # 检查是否有失败
-                failed = {
-                    k: v for k, v in parallel_results.items() if not v.success
-                }
+                failed = {k: v for k, v in parallel_results.items() if not v.success}
                 if failed:
                     logger.warning(
                         "并行组中 %d 个 Stage 失败: %s",
@@ -192,17 +190,13 @@ class PipelineOrchestrator:
             else:
                 # 先刷出累积的并行组
                 if current_parallel:
-                    groups.append(
-                        {"type": "parallel", "stages": current_parallel}
-                    )
+                    groups.append({"type": "parallel", "stages": current_parallel})
                     current_parallel = []
                 # 添加顺序 Stage
                 if groups and groups[-1]["type"] == "sequential":
                     groups[-1]["stages"].append(stage)
                 else:
-                    groups.append(
-                        {"type": "sequential", "stages": [stage]}
-                    )
+                    groups.append({"type": "sequential", "stages": [stage]})
 
         # 刷出尾部并行组
         if current_parallel:

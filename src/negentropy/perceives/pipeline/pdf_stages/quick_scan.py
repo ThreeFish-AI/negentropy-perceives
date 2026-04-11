@@ -94,8 +94,11 @@ class PyMuPDFQuickScanner:
                             if any(
                                 kw in font_name
                                 for kw in (
-                                    "math", "symbol", "cmr",
-                                    "stix", "cambria",
+                                    "math",
+                                    "symbol",
+                                    "cmr",
+                                    "stix",
+                                    "cambria",
                                 )
                             ):
                                 math_font_count += 1
@@ -110,11 +113,7 @@ class PyMuPDFQuickScanner:
                     ):
                         table_indicator_count += 1
                     # 代码指示器
-                    if (
-                        re.match(r"^    \S", line)
-                        or "def " in line
-                        or "class " in line
-                    ):
+                    if re.match(r"^    \S", line) or "def " in line or "class " in line:
                         code_indicator_count += 1
 
             doc.close()
@@ -168,14 +167,10 @@ class PyMuPDFQuickScanner:
             )
 
         except ImportError as e:
-            return StageResult(
-                success=False, error=f"PyMuPDF 未安装: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 未安装: {e}")
         except Exception as e:
             logger.exception("快速扫描阶段异常")
-            return StageResult(
-                success=False, error=f"快速扫描失败: {e}"
-            )
+            return StageResult(success=False, error=f"快速扫描失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +210,4 @@ class QuickScanStage(Stage[PreprocessingOutput, DocumentCharacteristics]):
             tool = tool_cls()
             if tool.is_available():
                 return await tool.execute(input_data)
-        return StageResult(
-            success=False, error="无可用的扫描工具（pymupdf 未安装）"
-        )
+        return StageResult(success=False, error="无可用的扫描工具（pymupdf 未安装）")

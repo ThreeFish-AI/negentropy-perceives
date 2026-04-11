@@ -35,6 +35,7 @@ class TrafilaturaTool:
     def is_available(self) -> bool:
         try:
             import trafilatura  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -109,6 +110,7 @@ class ReadabilityTool:
     def is_available(self) -> bool:
         try:
             from readability import Document  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -178,6 +180,7 @@ class BeautifulSoupHeuristicTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False

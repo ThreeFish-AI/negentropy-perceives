@@ -78,12 +78,14 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
                 continue
             script_type = script.get("type", "")
             is_display = "display" in script_type
-            formulas.append(MathFormula(
-                latex=latex,
-                formula_type="block" if is_display else "inline",
-                original_html=str(script),
-                source_format="mathjax",
-            ))
+            formulas.append(
+                MathFormula(
+                    latex=latex,
+                    formula_type="block" if is_display else "inline",
+                    original_html=str(script),
+                    source_format="mathjax",
+                )
+            )
 
         # 2. MathJax 渲染容器
         for container in soup.find_all(class_=re.compile(r"MathJax")):
@@ -91,12 +93,14 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
             if latex:
                 classes = container.get("class", [])
                 is_display = any("Display" in c or "display" in c for c in classes)
-                formulas.append(MathFormula(
-                    latex=latex,
-                    formula_type="block" if is_display else "inline",
-                    original_html=str(container)[:500],
-                    source_format="mathjax",
-                ))
+                formulas.append(
+                    MathFormula(
+                        latex=latex,
+                        formula_type="block" if is_display else "inline",
+                        original_html=str(container)[:500],
+                        source_format="mathjax",
+                    )
+                )
 
         # 3. KaTeX 容器
         for container in soup.find_all(class_=re.compile(r"katex")):
@@ -104,24 +108,28 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
             if latex:
                 classes = container.get("class", [])
                 is_display = any("display" in c for c in classes)
-                formulas.append(MathFormula(
-                    latex=latex,
-                    formula_type="block" if is_display else "inline",
-                    original_html=str(container)[:500],
-                    source_format="katex",
-                ))
+                formulas.append(
+                    MathFormula(
+                        latex=latex,
+                        formula_type="block" if is_display else "inline",
+                        original_html=str(container)[:500],
+                        source_format="katex",
+                    )
+                )
 
         # 4. MathML <math>
         for math_elem in soup.find_all("math"):
             latex = _extract_latex_annotation(math_elem)
             if latex:
                 display = math_elem.get("display", "")
-                formulas.append(MathFormula(
-                    latex=latex,
-                    formula_type="block" if display == "block" else "inline",
-                    original_html=str(math_elem)[:500],
-                    source_format="mathml",
-                ))
+                formulas.append(
+                    MathFormula(
+                        latex=latex,
+                        formula_type="block" if display == "block" else "inline",
+                        original_html=str(math_elem)[:500],
+                        source_format="mathml",
+                    )
+                )
 
     except Exception as e:
         logger.warning("数学公式提取失败: %s", e)
@@ -174,11 +182,13 @@ async def _extract_code_blocks(ctx: StageContext) -> List[CodeBlock]:
             if not code_text:
                 continue
 
-            blocks.append(CodeBlock(
-                code=code_text,
-                language=language,
-                original_html=str(pre)[:1000],
-            ))
+            blocks.append(
+                CodeBlock(
+                    code=code_text,
+                    language=language,
+                    original_html=str(pre)[:1000],
+                )
+            )
 
     except Exception as e:
         logger.warning("代码块提取失败: %s", e)
@@ -198,14 +208,33 @@ def _detect_language_from_class(element: Tag) -> Optional[str]:
         # language-xxx / lang-xxx
         for prefix in ("language-", "lang-", "highlight-"):
             if cls.startswith(prefix):
-                return cls[len(prefix):]
+                return cls[len(prefix) :]
         # 直接匹配常见语言名
         lower = cls.lower()
         if lower in (
-            "python", "javascript", "typescript", "java", "c", "cpp",
-            "csharp", "go", "rust", "ruby", "php", "swift", "kotlin",
-            "scala", "html", "css", "sql", "bash", "shell", "json",
-            "yaml", "xml", "markdown",
+            "python",
+            "javascript",
+            "typescript",
+            "java",
+            "c",
+            "cpp",
+            "csharp",
+            "go",
+            "rust",
+            "ruby",
+            "php",
+            "swift",
+            "kotlin",
+            "scala",
+            "html",
+            "css",
+            "sql",
+            "bash",
+            "shell",
+            "json",
+            "yaml",
+            "xml",
+            "markdown",
         ):
             return lower
     return None
@@ -263,14 +292,16 @@ async def _extract_tables(ctx: StageContext) -> List[TableData]:
             # 表头
             headers = rows_data[0] if rows_data else None
 
-            tables.append(TableData(
-                markdown=markdown,
-                rows=len(rows_data),
-                columns=max_cols,
-                headers=headers,
-                caption=caption,
-                original_html=str(table_tag)[:2000],
-            ))
+            tables.append(
+                TableData(
+                    markdown=markdown,
+                    rows=len(rows_data),
+                    columns=max_cols,
+                    headers=headers,
+                    caption=caption,
+                    original_html=str(table_tag)[:2000],
+                )
+            )
 
     except Exception as e:
         logger.warning("表格提取失败: %s", e)
@@ -312,13 +343,15 @@ async def _extract_images(ctx: StageContext) -> List[ImageInfo]:
             width = _parse_int(img_tag.get("width"))
             height = _parse_int(img_tag.get("height"))
 
-            images.append(ImageInfo(
-                src=src,
-                alt=alt,
-                title=title,
-                width=width,
-                height=height,
-            ))
+            images.append(
+                ImageInfo(
+                    src=src,
+                    alt=alt,
+                    title=title,
+                    width=width,
+                    height=height,
+                )
+            )
 
     except Exception as e:
         logger.warning("图片提取失败: %s", e)
@@ -352,6 +385,7 @@ class MathFormulaTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -388,6 +422,7 @@ class CodeBlockTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -424,6 +459,7 @@ class TableTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -460,6 +496,7 @@ class ImageTool:
     def is_available(self) -> bool:
         try:
             from bs4 import BeautifulSoup  # noqa: F401
+
             return True
         except ImportError:
             return False

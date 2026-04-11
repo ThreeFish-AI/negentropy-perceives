@@ -151,7 +151,10 @@ async def convert_webpage_to_markdown(
                         conversion_time=elapsed_ms(_start) / 1000.0,
                     )
                 # Pipeline 失败时降级到传统路径
-                logger.info("Pipeline 路径失败，降级到传统路径: %s", pipeline_result.get("error"))
+                logger.info(
+                    "Pipeline 路径失败，降级到传统路径: %s",
+                    pipeline_result.get("error"),
+                )
             except Exception as pipeline_exc:
                 logger.info("Pipeline 路径异常，降级到传统路径: %s", pipeline_exc)
 

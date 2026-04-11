@@ -57,8 +57,7 @@ class StageScheduler:
             return StageResult(
                 success=False,
                 error=(
-                    f"Stage '{stage_name}' 无可用工具"
-                    "（配置中所有工具均不可用或未安装）"
+                    f"Stage '{stage_name}' 无可用工具（配置中所有工具均不可用或未安装）"
                 ),
             )
 
@@ -175,9 +174,7 @@ class StageScheduler:
             return selector(successful)
         return successful[0]  # 默认取 rank 最高的
 
-    def _resolve_tools(
-        self, tool_configs: List[Dict[str, Any]]
-    ) -> List[StageTool]:
+    def _resolve_tools(self, tool_configs: List[Dict[str, Any]]) -> List[StageTool]:
         """根据配置解析并排序工具实例。
 
         Args:

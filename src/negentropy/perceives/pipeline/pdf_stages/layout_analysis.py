@@ -56,9 +56,7 @@ class DoclingLayoutTool:
                 page_range=input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="Docling 转换返回空结果"
-                )
+                return StageResult(success=False, error="Docling 转换返回空结果")
 
             # 从 Docling 文档对象中提取布局区域
             regions: List[LayoutRegion] = []
@@ -138,9 +136,7 @@ class DoclingLayoutTool:
 
         except Exception as e:
             logger.warning("Docling 版面分析失败: %s", e)
-            return StageResult(
-                success=False, error=f"Docling 版面分析失败: {e}"
-            )
+            return StageResult(success=False, error=f"Docling 版面分析失败: {e}")
 
 
 class MinerULayoutTool:
@@ -175,9 +171,7 @@ class MinerULayoutTool:
                 input_data.page_range,
             )
             if result is None:
-                return StageResult(
-                    success=False, error="MinerU 转换返回空结果"
-                )
+                return StageResult(success=False, error="MinerU 转换返回空结果")
 
             regions: List[LayoutRegion] = []
             reading_order = 0
@@ -231,9 +225,7 @@ class MinerULayoutTool:
 
         except Exception as e:
             logger.warning("MinerU 版面分析失败: %s", e)
-            return StageResult(
-                success=False, error=f"MinerU 版面分析失败: {e}"
-            )
+            return StageResult(success=False, error=f"MinerU 版面分析失败: {e}")
 
 
 class MarkerLayoutTool:
@@ -262,13 +254,9 @@ class MarkerLayoutTool:
             from ...pdf.marker_engine import MarkerEngine
 
             engine = MarkerEngine()
-            result = await asyncio.to_thread(
-                engine.convert, str(input_data.local_path)
-            )
+            result = await asyncio.to_thread(engine.convert, str(input_data.local_path))
             if result is None:
-                return StageResult(
-                    success=False, error="Marker 转换返回空结果"
-                )
+                return StageResult(success=False, error="Marker 转换返回空结果")
 
             regions: List[LayoutRegion] = []
             reading_order = 0
@@ -333,9 +321,7 @@ class MarkerLayoutTool:
 
         except Exception as e:
             logger.warning("Marker 版面分析失败: %s", e)
-            return StageResult(
-                success=False, error=f"Marker 版面分析失败: {e}"
-            )
+            return StageResult(success=False, error=f"Marker 版面分析失败: {e}")
 
 
 class PyMuPDFLayoutTool:
@@ -452,9 +438,7 @@ class PyMuPDFLayoutTool:
 
         except Exception as e:
             logger.warning("PyMuPDF 版面分析失败: %s", e)
-            return StageResult(
-                success=False, error=f"PyMuPDF 版面分析失败: {e}"
-            )
+            return StageResult(success=False, error=f"PyMuPDF 版面分析失败: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +483,4 @@ class LayoutAnalysisStage(Stage[PreprocessingOutput, LayoutAnalysisOutput]):
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
-        return StageResult(
-            success=False, error="无可用的版面分析工具"
-        )
+        return StageResult(success=False, error="无可用的版面分析工具")
