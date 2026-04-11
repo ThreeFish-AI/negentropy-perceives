@@ -19,8 +19,8 @@
 
 ## ✨ 为什么选择 Negentropy Perceives？
 
-| 🧠 Smart 模式 | 🥷 反检测抓取 | ⚡ 五引擎降级 |
-|:---|:---|:---|
+| 🧠 Smart 模式                                                                                                                                           | 🥷 反检测抓取                                                                                                                                          | ⚡ 五引擎降级                                                                                                                                              |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **LLM 编排多引擎并行处理**<br/>自动分析文档特征 → 并行调度 Docling / PyMuPDF → 择优融合最佳输出。学术论文、财报、技术手册，一个 `method="smart"` 搞定。 | **Selenium + Playwright 双引擎隐身**<br/>随机 UA 轮换、浏览器指纹隐藏、人类行为模拟（鼠标轨迹、滚动延迟）。绕过 Cloudflare、reCAPTCHA 等主流反爬系统。 | **Docling → MinerU → Marker → PyMuPDF → PyPDF**<br/>自动降级链确保零宕机。未安装的引擎自动跳过，最小依赖集即可运行。GPU 加速（CUDA / MPS / XPU）可选开启。 |
 
 <details>
@@ -108,25 +108,25 @@ async with NegentropyPerceivesClient() as client:
 
 ### 🕷️ 网页抓取 (10 工具)
 
-| 工具 | 一句话 | 核心能力 |
-|:---|:---|:---|
-| `scrape_webpage` | 单页抓取 | auto / simple / selenium 方法自动选择 |
-| `scrape_multiple_webpages` | 批量并发 | asyncio.gather 并发处理 URL 列表 |
-| `scrape_with_stealth` | **反检测隐身** | Selenium / Playwright + UA 轮换 + 行为模拟 |
-| `fill_and_submit_form` | 表单自动化 | 自动填写 + 提交，支持所有表单元素 |
-| `extract_links` | 链接提取 | 域名过滤、内外链分类 |
-| `extract_structured_data` | 结构化数据 | contact / social / content / products / addresses |
-| `get_page_info` | 页面侦察 | 标题、状态码、元数据一键获取 |
-| `check_robots_txt` | 合规检查 | robots.txt 解析 + 爬取权限判断 |
-| `convert_webpage_to_markdown` | **页面 → MD** | 主内容提取 + 格式化选项 + 图片嵌入 |
-| `batch_convert_webpages_to_markdown` | 批量转 MD | 多 URL 并发转换 |
+| 工具                                 | 一句话         | 核心能力                                          |
+| :----------------------------------- | :------------- | :------------------------------------------------ |
+| `scrape_webpage`                     | 单页抓取       | auto / simple / selenium 方法自动选择             |
+| `scrape_multiple_webpages`           | 批量并发       | asyncio.gather 并发处理 URL 列表                  |
+| `scrape_with_stealth`                | **反检测隐身** | Selenium / Playwright + UA 轮换 + 行为模拟        |
+| `fill_and_submit_form`               | 表单自动化     | 自动填写 + 提交，支持所有表单元素                 |
+| `extract_links`                      | 链接提取       | 域名过滤、内外链分类                              |
+| `extract_structured_data`            | 结构化数据     | contact / social / content / products / addresses |
+| `get_page_info`                      | 页面侦察       | 标题、状态码、元数据一键获取                      |
+| `check_robots_txt`                   | 合规检查       | robots.txt 解析 + 爬取权限判断                    |
+| `convert_webpage_to_markdown`        | **页面 → MD**  | 主内容提取 + 格式化选项 + 图片嵌入                |
+| `batch_convert_webpages_to_markdown` | 批量转 MD      | 多 URL 并发转换                                   |
 
 ### 📄 PDF 处理 (2 工具)
 
-| 工具 | 一句话 | 核心能力 |
-|:---|:---|:---|
-| `convert_pdf_to_markdown` | **PDF → MD** | 5 引擎降级链 + 图像 / 表格 / 公式提取 + Smart 模式 |
-| `batch_convert_pdfs_to_markdown` | 批量 PDF | 多文档并发 + 统计摘要 |
+| 工具                             | 一句话       | 核心能力                                           |
+| :------------------------------- | :----------- | :------------------------------------------------- |
+| `convert_pdf_to_markdown`        | **PDF → MD** | 5 引擎降级链 + 图像 / 表格 / 公式提取 + Smart 模式 |
+| `batch_convert_pdfs_to_markdown` | 批量 PDF     | 多文档并发 + 统计摘要                              |
 
 <details>
 <summary>🔧 PDF 引擎降级链详情</summary>
@@ -147,18 +147,18 @@ Docling (MIT, 最佳整体质量)
 
 ### 📡 服务管理 (2 工具)
 
-| 工具 | 功能 |
-|:---|:---|
+| 工具                 | 功能                           |
+| :------------------- | :----------------------------- |
 | `get_server_metrics` | 请求统计、性能指标、缓存命中率 |
-| `clear_cache` | 一键清空内存缓存 |
+| `clear_cache`        | 一键清空内存缓存               |
 
 ### 🔄 传输模式
 
-| 模式 | 适用场景 | 推荐度 |
-|:---|:---|:---:|
-| **STDIO** (默认) | 本地开发、Claude Desktop | ⭐⭐⭐ |
-| **HTTP** | 生产环境、远程访问、多客户端 | ⭐⭐⭐⭐⭐ |
-| **SSE** | 遗留系统兼容 | ⭐⭐ |
+| 模式             | 适用场景                     |   推荐度   |
+| :--------------- | :--------------------------- | :--------: |
+| **STDIO** (默认) | 本地开发、Claude Desktop     |   ⭐⭐⭐   |
+| **HTTP**         | 生产环境、远程访问、多客户端 | ⭐⭐⭐⭐⭐ |
+| **SSE**          | 遗留系统兼容                 |    ⭐⭐    |
 
 > 详细配置（host / port / CORS / 认证）参见 [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置)。
 
@@ -215,12 +215,12 @@ graph TD
 
 **典型协同场景**：
 
-| 场景 | 工具链路 |
-|:---|:---|
-| 合规优先抓取 | `check_robots_txt` → `scrape_webpage` → `extract_structured_data` |
-| 隐身采集 | `check_robots_txt` → `scrape_with_stealth` → `convert_webpage_to_markdown` |
+| 场景         | 工具链路                                                                                              |
+| :----------- | :---------------------------------------------------------------------------------------------------- |
+| 合规优先抓取 | `check_robots_txt` → `scrape_webpage` → `extract_structured_data`                                     |
+| 隐身采集     | `check_robots_txt` → `scrape_with_stealth` → `convert_webpage_to_markdown`                            |
 | 深度站点探索 | `get_page_info` → `extract_links` → `scrape_multiple_webpages` → `batch_convert_webpages_to_markdown` |
-| 表单数据采集 | `fill_and_submit_form` → `extract_structured_data` |
+| 表单数据采集 | `fill_and_submit_form` → `extract_structured_data`                                                    |
 
 > 完整架构设计（5 层分解、模块依赖、数据流）详见 [架构设计](docs/framework.md)。
 
@@ -282,13 +282,13 @@ products = await client.scrape_webpage(
 
 ## 📚 文档导航
 
-| 文档 | 目标读者 | 内容概要 |
-|:---|:---|:---|
-| [用户指南](docs/user-guide.md) | 所有用户 | MCP 配置、14 工具详解、API 参考、FAQ |
-| [架构设计](docs/framework.md) | 架构师 / 贡献者 | 5 层架构、引擎设计、模块依赖 |
-| [开发指南](docs/development.md) | 开发者 / QA | 环境搭建、测试、编码规范、发布流程 |
-| [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置) | 运维 / 开发者 | YAML 三层配置、环境变量速查 |
-| [版本里程](CHANGELOG.md) | 所有用户 | 版本历史与变更记录 |
+| 文档                                                             | 目标读者        | 内容概要                             |
+| :--------------------------------------------------------------- | :-------------- | :----------------------------------- |
+| [用户指南](docs/user-guide.md)                                   | 所有用户        | MCP 配置、14 工具详解、API 参考、FAQ |
+| [架构设计](docs/framework.md)                                    | 架构师 / 贡献者 | 5 层架构、引擎设计、模块依赖         |
+| [开发指南](docs/development.md)                                  | 开发者 / QA     | 环境搭建、测试、编码规范、发布流程   |
+| [用户指南 > MCP Server 配置](docs/user-guide.md#mcp-server-配置) | 运维 / 开发者   | YAML 三层配置、环境变量速查          |
+| [版本里程](CHANGELOG.md)                                         | 所有用户        | 版本历史与变更记录                   |
 
 ## 🤝 参与贡献
 
