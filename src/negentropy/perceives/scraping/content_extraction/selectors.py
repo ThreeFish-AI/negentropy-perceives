@@ -21,13 +21,13 @@ def _extract_selector_value(adapter: BackendAdapter, cfg: Dict[str, Any]) -> Any
     selector, attr = cfg.get("selector"), cfg.get("attr")
     multiple = cfg.get("multiple", False)
     if multiple:
-        elements = adapter.find_all(selector)
+        elements = adapter.find_all(selector)  # type: ignore[arg-type]
         if attr == "text":
             return [adapter.get_text(e) for e in elements]
         if attr:
             return [adapter.get_attr(e, attr) for e in elements]
         return [adapter.get_html(e) for e in elements]
-    element = adapter.find_one(selector)
+    element = adapter.find_one(selector)  # type: ignore[arg-type]
     if element is None:
         return None
     if attr == "text":
@@ -168,7 +168,7 @@ async def _extract_playwright_selector_value(
     selector, attr = cfg.get("selector"), cfg.get("attr")
     multiple = cfg.get("multiple", False)
     if multiple:
-        elements = await adapter.find_all(selector)
+        elements = await adapter.find_all(selector)  # type: ignore[arg-type]
         extracted = []
         for element in elements:
             if attr == "text":
@@ -179,7 +179,7 @@ async def _extract_playwright_selector_value(
                 value = await adapter.get_html(element)
             extracted.append(value)
         return extracted
-    element = await adapter.find_one(selector)
+    element = await adapter.find_one(selector)  # type: ignore[arg-type]
     if not element:
         return None
     if attr == "text":

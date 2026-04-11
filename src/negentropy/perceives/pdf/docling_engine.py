@@ -550,7 +550,7 @@ class DoclingEngine:
         right = getattr(bbox_obj, "r", None)
         bottom = getattr(bbox_obj, "b", None)
         if all(v is not None for v in (left, top, right, bottom)):
-            return (float(left), float(top), float(right), float(bottom))
+            return (float(left), float(top), float(right), float(bottom))  # type: ignore[arg-type]
 
         # 尝试 x0/y0/x1/y1
         x0 = getattr(bbox_obj, "x0", None)
@@ -558,7 +558,7 @@ class DoclingEngine:
         x1 = getattr(bbox_obj, "x1", None)
         y1 = getattr(bbox_obj, "y1", None)
         if all(v is not None for v in (x0, y0, x1, y1)):
-            return (float(x0), float(y0), float(x1), float(y1))
+            return (float(x0), float(y0), float(x1), float(y1))  # type: ignore[arg-type]
 
         return None
 

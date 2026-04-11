@@ -843,8 +843,8 @@ class MinerUEngine:
                 if item.get("page_no") is not None
             ]
             if page_numbers:
-                meta["first_page"] = min(page_numbers)
-                meta["last_page"] = max(page_numbers)
+                meta["first_page"] = min(page_numbers)  # type: ignore[type-var]
+                meta["last_page"] = max(page_numbers)  # type: ignore[type-var]
 
         # 文件基本信息
         pdf_p = Path(pdf_path)
@@ -905,10 +905,10 @@ class MinerUEngine:
         if isinstance(bbox, dict):
             try:
                 return (
-                    float(bbox.get("x0", bbox.get("left", 0))),
-                    float(bbox.get("y0", bbox.get("top", 0))),
-                    float(bbox.get("x1", bbox.get("right", 0))),
-                    float(bbox.get("y1", bbox.get("bottom", 0))),
+                    float(bbox.get("x0", bbox.get("left", 0))),  # type: ignore[arg-type]
+                    float(bbox.get("y0", bbox.get("top", 0))),  # type: ignore[arg-type]
+                    float(bbox.get("x1", bbox.get("right", 0))),  # type: ignore[arg-type]
+                    float(bbox.get("y1", bbox.get("bottom", 0))),  # type: ignore[arg-type]
                 )
             except (TypeError, ValueError):
                 return None

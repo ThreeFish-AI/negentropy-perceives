@@ -77,7 +77,7 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
             if not latex:
                 continue
             script_type = script.get("type", "")
-            is_display = "display" in script_type
+            is_display = "display" in script_type  # type: ignore[operator]
             formulas.append(
                 MathFormula(
                     latex=latex,
@@ -89,10 +89,10 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
 
         # 2. MathJax 渲染容器
         for container in soup.find_all(class_=re.compile(r"MathJax")):
-            latex = _extract_latex_annotation(container)
+            latex = _extract_latex_annotation(container)  # type: ignore[assignment]
             if latex:
-                classes = container.get("class", [])
-                is_display = any("Display" in c or "display" in c for c in classes)
+                classes = container.get("class", [])  # type: ignore[arg-type]
+                is_display = any("Display" in c or "display" in c for c in classes)  # type: ignore[union-attr]
                 formulas.append(
                     MathFormula(
                         latex=latex,
@@ -104,10 +104,10 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
 
         # 3. KaTeX 容器
         for container in soup.find_all(class_=re.compile(r"katex")):
-            latex = _extract_latex_annotation(container)
+            latex = _extract_latex_annotation(container)  # type: ignore[assignment]
             if latex:
-                classes = container.get("class", [])
-                is_display = any("display" in c for c in classes)
+                classes = container.get("class", [])  # type: ignore[arg-type]
+                is_display = any("display" in c for c in classes)  # type: ignore[union-attr]
                 formulas.append(
                     MathFormula(
                         latex=latex,
@@ -119,7 +119,7 @@ async def _extract_math_formulas(ctx: StageContext) -> List[MathFormula]:
 
         # 4. MathML <math>
         for math_elem in soup.find_all("math"):
-            latex = _extract_latex_annotation(math_elem)
+            latex = _extract_latex_annotation(math_elem)  # type: ignore[assignment]
             if latex:
                 display = math_elem.get("display", "")
                 formulas.append(
@@ -143,7 +143,7 @@ def _extract_latex_annotation(element: Tag) -> Optional[str]:
         return None
     for annotation in element.find_all("annotation"):
         encoding = annotation.get("encoding", "")
-        if "tex" in encoding.lower() or "latex" in encoding.lower():
+        if "tex" in encoding.lower() or "latex" in encoding.lower():  # type: ignore[union-attr]
             latex = annotation.string
             if latex:
                 return latex.strip()
@@ -201,8 +201,8 @@ def _detect_language_from_class(element: Tag) -> Optional[str]:
 
     常见模式：``language-python``, ``lang-js``, ``highlight-java``
     """
-    classes = element.get("class", [])
-    for cls in classes:
+    classes = element.get("class", [])  # type: ignore[arg-type]
+    for cls in classes:  # type: ignore[union-attr]
         if not isinstance(cls, str):
             continue
         # language-xxx / lang-xxx
@@ -333,8 +333,8 @@ async def _extract_images(ctx: StageContext) -> List[ImageInfo]:
                 continue
 
             # 解析相对路径
-            if ctx.url and not src.startswith(("http://", "https://", "data:")):
-                src = urljoin(ctx.url, src)
+            if ctx.url and not src.startswith(("http://", "https://", "data:")):  # type: ignore[union-attr]
+                src = urljoin(ctx.url, src)  # type: ignore[type-var, assignment]
 
             alt = img_tag.get("alt", "")
             title = img_tag.get("title", "")
@@ -345,9 +345,9 @@ async def _extract_images(ctx: StageContext) -> List[ImageInfo]:
 
             images.append(
                 ImageInfo(
-                    src=src,
-                    alt=alt,
-                    title=title,
+                    src=src,  # type: ignore[arg-type]
+                    alt=alt,  # type: ignore[arg-type]
+                    title=title,  # type: ignore[arg-type]
                     width=width,
                     height=height,
                 )

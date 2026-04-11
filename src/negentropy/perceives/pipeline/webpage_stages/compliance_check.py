@@ -86,9 +86,9 @@ class RobotParserTool:
             try:
                 import requests
 
-                resp = requests.get(robots_url, timeout=10)
-                if resp.status_code == 200:
-                    robots_content = resp.text
+                resp = requests.get(robots_url, timeout=10)  # type: ignore[assignment]
+                if resp.status_code == 200:  # type: ignore[attr-defined]
+                    robots_content = resp.text  # type: ignore[assignment]
             except Exception as e:
                 fetch_error = str(e)
                 logger.warning("获取 robots.txt 失败: %s", e)

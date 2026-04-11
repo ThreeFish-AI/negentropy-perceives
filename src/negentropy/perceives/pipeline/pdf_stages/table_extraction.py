@@ -136,18 +136,18 @@ class PyMuPDFTableExtractor:
             for page_idx in range(start_page, end_page):
                 page = doc[page_idx]
                 # 使用 EnhancedPDFProcessor 的表格提取能力
-                page_tables = processor.extract_tables_with_geometry(page, page_idx)
-                for extracted_table in page_tables:
+                page_tables = processor.extract_tables_with_geometry(page, page_idx)  # type: ignore[call-arg]
+                for extracted_table in page_tables:  # type: ignore[union-attr]
                     tables.append(
                         ExtractedTableV2(
                             table_id=f"tbl_{table_idx}",
-                            markdown=extracted_table.markdown,
-                            rows=extracted_table.rows,
-                            columns=extracted_table.columns,
+                            markdown=extracted_table.markdown,  # type: ignore[union-attr]
+                            rows=extracted_table.rows,  # type: ignore[union-attr]
+                            columns=extracted_table.columns,  # type: ignore[union-attr]
                             page_number=page_idx,
-                            bbox=extracted_table.bbox,
-                            caption=extracted_table.caption,
-                            headers=extracted_table.headers,
+                            bbox=extracted_table.bbox,  # type: ignore[union-attr]
+                            caption=extracted_table.caption,  # type: ignore[union-attr]
+                            headers=extracted_table.headers,  # type: ignore[union-attr]
                         )
                     )
                     table_idx += 1

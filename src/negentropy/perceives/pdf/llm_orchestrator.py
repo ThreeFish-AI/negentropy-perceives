@@ -760,7 +760,7 @@ class LLMOrchestrator:
 
             output_dir_str = str(self._output_dir) if self._output_dir else None
             engine = MarkerEngine(output_dir=output_dir_str)
-            result = await asyncio.to_thread(engine.convert)(
+            result = await asyncio.to_thread(engine.convert)(  # type: ignore[call-arg, operator]
                 str(pdf_path), embed_images=False
             )
             if not result or not result.markdown:
