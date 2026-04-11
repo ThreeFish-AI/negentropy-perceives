@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import yaml
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
@@ -193,7 +193,7 @@ class _UserYamlConfigSource(PydanticBaseSettingsSource):
         """返回空字典，强制 pydantic-settings 使用 get_field_value() 进行逐字段查询。"""
         return {}
 
-    def get_field_value(
+    def get_field_value(  # type: ignore[override]
         self,
         field: Any,
         field_name: str,
@@ -430,7 +430,7 @@ class NegentropyPerceivesSettings(BaseSettings):
     )
 
     # ── 传输层 ────────────────────────────────────────────────
-    transport_mode: str = Field(
+    transport_mode: Literal["stdio", "http", "sse"] = Field(
         default="http", description="MCP 传输协议模式：stdio / http / sse"
     )
     http_host: str = Field(default="localhost", description="HTTP 服务器绑定主机")
@@ -599,7 +599,7 @@ class NegentropyPerceivesSettings(BaseSettings):
     def settings_customise_sources(
         cls,
         settings_cls: type[BaseSettings],
-        init_settings: InitSettingsSource,
+        init_settings: InitSettingsSource,  # type: ignore[override]
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,

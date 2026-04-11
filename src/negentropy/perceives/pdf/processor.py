@@ -93,6 +93,7 @@ class PDFProcessor:
         self.prefer_docling = prefer_docling
 
         # Initialize enhanced processor for images, tables, and formulas
+        self.enhanced_processor: Optional[EnhancedPDFProcessor]
         if self.enable_enhanced_features:
             self.enhanced_processor = EnhancedPDFProcessor(output_dir)
         else:
@@ -504,7 +505,7 @@ class PDFProcessor:
                     image_size = enhanced_options.get("image_size")
 
                     markdown_content = (
-                        self.enhanced_processor.enhance_markdown_with_assets(
+                        self.enhanced_processor.enhance_markdown_with_assets(  # type: ignore[union-attr]
                             markdown_content,
                             embed_images=embed_images_setting,
                             image_size=image_size,
@@ -518,12 +519,13 @@ class PDFProcessor:
                         )
 
                         markdown_content = normalize_image_references(
-                            markdown_content, self.enhanced_processor.images
+                            markdown_content,
+                            self.enhanced_processor.images,  # type: ignore[union-attr]
                         )
 
                     # Add enhanced assets summary to result
                     extraction_result["enhanced_assets"] = (
-                        self.enhanced_processor.get_extraction_summary()
+                        self.enhanced_processor.get_extraction_summary()  # type: ignore[union-attr]
                     )
 
                 extraction_result["markdown"] = markdown_content
@@ -621,14 +623,14 @@ class PDFProcessor:
                     {"success": False, "error": str(result), "source": pdf_sources[i]}
                 )
             else:
-                processed_results.append(result)
+                processed_results.append(result)  # type: ignore[arg-type]
 
         # Calculate summary statistics
         successful_results = [r for r in processed_results if r.get("success")]
         failed_results = [r for r in processed_results if not r.get("success")]
 
-        total_pages = sum(r.get("pages_processed", 0) for r in successful_results)
-        total_words = sum(r.get("word_count", 0) for r in successful_results)
+        total_pages = sum(r.get("pages_processed", 0) for r in successful_results)  # type: ignore[misc]
+        total_words = sum(r.get("word_count", 0) for r in successful_results)  # type: ignore[misc]
 
         return {
             "success": True,

@@ -27,7 +27,7 @@ class SeleniumScraper:
     """基于 Selenium 的抓取器，适用于 JavaScript 重度渲染的站点。"""
 
     def __init__(self) -> None:
-        self.driver = None
+        self.driver: Optional[webdriver.Chrome] = None
         self.ua = UserAgent() if settings.use_random_user_agent else None
 
     def _get_driver(self) -> webdriver.Chrome:
@@ -227,6 +227,6 @@ class WebScraper:
             if isinstance(result, Exception):
                 processed_results.append({"error": str(result), "url": urls[i]})
             else:
-                processed_results.append(result)
+                processed_results.append(result)  # type: ignore[arg-type]
 
         return processed_results

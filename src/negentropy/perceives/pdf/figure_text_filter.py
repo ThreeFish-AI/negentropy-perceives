@@ -7,7 +7,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Set, Tuple
+from typing import Any, Callable, List, Optional, Set, Tuple
 
 # ---------------------------------------------------------------------------
 # 标题模式（Caption patterns）—— 共享定义
@@ -105,10 +105,10 @@ def collect_figure_internal_texts(
     items_with_labels: list,
     figure_regions: List[FigureRegion],
     *,
-    get_label: callable,
-    get_text: callable,
-    get_page_no: callable,
-    get_bbox: callable,
+    get_label: Callable[[Any], Any],
+    get_text: Callable[[Any], Any],
+    get_page_no: Callable[[Any], Any],
+    get_bbox: Callable[[Any], Any],
     body_labels: Optional[Set[str]] = None,
 ) -> Set[str]:
     """从文档元素列表中识别落在图区域内的文本。
