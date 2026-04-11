@@ -120,3 +120,298 @@ marker:
   enabled: false                # 启用 Marker 作为 PDF 提取引擎
   llm_enhanced: false           # 启用 Marker LLM 增强模式
   license_acknowledged: false   # 确认 Marker GPL-3.0 许可证条款
+
+# ── Pipeline 编排配置 ────────────────────────────────────────────────────────
+# 定义 PDF 和 WebPage 两条处理管线的 Stage 列表、工具排名和竞争模式。
+# 每个 Stage 按 rank 顺序选择首个可用工具（降级模式），
+# 或启用 competition_mode 让多工具并行竞争 + LLM 评审择优。
+#
+# 引擎级门控（docling.enabled / mineru.enabled / marker.enabled）优先于此处配置：
+#   引擎级 enabled=false → 该引擎在所有 Stage 中不可用
+#   引擎级 enabled=true + Stage 级 enabled=false → 引擎已安装但不参与此 Stage
+pipeline:
+
+  # ── PDF → Markdown 管线 ──────────────────────────────────────────────────
+  pdf:
+    stages:
+      # S0: 预处理与源解析（PDF 下载/验证、页码范围解析、元数据提取）
+      - name: preprocessing
+        description: "PDF 源验证、下载、格式检测与页面范围解析"
+        tools:
+          - name: pymupdf
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S1: 文档特征快速扫描（为后续 Stage 提供路由决策依据）
+      - name: quick_scan
+        description: "轻量级文档特征分析（页数、表格、公式、图片、布局复杂度）"
+        tools:
+          - name: pymupdf
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S2: 版面分析与阅读顺序（不稳定，建议竞争模式）
+      - name: layout_analysis
+        description: "检测文档物理布局结构，确定正确阅读顺序"
+        tools:
+          - name: docling
+            rank: 1
+            enabled: true
+          - name: mineru
+            rank: 2
+            enabled: true
+          - name: marker
+            rank: 3
+            enabled: true
+          - name: pymupdf
+            rank: 4
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 120
+
+      # S3: 文本内容提取（稳定，降级模式即可）
+      - name: text_extraction
+        description: "从各文本区域中提取纯文本，保留段落结构与标题层级"
+        tools:
+          - name: pymupdf
+            rank: 1
+            enabled: true
+          - name: docling
+            rank: 2
+            enabled: true
+          - name: pypdf
+            rank: 3
+            enabled: true
+        competition_mode: false
+
+      # S4: 表格识别与提取（不稳定，建议竞争模式）
+      - name: table_extraction
+        description: "结构化表格识别与 Markdown 表格生成"
+        tools:
+          - name: docling
+            rank: 1
+            enabled: true
+          - name: camelot
+            rank: 2
+            enabled: true
+          - name: pdfplumber
+            rank: 3
+            enabled: true
+          - name: pymupdf
+            rank: 4
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 60
+
+      # S5: 数学公式提取（不稳定，建议竞争模式）
+      - name: formula_extraction
+        description: "数学公式检测与 LaTeX 转换"
+        tools:
+          - name: mineru
+            rank: 1
+            enabled: true
+          - name: docling
+            rank: 2
+            enabled: true
+          - name: pymupdf_heuristic
+            rank: 3
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 60
+
+      # S6: 图片/图形提取（稳定）
+      - name: image_extraction
+        description: "图片提取、分类与 caption 生成"
+        tools:
+          - name: pymupdf
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S7: 代码块识别（不稳定，建议竞争模式）
+      - name: code_detection
+        description: "代码块识别与编程语言推断"
+        tools:
+          - name: docling
+            rank: 1
+            enabled: true
+          - name: algorithm_detector
+            rank: 2
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 30
+
+      # S8: Markdown 组装与排版
+      - name: assembly
+        description: "将各 Stage 产出按阅读顺序组装为最终 Markdown 文档"
+        tools:
+          - name: builtin_assembler
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S9: 资源打包
+      - name: asset_bundling
+        description: "整理提取的资源文件，生成最终输出包"
+        tools:
+          - name: builtin_bundler
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+  # ── WebPage → Markdown 管线 ──────────────────────────────────────────────
+  webpage:
+    stages:
+      # S1: 合规检查（robots.txt + URL 校验）
+      - name: compliance_check
+        description: "检查目标 URL 的 robots.txt 规则与基本合法性"
+        tools:
+          - name: robotparser
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S2: 网页获取（三级降级链：HTTP → 浏览器 → 反检测）
+      - name: page_fetching
+        description: "HTTP 或浏览器抓取目标网页完整 HTML"
+        tools:
+          - name: aiohttp
+            rank: 1
+            enabled: true
+          - name: playwright
+            rank: 2
+            enabled: true
+          - name: selenium
+            rank: 3
+            enabled: true
+        competition_mode: false
+
+      # S3: 反检测降级（仅在 S2 失败时触发）
+      - name: anti_detection
+        description: "使用隐身浏览器技术绕过反爬检测"
+        tools:
+          - name: playwright_stealth
+            rank: 1
+            enabled: true
+          - name: undetected_chromedriver
+            rank: 2
+            enabled: true
+        competition_mode: false
+
+      # S4: 主内容区域识别（不稳定，建议竞争模式）
+      - name: main_content_extraction
+        description: "识别并提取主要文章内容，移除导航栏/广告/侧边栏"
+        tools:
+          - name: trafilatura
+            rank: 1
+            enabled: true
+          - name: readability
+            rank: 2
+            enabled: true
+          - name: beautifulsoup_heuristic
+            rank: 3
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 30
+
+      # S5: HTML 清洗与预处理
+      - name: html_sanitization
+        description: "清理残余脚本/样式，保护数学和代码元素，解析相对 URL"
+        tools:
+          - name: beautifulsoup
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S6: 数学公式提取（MathJax/KaTeX/MathML → LaTeX）
+      - name: math_formula_extraction
+        description: "检测并提取页面中的数学公式，转换为 LaTeX"
+        tools:
+          - name: beautifulsoup_math
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S7: 代码块识别
+      - name: code_block_detection
+        description: "识别 HTML 中的代码块，保留语法高亮信息"
+        tools:
+          - name: beautifulsoup_code
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S8: 表格提取
+      - name: table_extraction
+        description: "提取 HTML 表格结构，生成 Markdown 表格"
+        tools:
+          - name: beautifulsoup_table
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S9: 图片提取与处理
+      - name: image_extraction
+        description: "提取页面图片信息，可选下载并嵌入"
+        tools:
+          - name: beautifulsoup_image
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S10: Markdown 转换（中等不稳定，建议竞争模式）
+      - name: markdown_conversion
+        description: "将清洗后的 HTML 转换为 Markdown"
+        tools:
+          - name: markitdown
+            rank: 1
+            enabled: true
+          - name: html2text
+            rank: 2
+            enabled: true
+        competition_mode: true
+        competition:
+          max_concurrent: 2
+          timeout: 30
+
+      # S11: Markdown 排版与格式化
+      - name: markdown_formatting
+        description: "排版优化、段落间距归一化、表格对齐"
+        tools:
+          - name: builtin_formatter
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+      # S12: 资源打包与元数据聚合
+      - name: asset_bundling
+        description: "聚合处理结果，构建最终输出"
+        tools:
+          - name: builtin_bundler
+            rank: 1
+            enabled: true
+        competition_mode: false
+
+  # ── 全局 Pipeline 默认配置 ──────────────────────────────────────────────
+  defaults:
+    competition:
+      max_concurrent: 2               # 默认并行竞争工具数
+      timeout: 120                    # 默认单工具超时（秒）
+      judge:
+        enabled: true                 # 启用 LLM 评审
+        strategy: best_of             # best_of / merge / weighted
+        model: null                   # null = 继承顶层 llm.model
+        temperature: 0.1
+        max_tokens: 2048

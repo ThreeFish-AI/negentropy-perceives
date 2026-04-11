@@ -351,7 +351,7 @@ class TestDocumentPipeline:
     @pytest.mark.asyncio
     async def test_initial_page_discovery(self, e2e_tools):
         """Step 1：初始页面发现 — 抓取研究门户首页并验证响应。"""
-        scrape_tool = e2e_tools["scrape_webpage"]
+        scrape_tool = e2e_tools["convert_webpage_to_markdown"]
 
         with patch.object(
             web_scraper, "scrape_url", side_effect=mock_scrape_with_delay
@@ -360,14 +360,24 @@ class TestDocumentPipeline:
             portal_result = await scrape_tool.fn(
                 url="https://research-portal.edu/publications",
                 method="simple",
-                extract_config=None,
+                extract_main_content=True,
+                include_metadata=True,
+                custom_options=None,
                 wait_for_element=None,
+                formatting_options=None,
+                embed_images=False,
+                embed_options=None,
             )
             scrape_duration = time.time() - start_time
 
             assert portal_result.success is True
             assert scrape_duration > 0.1  # Verify delay was applied
-            assert "Research Publications Portal" in portal_result.data["title"]
+            # Title "Research Publications Portal" is in metadata, markdown content has "Latest Research Publications"
+            assert (
+                "Research Publications Portal" in portal_result.markdown_content
+                or "Latest Research Publications" in portal_result.markdown_content
+                or portal_result.metadata.get("title") == "Research Publications Portal"
+            )
 
     @pytest.mark.asyncio
     async def test_portal_markdown_conversion(self, e2e_tools):

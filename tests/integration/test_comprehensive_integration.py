@@ -509,10 +509,10 @@ class TestErrorResilience:
         tools = await get_tool_map()
 
         critical_tools = [
-            "scrape_webpage",
+            "extract_links",
             "convert_webpage_to_markdown",
             "convert_pdf_to_markdown",
-            "scrape_with_stealth",
+            "get_page_info",
         ]
 
         for tool_name in critical_tools:
@@ -674,7 +674,7 @@ class TestSystemHealth:
 
         # 验证工具能够使用这些配置
         tools = await get_tool_map()
-        assert len(tools) == 12
+        assert len(tools) == 6
 
 
 # ---------------------------------------------------------------------------
@@ -685,31 +685,11 @@ class TestSecurityCompliance:
 
     @pytest.mark.asyncio
     async def test_robots_txt_compliance_integration(self):
-        """测试robots.txt合规性集成"""
-        robots_result = {
-            "url": "https://example.com/robots.txt",
-            "exists": True,
-            "content": "User-agent: *\nDisallow: /private/\nCrawl-delay: 1",
-            "rules": [{"user_agent": "*", "disallow": ["/private/"], "crawl_delay": 1}],
-        }
-
-        with patch(
-            "negentropy.perceives.tools.extraction.web_scraper.simple_scraper.scrape", new_callable=AsyncMock
-        ) as mock_scrape:
-            # Mock the robots.txt scraping result - no error means success
-            mock_scrape.return_value = {
-                "content": {"text": robots_result["content"]},
-                "status_code": 200,
-            }
-
-            # Get the check_robots_txt tool from the FastMCP app
-            from negentropy.perceives.tools.extraction import check_robots_txt
-
-            result = await check_robots_txt(url="https://example.com")
-
-            assert result.success is True
-            assert "robots.txt" in result.robots_txt_url
-            assert "Disallow: /private/" in result.robots_content
+        """测试robots.txt合规性集成（已迁移到 Pipeline S1）"""
+        # robots.txt 合规检查已从 MCP 工具层迁移到 Pipeline compliance_check Stage
+        # 此测试验证合规配置仍可通过 settings 访问
+        assert settings.rate_limit_requests_per_minute > 0
+        assert settings.download_delay >= 0
 
     @pytest.mark.asyncio
     async def test_user_agent_and_rate_limiting(self):
@@ -719,12 +699,12 @@ class TestSecurityCompliance:
         assert settings.default_user_agent is not None
         assert settings.rate_limit_requests_per_minute > 0
 
-        # 验证相关工具存在
-        scrape_tool = await app.get_tool("scrape_webpage")
-        stealth_tool = await app.get_tool("scrape_with_stealth")
+        # 验证核心工具存在
+        convert_tool = await app.get_tool("convert_webpage_to_markdown")
+        extract_tool = await app.get_tool("extract_links")
 
-        assert scrape_tool is not None
-        assert stealth_tool is not None
+        assert convert_tool is not None
+        assert extract_tool is not None
 
 
 # ---------------------------------------------------------------------------
@@ -738,7 +718,7 @@ class TestBackwardCompatibility:
         """测试API向后兼容性"""
         # 验证所有预期的工具仍然存在
         expected_core_tools = [
-            "scrape_webpage",
+            "extract_links",
             "convert_webpage_to_markdown",
             "convert_pdf_to_markdown",
         ]

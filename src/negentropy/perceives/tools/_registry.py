@@ -7,14 +7,12 @@ from fastmcp import FastMCP
 
 from ..config import settings
 from ..markdown.converter import MarkdownConverter
-from ..scraping import AntiDetectionScraper, WebScraper
+from ..scraping import WebScraper
 from ._observability import elapsed_ms
 from ._support import (
-    BrowserMethod,
     PDFMethod,
     PDFOutputFormat,
     ScrapeMethod,
-    StructuredDataType,
     normalize_extract_config as _normalize_extract_config,
     validate_page_range as _validate_page_range,
     validate_url as _validate_url,
@@ -25,15 +23,12 @@ logger = logging.getLogger(__name__)
 __all__ = [
     # 类型别名
     "ScrapeMethod",
-    "BrowserMethod",
     "PDFMethod",
     "PDFOutputFormat",
-    "StructuredDataType",
     # FastMCP 实例
     "app",
     # 共享服务实例
     "web_scraper",
-    "anti_detection_scraper",
     "markdown_converter",
     # 工厂函数
     "create_pdf_processor",
@@ -49,7 +44,6 @@ app = FastMCP(settings.server_name, version=settings.server_version)
 
 # Shared service instances
 web_scraper = WebScraper()
-anti_detection_scraper = AntiDetectionScraper()
 markdown_converter = MarkdownConverter()
 
 

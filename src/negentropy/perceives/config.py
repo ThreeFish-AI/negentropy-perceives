@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     InitSettingsSource,
@@ -40,6 +40,10 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 # ---------------------------------------------------------------------------
 
 
+# 不展平的顶层键集合（嵌套结构体直接透传）
+_PASSTHROUGH_KEYS = frozenset({"pipeline"})
+
+
 def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
     """将嵌套 YAML 字典递归展平为以 ``_`` 连接的扁平键。
 
@@ -52,6 +56,9 @@ def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, An
     **向后兼容**：若同一键名同时出现在顶层扁平键和嵌套展开结果中，
     **扁平键优先**，确保旧版扁平 YAML 配置无缝兼容。
 
+    **透传机制**：:data:`_PASSTHROUGH_KEYS` 中声明的顶层键不参与展平，
+    其嵌套结构体将作为完整对象直接传递给对应的 Pydantic 模型字段。
+
     Args:
         data: 可能包含嵌套子字典的配置字典
         prefix: 递归调用时的键名前缀（内部使用）
@@ -63,7 +70,10 @@ def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, An
     flat: Dict[str, Any] = {}
     for key, value in data.items():
         full_key = f"{prefix}{key}" if prefix else key
-        if isinstance(value, dict):
+        if not prefix and key in _PASSTHROUGH_KEYS:
+            # 顶层特殊键：不展平，整体保留
+            flat[full_key] = value
+        elif isinstance(value, dict):
             nested.update(_flatten_nested_yaml(value, prefix=f"{full_key}_"))
         else:
             flat[full_key] = value
@@ -336,6 +346,67 @@ def describe_config_sources(
 
 
 # ---------------------------------------------------------------------------
+# Pipeline 编排模型
+# ---------------------------------------------------------------------------
+
+
+class CompetitionJudgeConfig(BaseModel):
+    """竞争模式 LLM 评审配置。"""
+
+    enabled: bool = True
+    strategy: str = "best_of"  # "best_of" | "merge" | "weighted"
+    model: Optional[str] = None  # null = 继承全局 llm.model
+    temperature: float = 0.1
+    max_tokens: int = 2048
+
+
+class CompetitionConfig(BaseModel):
+    """Stage 竞争模式配置。"""
+
+    max_concurrent: int = 2
+    timeout: int = 120
+    judge: CompetitionJudgeConfig = CompetitionJudgeConfig()
+
+
+class StageToolConfig(BaseModel):
+    """Stage 内单个工具的配置。"""
+
+    name: str
+    rank: int = 1
+    enabled: bool = True
+
+
+class StageConfig(BaseModel):
+    """单个 Stage 的配置。"""
+
+    name: str
+    description: str = ""
+    tools: List[StageToolConfig] = []
+    competition_mode: bool = False
+    competition: Optional[CompetitionConfig] = None
+
+
+class PipelineBranchConfig(BaseModel):
+    """单条管线（PDF 或 WebPage）的配置。"""
+
+    stages: List[StageConfig] = []
+
+
+class PipelineDefaultsConfig(BaseModel):
+    """Pipeline 全局默认配置。"""
+
+    competition: CompetitionConfig = CompetitionConfig()
+
+
+class PipelineConfig(BaseModel):
+    """完整 Pipeline 配置。"""
+
+    pdf: PipelineBranchConfig = PipelineBranchConfig()
+    webpage: PipelineBranchConfig = PipelineBranchConfig()
+    defaults: PipelineDefaultsConfig = PipelineDefaultsConfig()
+
+
+# ---------------------------------------------------------------------------
 # 配置模型
 # ---------------------------------------------------------------------------
 
@@ -509,6 +580,12 @@ class NegentropyPerceivesSettings(BaseSettings):
     marker_license_acknowledged: bool = Field(
         default=False,
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
+    )
+
+    # ── Pipeline 编排 ─────────────────────────────────────────
+    pipeline: Optional[PipelineConfig] = Field(
+        default=None,
+        description="Pipeline Stage 编排配置（PDF/WebPage 处理管线）",
     )
 
     model_config = {
