@@ -713,7 +713,7 @@ class EnhancedPDFProcessor:
                         table_idx,
                     )
                     if table:
-                        bbox_to_table[table.bbox] = table
+                        bbox_to_table[table.bbox] = table  # type: ignore[index]
                         all_tables.append(table)
             else:
                 # Phase 2: Full-page fallback with both strategies
@@ -727,7 +727,7 @@ class EnhancedPDFProcessor:
                         table_idx,
                     )
                     if extracted:
-                        bbox_to_table[extracted.bbox] = extracted
+                        bbox_to_table[extracted.bbox] = extracted  # type: ignore[index]
                         all_tables.append(extracted)
 
         except ImportError:
@@ -971,7 +971,7 @@ class EnhancedPDFProcessor:
                 for j in range(col_idx, next_col):
                     cell = row[j] if j < len(row) and row[j] else ""
                     # Clean up <br> tags from PyMuPDF
-                    cell = re.sub(r"<br>\s*", " ", cell).strip()
+                    cell = re.sub(r"<br>\s*", " ", cell).strip()  # type: ignore[arg-type]
                     if cell:
                         parts.append(cell)
                 merged.append(" ".join(parts))
@@ -979,14 +979,14 @@ class EnhancedPDFProcessor:
 
         # Merge continuation rows (leading cells empty = wrapped text)
         final_rows: List[List[str]] = []
-        for row in merged_rows:
-            if row[0].strip():  # New data row
+        for row in merged_rows:  # type: ignore[assignment]
+            if row[0].strip():  # type: ignore[union-attr]  # New data row
                 # Clean hyphen-broken words in each cell
-                final_rows.append([re.sub(r"(\w)- (\w)", r"\1\2", c) for c in row])
+                final_rows.append([re.sub(r"(\w)- (\w)", r"\1\2", c) for c in row])  # type: ignore[arg-type]
             elif final_rows:  # Continuation row
                 for ci in range(len(row)):
-                    if row[ci].strip():
-                        text = re.sub(r"(\w)- (\w)", r"\1\2", row[ci])
+                    if row[ci].strip():  # type: ignore[union-attr]
+                        text = re.sub(r"(\w)- (\w)", r"\1\2", row[ci])  # type: ignore[arg-type]
                         sep = " " if final_rows[-1][ci] else ""
                         final_rows[-1][ci] += sep + text
 
@@ -1028,7 +1028,7 @@ class EnhancedPDFProcessor:
         Returns:
             List of ExtractedTable objects
         """
-        tables = []
+        tables: List[ExtractedTable] = []
 
         try:
             # Split text into lines

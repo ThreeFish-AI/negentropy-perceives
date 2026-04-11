@@ -11,7 +11,7 @@ try:
     from markitdown import MarkItDown
 except ImportError:
     # Fallback for testing or if markitdown is not available
-    MarkItDown = None
+    MarkItDown = None  # type: ignore[misc, assignment]
 
 import requests
 
@@ -31,7 +31,10 @@ class MarkdownConverter:
     """Convert various content types to Markdown format using Microsoft's MarkItDown."""
 
     def __init__(
-        self, enable_plugins: bool = False, llm_client=None, llm_model: str = None
+        self,
+        enable_plugins: bool = False,
+        llm_client=None,
+        llm_model: Optional[str] = None,
     ):
         """
         Initialize the Markdown converter.

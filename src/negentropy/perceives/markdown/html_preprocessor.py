@@ -278,7 +278,7 @@ def _heuristic_split_paragraphs(text: str) -> list:
     """Split text into paragraphs using heuristics when double-newlines are absent."""
     lines = text.split("\n")
     paragraphs = []
-    current = []
+    current: list[str] = []
 
     for i, line in enumerate(lines):
         stripped = line.strip()
@@ -431,7 +431,7 @@ def _preserve_math_elements(soup: BeautifulSoup) -> None:
         if not latex:
             continue
         script_type = script.get("type", "")
-        if "display" in script_type:
+        if "display" in script_type:  # type: ignore[operator]
             replacement = soup.new_tag("span")
             replacement.string = f"$${latex}$$"
         else:
@@ -441,12 +441,12 @@ def _preserve_math_elements(soup: BeautifulSoup) -> None:
 
     # 2. MathJax 渲染容器 (.MathJax, .MathJax_Display, .MathJax_Preview)
     for container in soup.find_all(class_=re.compile(r"MathJax")):
-        latex = _extract_latex_from_annotation(container)
+        latex = _extract_latex_from_annotation(container)  # type: ignore[assignment]
         if latex:
             replacement = soup.new_tag("span")
             # 判断是否为 display 模式
-            classes = container.get("class", [])
-            is_display = any("Display" in c or "display" in c for c in classes)
+            classes = container.get("class", [])  # type: ignore[arg-type]
+            is_display = any("Display" in c or "display" in c for c in classes)  # type: ignore[union-attr]
             if is_display:
                 replacement.string = f"$${latex}$$"
             else:
@@ -455,11 +455,11 @@ def _preserve_math_elements(soup: BeautifulSoup) -> None:
 
     # 3. KaTeX 容器 (.katex, .katex-display)
     for container in soup.find_all(class_=re.compile(r"katex")):
-        latex = _extract_latex_from_annotation(container)
+        latex = _extract_latex_from_annotation(container)  # type: ignore[assignment]
         if latex:
             replacement = soup.new_tag("span")
-            classes = container.get("class", [])
-            is_display = any("display" in c for c in classes)
+            classes = container.get("class", [])  # type: ignore[arg-type]
+            is_display = any("display" in c for c in classes)  # type: ignore[union-attr]
             if is_display:
                 replacement.string = f"$${latex}$$"
             else:
@@ -468,10 +468,10 @@ def _preserve_math_elements(soup: BeautifulSoup) -> None:
 
     # 4. MathML <math> 标签
     for math_elem in soup.find_all("math"):
-        latex = _extract_latex_from_annotation(math_elem)
+        latex = _extract_latex_from_annotation(math_elem)  # type: ignore[assignment]
         if latex:
             replacement = soup.new_tag("span")
-            display = math_elem.get("display", "")
+            display = math_elem.get("display", "")  # type: ignore[assignment]
             if display == "block":
                 replacement.string = f"$${latex}$$"
             else:
