@@ -18,9 +18,9 @@ from ...models import (
     AssemblyInput,
     AssemblyOutput,
     ExtractedCodeBlock,
-    ExtractedFormulaV2,
-    ExtractedImageV2,
-    ExtractedTableV2,
+    ExtractedFormula,
+    ExtractedImage,
+    ExtractedTable,
     TextBlock,
 )
 from .._base import PDFToolBase
@@ -119,13 +119,13 @@ class BuiltinAssembler(PDFToolBase):
             markdown = "\n\n".join(markdown_parts)
 
             # 4. 图片引用规范化
-            images: List[ExtractedImageV2] = []
+            images: List[ExtractedImage] = []
             if input_data.images:
                 images = input_data.images.images
 
             # 构造 ImageMeta 兼容的适配对象
             class _ImageMetaAdapter:
-                def __init__(self, img: ExtractedImageV2):
+                def __init__(self, img: ExtractedImage):
                     self._img = img
 
                 @property
@@ -205,8 +205,8 @@ class _ContentElement:
         element_type: str,
         content: str,
         block: Optional[TextBlock] = None,
-        table: Optional[ExtractedTableV2] = None,
-        formula: Optional[ExtractedFormulaV2] = None,
+        table: Optional[ExtractedTable] = None,
+        formula: Optional[ExtractedFormula] = None,
         code_block: Optional[ExtractedCodeBlock] = None,
     ) -> None:
         self.reading_order = reading_order
@@ -231,7 +231,7 @@ def _text_block_to_markdown(block: TextBlock) -> str:
     return block.text
 
 
-def _table_to_markdown(table: ExtractedTableV2) -> str:
+def _table_to_markdown(table: ExtractedTable) -> str:
     """将表格转换为 Markdown（带可选标题）。"""
     parts: List[str] = []
     if table.caption:
@@ -240,7 +240,7 @@ def _table_to_markdown(table: ExtractedTableV2) -> str:
     return "\n\n".join(parts)
 
 
-def _formula_to_markdown(formula: ExtractedFormulaV2) -> str:
+def _formula_to_markdown(formula: ExtractedFormula) -> str:
     """将公式转换为 Markdown LaTeX。"""
     if formula.formula_type == "inline":
         return f"${formula.latex}$"
