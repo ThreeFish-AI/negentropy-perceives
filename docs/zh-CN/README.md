@@ -57,7 +57,7 @@ from negentropy.perceives.sdk import NegentropyPerceivesClient
 
 async def perceive_world():
     async with NegentropyPerceivesClient() as client:
-        result = await client.convert_webpage_to_markdown(
+        result = await client.parse_webpage_to_markdown(
             url="https://zh.wikipedia.org/wiki/熵",
         )
         print("====== 萃取原浆 ======")
@@ -92,12 +92,12 @@ asyncio.run(perceive_world())
 
 | 工具                                 | 功能                                 | 适用场景             |
 | :----------------------------------- | :----------------------------------- | :------------------- |
-| `extract_links`                      | 提取网页链接，支持域名过滤           | 站点地图、链接审计   |
-| `get_page_info`                      | 获取页面元数据（状态码、内容类型等） | 预检目标页面         |
-| `convert_webpage_to_markdown`        | 网页转 Markdown                      | 单页内容提取         |
-| `batch_convert_webpages_to_markdown` | 批量网页转 Markdown                  | 知识库构建、站点归档 |
-| `convert_pdf_to_markdown`            | PDF 转 Markdown                      | 学术论文、财报处理   |
-| `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                 | 文档批量数字化       |
+| `discover_links`                     | 发现网页链接，支持域名过滤           | 站点地图、链接审计   |
+| `inspect_page`                       | 检查页面元数据（状态码、内容类型等） | 预检目标页面         |
+| `parse_webpage_to_markdown`          | 网页转 Markdown                      | 单页内容提取         |
+| `parse_webpages_to_markdown`         | 批量网页转 Markdown                  | 知识库构建、站点归档 |
+| `parse_pdf_to_markdown`              | PDF 转 Markdown                      | 学术论文、财报处理   |
+| `parse_pdfs_to_markdown`             | 批量 PDF 转 Markdown                 | 文档批量数字化       |
 
 > [!WARNING]
 >

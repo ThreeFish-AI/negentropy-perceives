@@ -20,7 +20,7 @@ class TestErrorResilience:
     @pytest.mark.asyncio
     async def test_network_timeout_and_retry(self, e2e_tools):
         """Scenario 1：网络超时与重试 — 验证系统能够优雅地处理间歇性网络故障。"""
-        scrape_tool = e2e_tools["convert_webpage_to_markdown"]
+        scrape_tool = e2e_tools["parse_webpage_to_markdown"]
 
         call_count = 0
 
@@ -72,7 +72,7 @@ class TestErrorResilience:
     @pytest.mark.asyncio
     async def test_partial_batch_processing_failures(self, e2e_tools, pdf_processor):
         """Scenario 2：批量处理部分失败 — 验证损坏/超时文件不影响正常文件处理。"""
-        batch_pdf_tool = e2e_tools["batch_convert_pdfs_to_markdown"]
+        batch_pdf_tool = e2e_tools["parse_pdfs_to_markdown"]
 
         mixed_pdf_sources = [
             "https://working-site.com/doc1.pdf",
@@ -132,7 +132,7 @@ class TestErrorResilience:
             }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor,
                 "batch_process_pdfs",
@@ -165,7 +165,7 @@ class TestErrorResilience:
     @pytest.mark.asyncio
     async def test_resource_exhaustion_and_recovery(self, e2e_tools):
         """Scenario 3：资源耗尽与恢复 — 模拟内存压力下的连续页面处理。"""
-        convert_tool = e2e_tools["convert_webpage_to_markdown"]
+        convert_tool = e2e_tools["parse_webpage_to_markdown"]
 
         memory_usage_counter = 0
 
@@ -225,7 +225,7 @@ class TestErrorResilience:
     async def test_data_integrity_under_stress(self, e2e_tools):
         """Scenario 4：压力测试下的数据完整性 — 验证 20 页并发抓取时特殊字符保持不变。"""
         batch_markdown_urls = [f"https://stress-test.com/page-{i}" for i in range(20)]
-        batch_scrape_tool = e2e_tools["batch_convert_webpages_to_markdown"]
+        batch_scrape_tool = e2e_tools["parse_webpages_to_markdown"]
 
         stress_test_results = []
         for i in range(20):

@@ -2,7 +2,7 @@
 高级提取配置示例。
 
 本文件提供多种网站类型的提取配置模板，展示抓取系统的灵活性。
-每个配置字典可直接作为 scrape_webpage 工具的 extract_config 参数使用。
+每个配置字典可直接作为 parse_webpage_to_markdown 工具的 custom_options 参数使用。
 """
 
 from typing import Any

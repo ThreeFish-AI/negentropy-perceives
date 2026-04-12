@@ -141,9 +141,9 @@ negentropy-perceives/
 │   │   ├── _registry.py         # FastMCP app 实例 + 共享服务 + 辅助函数导出
 │   │   ├── _observability.py    # 可观测性辅助（elapsed_ms）
 │   │   ├── _support.py          # 共享类型（ScrapeMethod, PDFMethod, PDFOutputFormat）+ 校验函数
-│   │   ├── extraction.py        # 数据提取工具（extract_links, get_page_info）
-│   │   ├── markdown.py          # Markdown 转换工具（convert_webpage_to_markdown, batch_convert_webpages_to_markdown）
-│   │   └── pdf.py               # PDF 处理工具（convert_pdf_to_markdown, batch_convert_pdfs_to_markdown）
+│   │   ├── extraction.py        # 数据提取工具（discover_links, inspect_page）
+│   │   ├── markdown.py          # Markdown 转换工具（parse_webpage_to_markdown, parse_webpages_to_markdown）
+│   │   └── pdf.py               # PDF 处理工具（parse_pdf_to_markdown, parse_pdfs_to_markdown）
 │   │
 │   ├── infra/                   # 基础设施层
 │   │   ├── parsing.py           # 解析工具（TextCleaner, URLValidator, extract_*）
@@ -387,9 +387,9 @@ tools/_registry.py          定义 FastMCP app 实例 + 共享服务
 tools/_support.py           共享类型别名（ScrapeMethod, PDFMethod, PDFOutputFormat）+ 校验函数
 tools/_observability.py     导出 elapsed_ms 计时工具
        ↓
-tools/extraction.py         用 @app.tool() 注册 2 个工具（extract_links, get_page_info）
-tools/markdown.py           用 @app.tool() 注册 2 个工具（convert_webpage_to_markdown, batch_convert_webpages_to_markdown）
-tools/pdf.py                用 @app.tool() 注册 2 个工具（convert_pdf_to_markdown, batch_convert_pdfs_to_markdown）
+tools/extraction.py         用 @app.tool() 注册 2 个工具（discover_links, inspect_page）
+tools/markdown.py           用 @app.tool() 注册 2 个工具（parse_webpage_to_markdown, parse_webpages_to_markdown）
+tools/pdf.py                用 @app.tool() 注册 2 个工具（parse_pdf_to_markdown, parse_pdfs_to_markdown）
        ↓                       （6 个 tool 分布于 3 个模块）
 tools/__init__.py           导入各子模块 + _registry 公共 API，触发装饰器注册
        ↓
@@ -402,16 +402,16 @@ apps/app.py                 应用入口 main()，从 tools 导入 app 实例
 
 | 模块              | 工具名称                                | 职责                                         |
 | ----------------- | --------------------------------------- | -------------------------------------------- |
-| `extraction.py`   | `extract_links`                         | 提取网页链接，支持域名过滤和内外链分类       |
-| `extraction.py`   | `get_page_info`                         | 获取页面元数据（标题、描述、状态码等）       |
-| `markdown.py`     | `convert_webpage_to_markdown`           | 网页 → Markdown 转换（支持 Pipeline 自动降级）|
-| `markdown.py`     | `batch_convert_webpages_to_markdown`    | 批量网页 → Markdown 转换                     |
-| `pdf.py`          | `convert_pdf_to_markdown`               | PDF → Markdown 转换（支持 Pipeline 自动降级）|
-| `pdf.py`          | `batch_convert_pdfs_to_markdown`        | 批量 PDF → Markdown 转换                     |
+| `extraction.py`   | `discover_links`                        | 提取网页链接，支持域名过滤和内外链分类       |
+| `extraction.py`   | `inspect_page`                          | 获取页面元数据（标题、描述、状态码等）       |
+| `markdown.py`     | `parse_webpage_to_markdown`             | 网页 → Markdown 转换（支持 Pipeline 自动降级）|
+| `markdown.py`     | `parse_webpages_to_markdown`            | 批量网页 → Markdown 转换                     |
+| `pdf.py`          | `parse_pdf_to_markdown`                 | PDF → Markdown 转换（支持 Pipeline 自动降级）|
+| `pdf.py`          | `parse_pdfs_to_markdown`                | 批量 PDF → Markdown 转换                     |
 
 ### Pipeline 集成
 
-`convert_webpage_to_markdown` 和 `convert_pdf_to_markdown` 在 `method="auto"` 时会自动尝试 Pipeline 路径：
+`parse_webpage_to_markdown` 和 `parse_pdf_to_markdown` 在 `method="auto"` 时会自动尝试 Pipeline 路径：
 
 1. **Pipeline 路径**：通过 `run_webpage_pipeline()` / `run_pdf_pipeline()` 执行 Stage 化管线处理
 2. **传统路径**：若 Pipeline 不可用或执行失败，自动降级到传统的 `web_scraper + markdown_converter` / `PDFProcessor` 路径
@@ -420,7 +420,7 @@ apps/app.py                 应用入口 main()，从 tools 导入 app 实例
 
 ### 开发新工具步骤
 
-以 [`convert_pdf_to_markdown`](../src/negentropy/perceives/tools/pdf.py) 为例：
+以 [`parse_pdf_to_markdown`](../src/negentropy/perceives/tools/pdf.py) 为例：
 
 #### 1. 定义响应模型
 
@@ -446,7 +446,7 @@ from ..schemas import PDFResponse
 from ._registry import app, create_pdf_processor, PDFMethod, validate_page_range
 
 @app.tool()
-async def convert_pdf_to_markdown(
+async def parse_pdf_to_markdown(
     pdf_source: Annotated[str, Field(..., description="PDF 源路径或 URL")],
     method: Annotated[PDFMethod, Field(default="auto", description="处理方法")],
     # ... 更多参数
@@ -485,11 +485,11 @@ from . import pdf  # noqa: F401  # 触发 @app.tool() 注册
 
 ### 参数设计模式
 
-推荐使用 **Annotated Field 模式**，直接在函数签名中定义参数描述。以 [`tools/markdown.py`](../src/negentropy/perceives/tools/markdown.py) 中的 `convert_webpage_to_markdown` 为例：
+推荐使用 **Annotated Field 模式**，直接在函数签名中定义参数描述。以 [`tools/markdown.py`](../src/negentropy/perceives/tools/markdown.py) 中的 `parse_webpage_to_markdown` 为例：
 
 ```python
 @app.tool()
-async def convert_webpage_to_markdown(
+async def parse_webpage_to_markdown(
     url: Annotated[str, Field(..., description="目标网页URL，必须包含协议前缀")],
     method: Annotated[ScrapeMethod, Field(default="auto", description="抓取方法")],
     extract_main_content: Annotated[bool, Field(default=True, description="是否仅提取主要内容")],

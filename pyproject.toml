@@ -77,9 +77,14 @@ all-engines = [
     "mineru>=3.0.1",
     "marker-pdf>=1.10.2",
 ]
+cli = [
+    "typer>=0.16.0",
+    "rich>=14.0.0",
+]
 
 [project.scripts]
 negentropy-perceives = "negentropy.perceives.apps.app:main"
+perceives = "negentropy.perceives.cli.app:app"
 
 [tool.pytest.ini_options]
 minversion = "9.0"

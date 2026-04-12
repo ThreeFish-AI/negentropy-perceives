@@ -351,7 +351,7 @@ class TestDocumentPipeline:
     @pytest.mark.asyncio
     async def test_initial_page_discovery(self, e2e_tools):
         """Step 1：初始页面发现 — 抓取研究门户首页并验证响应。"""
-        scrape_tool = e2e_tools["convert_webpage_to_markdown"]
+        scrape_tool = e2e_tools["parse_webpage_to_markdown"]
 
         with patch.object(
             web_scraper, "scrape_url", side_effect=mock_scrape_with_delay
@@ -382,7 +382,7 @@ class TestDocumentPipeline:
     @pytest.mark.asyncio
     async def test_portal_markdown_conversion(self, e2e_tools):
         """Step 2：将门户页面转换为 Markdown 并验证内容与元数据。"""
-        markdown_tool = e2e_tools["convert_webpage_to_markdown"]
+        markdown_tool = e2e_tools["parse_webpage_to_markdown"]
 
         with patch.object(
             web_scraper, "scrape_url", side_effect=mock_scrape_with_delay
@@ -453,10 +453,10 @@ class TestDocumentPipeline:
                     "source": pdf_source,
                 }
 
-        batch_pdf_tool = e2e_tools["batch_convert_pdfs_to_markdown"]
+        batch_pdf_tool = e2e_tools["parse_pdfs_to_markdown"]
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
         ):
             async def mock_batch_process(
@@ -535,7 +535,7 @@ class TestDocumentPipeline:
     @pytest.mark.asyncio
     async def test_additional_html_pages_processing(self, e2e_tools):
         """Step 4：处理附加 HTML 页面以补全文档集。"""
-        markdown_tool = e2e_tools["convert_webpage_to_markdown"]
+        markdown_tool = e2e_tools["parse_webpage_to_markdown"]
 
         html_pages = [
             "https://research-portal.edu/papers/ai-healthcare-summary.html",

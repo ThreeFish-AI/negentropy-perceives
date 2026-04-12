@@ -124,9 +124,9 @@ class TestMarkdownPipeline:
         self, mock_successful_scrape_result
     ):
         """Test the complete markdown conversion pipeline from scraping to formatting."""
-        # Get the convert_webpage_to_markdown tool
+        # Get the parse_webpage_to_markdown tool
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         # Mock the web scraping
         with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
@@ -197,7 +197,7 @@ class TestMarkdownPipeline:
     async def test_batch_conversion_with_mixed_results(self):
         """Test batch conversion with a mix of successful and failed results."""
         tools = await get_tool_map()
-        batch_tool = tools["batch_convert_webpages_to_markdown"]
+        batch_tool = tools["parse_webpages_to_markdown"]
 
         # Create mixed results - some success, some failures
         mixed_results = [
@@ -244,7 +244,7 @@ class TestMarkdownPipeline:
     async def test_data_integrity_throughout_pipeline(self):
         """Test that data integrity is maintained throughout the processing pipeline."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         # Test with content that could be corrupted during processing
         tricky_html = """
@@ -307,7 +307,7 @@ class TestMarkdownPipeline:
     async def test_edge_cases_and_boundary_conditions(self):
         """Test various edge cases and boundary conditions."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         # Test edge cases
         edge_cases = [
@@ -378,7 +378,7 @@ class TestMarkdownPipeline:
     async def test_configuration_flexibility(self):
         """Test that various configuration combinations work correctly."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         sample_result = {
             "url": "https://config-test.com",
@@ -447,7 +447,7 @@ class TestErrorResilience:
     async def test_error_resilience_and_recovery(self):
         """Test system resilience when various components fail."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         # Test with invalid URL that should cause an error
         with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
@@ -479,7 +479,7 @@ class TestErrorResilience:
     async def test_error_logging_and_handling(self):
         """Test that errors are properly logged and handled."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         # Simulate various error conditions
         with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
@@ -509,10 +509,10 @@ class TestErrorResilience:
         tools = await get_tool_map()
 
         critical_tools = [
-            "extract_links",
-            "convert_webpage_to_markdown",
-            "convert_pdf_to_markdown",
-            "get_page_info",
+            "discover_links",
+            "parse_webpage_to_markdown",
+            "parse_pdf_to_markdown",
+            "inspect_page",
         ]
 
         for tool_name in critical_tools:
@@ -528,7 +528,7 @@ class TestErrorResilience:
             mock_mkdtemp.side_effect = OSError("磁盘空间不足")
 
             # 系统应该能够优雅地处理这种情况
-            pdf_tool = await app.get_tool("convert_pdf_to_markdown")
+            pdf_tool = await app.get_tool("parse_pdf_to_markdown")
             assert pdf_tool is not None
 
 
@@ -542,7 +542,7 @@ class TestPerformanceAndLoad:
     async def test_performance_under_load(self):
         """Test system performance under simulated load."""
         tools = await get_tool_map()
-        batch_tool = tools["batch_convert_webpages_to_markdown"]
+        batch_tool = tools["parse_webpages_to_markdown"]
 
         # Create a large number of mock results
         num_urls = 20
@@ -590,7 +590,7 @@ class TestPerformanceAndLoad:
     async def test_concurrent_requests_handling(self):
         """Test handling of multiple concurrent requests."""
         tools = await get_tool_map()
-        convert_tool = tools["convert_webpage_to_markdown"]
+        convert_tool = tools["parse_webpage_to_markdown"]
 
         mock_result = {
             "url": "https://concurrent-test.com",
@@ -700,8 +700,8 @@ class TestSecurityCompliance:
         assert settings.rate_limit_requests_per_minute > 0
 
         # 验证核心工具存在
-        convert_tool = await app.get_tool("convert_webpage_to_markdown")
-        extract_tool = await app.get_tool("extract_links")
+        convert_tool = await app.get_tool("parse_webpage_to_markdown")
+        extract_tool = await app.get_tool("discover_links")
 
         assert convert_tool is not None
         assert extract_tool is not None
@@ -718,9 +718,9 @@ class TestBackwardCompatibility:
         """测试API向后兼容性"""
         # 验证所有预期的工具仍然存在
         expected_core_tools = [
-            "extract_links",
-            "convert_webpage_to_markdown",
-            "convert_pdf_to_markdown",
+            "discover_links",
+            "parse_webpage_to_markdown",
+            "parse_pdf_to_markdown",
         ]
 
         tools = await get_tool_map()
