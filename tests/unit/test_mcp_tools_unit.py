@@ -8,16 +8,16 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from negentropy.perceives.tools.extraction import (
-    extract_links,
-    get_page_info,
+    discover_links,
+    inspect_page,
 )
 from negentropy.perceives.tools.markdown import (
-    convert_webpage_to_markdown,
-    batch_convert_webpages_to_markdown,
+    parse_webpage_to_markdown,
+    parse_webpages_to_markdown,
 )
 from negentropy.perceives.tools.pdf import (
-    convert_pdf_to_markdown,
-    batch_convert_pdfs_to_markdown,
+    parse_pdf_to_markdown,
+    parse_pdfs_to_markdown,
 )
 
 
@@ -25,7 +25,7 @@ class TestMCPToolsExtraction:
     """测试数据提取 MCP 工具"""
 
     @pytest.mark.asyncio
-    async def test_extract_links_success(self):
+    async def test_discover_links_success(self):
         """测试链接提取成功"""
         with patch("negentropy.perceives.tools.extraction.web_scraper") as mock_scraper:
             mock_result = {
@@ -38,7 +38,7 @@ class TestMCPToolsExtraction:
             }
             mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
 
-            result = await extract_links(
+            result = await discover_links(
                 url="https://example.com",
                 filter_domains=None,
                 exclude_domains=None,
@@ -53,7 +53,7 @@ class TestMCPToolsExtraction:
             assert len(internal_links) >= 1
 
     @pytest.mark.asyncio
-    async def test_extract_links_domain_filtering(self):
+    async def test_discover_links_domain_filtering(self):
         """测试域名过滤功能"""
         with patch("negentropy.perceives.tools.extraction.web_scraper") as mock_scraper:
             mock_result = {
@@ -67,7 +67,7 @@ class TestMCPToolsExtraction:
             }
             mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
 
-            result = await extract_links(
+            result = await discover_links(
                 url="https://example.com",
                 filter_domains=["example.com", "allowed.com"],
                 exclude_domains=["blocked.com"],
@@ -80,7 +80,7 @@ class TestMCPToolsExtraction:
                 assert "blocked.com" not in link.url
 
     @pytest.mark.asyncio
-    async def test_get_page_info_success(self):
+    async def test_inspect_page_success(self):
         """测试页面信息获取成功"""
         with patch("negentropy.perceives.tools.extraction.web_scraper") as mock_scraper:
             mock_result = {
@@ -91,7 +91,7 @@ class TestMCPToolsExtraction:
             }
             mock_scraper.http_scraper.scrape = AsyncMock(return_value=mock_result)
 
-            result = await get_page_info(url="https://example.com")
+            result = await inspect_page(url="https://example.com")
 
             assert result.success is True
             assert result.title == "Test Page"
@@ -102,12 +102,12 @@ class TestMCPToolsMarkdown:
     """测试 Markdown 转换 MCP 工具"""
 
     @pytest.mark.asyncio
-    async def test_convert_webpage_to_markdown_success(self):
+    async def test_parse_webpage_to_markdown_success(self):
         """测试单页面Markdown转换成功"""
         with (
             patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper,
             patch("negentropy.perceives.tools.markdown.markdown_converter") as mock_converter,
-            patch("negentropy.perceives.tools.markdown.rate_limiter") as mock_limiter,
+            patch("negentropy.perceives.ops.markdown.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
 
@@ -129,7 +129,7 @@ class TestMCPToolsMarkdown:
             )
 
             # 使用 method="simple" 绕过 Pipeline 路径（Pipeline 仅在 method="auto" 时触发）
-            result = await convert_webpage_to_markdown(
+            result = await parse_webpage_to_markdown(
                 url="https://example.com",
                 method="simple",
                 extract_main_content=True,
@@ -145,9 +145,9 @@ class TestMCPToolsMarkdown:
             assert result.markdown_content == "# Test\n\nContent"
 
     @pytest.mark.asyncio
-    async def test_convert_webpage_to_markdown_invalid_url(self):
+    async def test_parse_webpage_to_markdown_invalid_url(self):
         """测试无效URL处理"""
-        result = await convert_webpage_to_markdown(
+        result = await parse_webpage_to_markdown(
             url="invalid-url",
             method="simple",
             extract_main_content=True,
@@ -163,7 +163,7 @@ class TestMCPToolsMarkdown:
         assert "Invalid URL format" in result.error
 
     @pytest.mark.asyncio
-    async def test_batch_convert_webpages_to_markdown_success(self):
+    async def test_parse_webpages_to_markdown_success(self):
         """测试批量Markdown转换成功"""
         with (
             patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper,
@@ -195,7 +195,7 @@ class TestMCPToolsMarkdown:
                 mock_conversion_result
             )
 
-            result = await batch_convert_webpages_to_markdown(
+            result = await parse_webpages_to_markdown(
                 urls=["https://example.com/1", "https://example.com/2"],
                 method="simple",
                 extract_main_content=True,
@@ -209,9 +209,9 @@ class TestMCPToolsMarkdown:
             assert result.total_urls == 2
 
     @pytest.mark.asyncio
-    async def test_batch_convert_webpages_to_markdown_empty_list(self):
+    async def test_parse_webpages_to_markdown_empty_list(self):
         """测试空URL列表处理"""
-        result = await batch_convert_webpages_to_markdown(
+        result = await parse_webpages_to_markdown(
             urls=[],
             method="simple",
             extract_main_content=True,
@@ -229,11 +229,11 @@ class TestMCPToolsPDF:
     """测试 PDF 处理 MCP 工具"""
 
     @pytest.mark.asyncio
-    async def test_convert_pdf_to_markdown_success(self):
+    async def test_parse_pdf_to_markdown_success(self):
         """测试PDF转Markdown成功"""
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor") as mock_get_processor,
-            patch("negentropy.perceives.tools.pdf.rate_limiter") as mock_limiter,
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor,
+            patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
 
@@ -249,7 +249,7 @@ class TestMCPToolsPDF:
             mock_get_processor.return_value = mock_processor
 
             # 使用 method="pymupdf" 绕过 Pipeline 路径（Pipeline 仅在 method="auto" 时触发）
-            result = await convert_pdf_to_markdown(
+            result = await parse_pdf_to_markdown(
                 pdf_source="https://example.com/document.pdf",
                 method="pymupdf",
                 include_metadata=True,
@@ -266,10 +266,10 @@ class TestMCPToolsPDF:
             assert result.content == "# PDF Title\n\nPDF content"
 
     @pytest.mark.asyncio
-    async def test_convert_pdf_to_markdown_invalid_page_range(self):
+    async def test_parse_pdf_to_markdown_invalid_page_range(self):
         """测试无效页码范围处理"""
         # page_range 需要 start < end，[10, 1] 应返回错误
-        result = await convert_pdf_to_markdown(
+        result = await parse_pdf_to_markdown(
             pdf_source="https://example.com/document.pdf",
             method="pymupdf",
             include_metadata=True,
@@ -286,11 +286,11 @@ class TestMCPToolsPDF:
         assert "Start page must be less than end page" in result.error
 
     @pytest.mark.asyncio
-    async def test_batch_convert_pdfs_to_markdown_success(self):
+    async def test_parse_pdfs_to_markdown_success(self):
         """测试批量PDF转换成功"""
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor") as mock_get_processor,
-            patch("negentropy.perceives.tools.pdf.rate_limiter") as mock_limiter,
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor,
+            patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
 
@@ -307,7 +307,7 @@ class TestMCPToolsPDF:
             )
             mock_get_processor.return_value = mock_processor
 
-            result = await batch_convert_pdfs_to_markdown(
+            result = await parse_pdfs_to_markdown(
                 pdf_sources=[
                     "https://example.com/doc1.pdf",
                     "https://example.com/doc2.pdf",
@@ -322,9 +322,9 @@ class TestMCPToolsPDF:
             assert result.total_pdfs == 2
 
     @pytest.mark.asyncio
-    async def test_batch_convert_pdfs_to_markdown_empty_list(self):
+    async def test_parse_pdfs_to_markdown_empty_list(self):
         """测试批量PDF转换空列表"""
-        result = await batch_convert_pdfs_to_markdown(
+        result = await parse_pdfs_to_markdown(
             pdf_sources=[],
             method="pymupdf",
             include_metadata=True,
@@ -349,7 +349,7 @@ class TestMCPToolsValidation:
 
         for invalid_url in invalid_urls:
             # 测试链接提取
-            result = await extract_links(
+            result = await discover_links(
                 url=invalid_url,
                 filter_domains=None,
                 exclude_domains=None,
@@ -368,7 +368,7 @@ class TestMCPToolsValidation:
             )
 
             # 测试页面信息获取
-            result = await get_page_info(url=invalid_url)
+            result = await inspect_page(url=invalid_url)
             assert result.success is False
             assert any(
                 phrase in result.error

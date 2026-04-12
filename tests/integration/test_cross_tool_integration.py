@@ -20,11 +20,11 @@ def scenario_tools(e2e_tools):
     """提供真实场景测试所需的工具子集。"""
     return select_tools(
         e2e_tools,
-        "convert_webpage_to_markdown",
-        "convert_pdf_to_markdown",
-        "batch_convert_pdfs_to_markdown",
-        "extract_links",
-        "get_page_info",
+        "parse_webpage_to_markdown",
+        "parse_pdf_to_markdown",
+        "parse_pdfs_to_markdown",
+        "discover_links",
+        "inspect_page",
     )
 
 
@@ -36,9 +36,9 @@ class TestCrossToolIntegration:
         self, e2e_tools, pdf_processor
     ):
         """Test a complete workflow: extract links from webpage, then process PDFs found."""
-        tools = select_tools(e2e_tools, "extract_links", "convert_pdf_to_markdown")
-        extract_links_tool = tools["extract_links"]
-        convert_pdf_tool = tools["convert_pdf_to_markdown"]
+        tools = select_tools(e2e_tools, "discover_links", "parse_pdf_to_markdown")
+        discover_links_tool = tools["discover_links"]
+        convert_pdf_tool = tools["parse_pdf_to_markdown"]
 
         # Mock link extraction that finds PDF links
         scrape_result = {
@@ -80,7 +80,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -89,7 +89,7 @@ class TestCrossToolIntegration:
             mock_pdf.return_value = pdf_processing_result
 
             # Step 1: Extract links from the webpage
-            links_response = await extract_links_tool.fn(
+            links_response = await discover_links_tool.fn(
                 url="https://example.com/research-page",
                 filter_domains=None,
                 exclude_domains=None,
@@ -140,11 +140,11 @@ class TestCrossToolIntegration:
         """Test batch webpage conversion followed by batch PDF processing."""
         tools = select_tools(
             e2e_tools,
-            "batch_convert_webpages_to_markdown",
-            "batch_convert_pdfs_to_markdown",
+            "parse_webpages_to_markdown",
+            "parse_pdfs_to_markdown",
         )
-        batch_webpage_tool = tools["batch_convert_webpages_to_markdown"]
-        batch_pdf_tool = tools["batch_convert_pdfs_to_markdown"]
+        batch_webpage_tool = tools["parse_webpages_to_markdown"]
+        batch_pdf_tool = tools["parse_pdfs_to_markdown"]
 
         # Mock batch scraping results
         batch_scrape_results = [
@@ -206,7 +206,7 @@ class TestCrossToolIntegration:
                 web_scraper, "scrape_multiple_urls"
             ) as mock_batch_scrape,
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
@@ -247,15 +247,15 @@ class TestCrossToolIntegration:
     @pytest.mark.asyncio
     async def test_error_propagation_across_tools(self, all_tools, pdf_processor):
         """Test how errors propagate when using multiple tools together."""
-        extract_links_tool = all_tools["extract_links"]
-        pdf_tool = all_tools["convert_pdf_to_markdown"]
+        discover_links_tool = all_tools["discover_links"]
+        pdf_tool = all_tools["parse_pdf_to_markdown"]
 
         # Mock a failed link extraction (scrape_url raises)
         with patch.object(web_scraper, "scrape_url") as mock_scrape:
             mock_scrape.side_effect = Exception("Network timeout")
 
             # First tool fails
-            links_response = await extract_links_tool.fn(
+            links_response = await discover_links_tool.fn(
                 url="https://unreachable.com",
                 filter_domains=None,
                 exclude_domains=None,
@@ -266,7 +266,7 @@ class TestCrossToolIntegration:
         # Mock a failed PDF processing
         with (
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -300,9 +300,9 @@ class TestCrossToolIntegration:
         gc.collect()
         initial_objects = len(gc.get_objects())
 
-        webpage_tool = all_tools["convert_webpage_to_markdown"]
-        pdf_tool = all_tools["convert_pdf_to_markdown"]
-        batch_pdf_tool = all_tools["batch_convert_pdfs_to_markdown"]
+        webpage_tool = all_tools["parse_webpage_to_markdown"]
+        pdf_tool = all_tools["parse_pdf_to_markdown"]
+        batch_pdf_tool = all_tools["parse_pdfs_to_markdown"]
 
         # Mock successful operations
         scrape_result = {
@@ -329,7 +329,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -378,8 +378,8 @@ class TestCrossToolIntegration:
     @pytest.mark.asyncio
     async def test_concurrent_multi_tool_operations(self, all_tools, pdf_processor):
         """Test concurrent execution of different tools."""
-        pdf_tool = all_tools["convert_pdf_to_markdown"]
-        markdown_tool = all_tools["convert_webpage_to_markdown"]
+        pdf_tool = all_tools["parse_pdf_to_markdown"]
+        markdown_tool = all_tools["parse_webpage_to_markdown"]
 
         # Mock results for concurrent operations
         scrape_result = {
@@ -399,7 +399,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -452,7 +452,7 @@ class TestRealWorldIntegrationScenarios:
         # Scenario: User wants to collect and convert all research papers from an academic site
 
         # Step 1: Extract all links from the main page
-        extract_links_tool = scenario_tools["extract_links"]
+        discover_links_tool = scenario_tools["discover_links"]
 
         links_result = {
             "url": "https://academic-site.com/papers",
@@ -483,7 +483,7 @@ class TestRealWorldIntegrationScenarios:
             }
 
             # Extract all links
-            links_response = await extract_links_tool.fn(
+            links_response = await discover_links_tool.fn(
                 url="https://academic-site.com/papers",
                 filter_domains=None,
                 exclude_domains=None,
@@ -499,7 +499,7 @@ class TestRealWorldIntegrationScenarios:
             "https://academic-site.com/paper4.pdf",
         ]
 
-        batch_pdf_tool = scenario_tools["batch_convert_pdfs_to_markdown"]
+        batch_pdf_tool = scenario_tools["parse_pdfs_to_markdown"]
 
         batch_result = {
             "success": True,
@@ -524,7 +524,7 @@ class TestRealWorldIntegrationScenarios:
 
         with (
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(
@@ -543,7 +543,7 @@ class TestRealWorldIntegrationScenarios:
             assert batch_response.total_word_count == 6000
 
         # Step 3: Also convert the overview HTML page to markdown
-        markdown_tool = scenario_tools["convert_webpage_to_markdown"]
+        markdown_tool = scenario_tools["parse_webpage_to_markdown"]
 
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
@@ -588,7 +588,7 @@ class TestRealWorldIntegrationScenarios:
         # Scenario: User wants to backup all documentation pages as markdown
 
         # Step 1: Extract links from the main documentation index
-        extract_links_tool = scenario_tools["extract_links"]
+        discover_links_tool = scenario_tools["discover_links"]
 
         index_links = [
             {
@@ -615,7 +615,7 @@ class TestRealWorldIntegrationScenarios:
                 "content": {"links": index_links},
             }
 
-            index_response = await extract_links_tool.fn(
+            index_response = await discover_links_tool.fn(
                 url="https://docs.example.com",
                 filter_domains=None,
                 exclude_domains=None,
@@ -630,7 +630,7 @@ class TestRealWorldIntegrationScenarios:
             "https://docs.example.com/tutorials",
         ]
 
-        markdown_tool = scenario_tools["convert_webpage_to_markdown"]
+        markdown_tool = scenario_tools["parse_webpage_to_markdown"]
 
         # Process each HTML page individually
         html_results = []
@@ -670,11 +670,11 @@ class TestRealWorldIntegrationScenarios:
                 html_results.append(result)
 
         # Step 3: Convert the PDF to markdown
-        pdf_tool = scenario_tools["convert_pdf_to_markdown"]
+        pdf_tool = scenario_tools["parse_pdf_to_markdown"]
 
         with (
             patch(
-                "negentropy.perceives.tools.pdf.create_pdf_processor",
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,

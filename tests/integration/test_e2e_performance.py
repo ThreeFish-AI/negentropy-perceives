@@ -22,7 +22,7 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_large_document_processing(self, e2e_tools, pdf_processor):
         """Performance Test 1：大文档处理 — 验证 50 页学术论文在合理时间内完成。"""
-        convert_pdf_tool = e2e_tools["convert_pdf_to_markdown"]
+        convert_pdf_tool = e2e_tools["parse_pdf_to_markdown"]
 
         # Simulate a large academic paper
         large_pdf_content = {
@@ -50,7 +50,7 @@ class TestPerformance:
             return large_pdf_content
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_large_pdf_process
             ),
@@ -80,7 +80,7 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_processing_benchmark(self, e2e_tools, pdf_processor):
         """Performance Test 2：并发处理基准 — 验证 8 个文档并发处理的吞吐量。"""
-        convert_pdf_tool = e2e_tools["convert_pdf_to_markdown"]
+        convert_pdf_tool = e2e_tools["parse_pdf_to_markdown"]
         num_concurrent = 8
 
         # Create realistic concurrent load
@@ -96,7 +96,7 @@ class TestPerformance:
             }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_concurrent_pdf_process
             ),
@@ -140,7 +140,7 @@ class TestPerformance:
         initial_objects = len(gc.get_objects())
 
         # Process a large batch with memory monitoring
-        batch_pdf_tool = e2e_tools["batch_convert_pdfs_to_markdown"]
+        batch_pdf_tool = e2e_tools["parse_pdfs_to_markdown"]
         large_batch_sources = [f"/batch-doc-{i}.pdf" for i in range(15)]
 
         async def mock_batch_with_memory_tracking(pdf_sources, **kwargs):
@@ -171,7 +171,7 @@ class TestPerformance:
             }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor,
                 "batch_process_pdfs",
@@ -209,7 +209,7 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_network_latency_efficiency(self, e2e_tools):
         """Performance Test 4：网络延迟模拟 — 验证不同延迟条件下的处理开销合理。"""
-        markdown_tool = e2e_tools["convert_webpage_to_markdown"]
+        markdown_tool = e2e_tools["parse_webpage_to_markdown"]
 
         network_latencies = [
             0.05,

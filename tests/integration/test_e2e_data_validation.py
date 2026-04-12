@@ -20,8 +20,8 @@ class TestDataValidation:
     @pytest.mark.asyncio
     async def test_unicode_and_special_character_handling(self, e2e_tools):
         """Test 1：Unicode 与特殊字符处理 — 验证多语言内容、数学符号、货币符号、emoji 的完整保留。"""
-        scrape_tool = e2e_tools["convert_webpage_to_markdown"]
-        markdown_tool = e2e_tools["convert_webpage_to_markdown"]
+        scrape_tool = e2e_tools["parse_webpage_to_markdown"]
+        markdown_tool = e2e_tools["parse_webpage_to_markdown"]
 
         unicode_content = {
             "url": "https://unicode-test.com",
@@ -126,7 +126,7 @@ class TestDataValidation:
     @pytest.mark.asyncio
     async def test_large_data_consistency(self, e2e_tools, pdf_processor):
         """Test 2：大数据一致性 — 验证 100 个 section 的 ID/校验和/标题在处理后全部保留。"""
-        convert_pdf_tool = e2e_tools["convert_pdf_to_markdown"]
+        convert_pdf_tool = e2e_tools["parse_pdf_to_markdown"]
 
         # Generate consistent test data
         test_sections = []
@@ -162,7 +162,7 @@ class TestDataValidation:
             return large_consistent_doc
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_consistent_pdf_process
             ),
@@ -193,7 +193,7 @@ class TestDataValidation:
     @pytest.mark.asyncio
     async def test_cross_platform_file_handling(self, e2e_tools, pdf_processor):
         """Test 3：跨平台文件路径处理 — 验证 Unix/Windows/URL/带空格/带重音符号等路径格式均可正确处理。"""
-        batch_pdf_tool = e2e_tools["batch_convert_pdfs_to_markdown"]
+        batch_pdf_tool = e2e_tools["parse_pdfs_to_markdown"]
 
         # Simulate files with different path formats and encodings
         mixed_path_sources = [
@@ -231,7 +231,7 @@ class TestDataValidation:
             }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor,
                 "batch_process_pdfs",
@@ -264,7 +264,7 @@ class TestDataValidation:
     @pytest.mark.asyncio
     async def test_concurrent_data_integrity(self, e2e_tools, pdf_processor):
         """Test 4：并发数据完整性 — 验证 10 个并发任务各自携带唯一标记并在结果中正确对应。"""
-        convert_pdf_tool = e2e_tools["convert_pdf_to_markdown"]
+        convert_pdf_tool = e2e_tools["parse_pdf_to_markdown"]
 
         concurrent_integrity_tasks = []
         data_markers = {}
@@ -290,7 +290,7 @@ class TestDataValidation:
             }
 
         with (
-            patch("negentropy.perceives.tools.pdf.create_pdf_processor", return_value=pdf_processor),
+            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_concurrent_with_markers
             ),

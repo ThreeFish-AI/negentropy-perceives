@@ -43,11 +43,11 @@
 
 ### PDF MCP 工具集成测试
 
-#### convert_pdf_to_markdown 工具测试
+#### parse_pdf_to_markdown 工具测试
 
 测试方法、输出格式、页面范围等参数的验证、本地 PDF 文件路径的处理、PDF URL 的下载和处理流程、各种错误情况的响应格式统一性。
 
-#### batch_convert_pdfs_to_markdown 工具测试
+#### parse_pdfs_to_markdown 工具测试
 
 测试 PDF 源列表的验证逻辑、批量处理的性能和准确性、成功和失败混合结果的处理、批量处理统计信息的准确性。
 """

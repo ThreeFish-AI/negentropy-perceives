@@ -57,7 +57,7 @@ from negentropy.perceives.sdk import NegentropyPerceivesClient
 
 async def perceive_world():
     async with NegentropyPerceivesClient() as client:
-        result = await client.convert_webpage_to_markdown(
+        result = await client.parse_webpage_to_markdown(
             url="https://en.wikipedia.org/wiki/Entropy",
         )
         print("====== Pure Nectar Extracted ======")
@@ -92,12 +92,12 @@ Add the following to your `claude_desktop_config.json` in Claude Desktop:
 
 | Tool                                 | Function                                              | Use Case                               |
 | :----------------------------------- | :---------------------------------------------------- | :------------------------------------- |
-| `extract_links`                      | Extract webpage links, supports domain filtering      | Site map discovery, link audits        |
-| `get_page_info`                      | Fetch page metadata (status code, content type, etc.) | Target page pre-flight check           |
-| `convert_webpage_to_markdown`        | Webpage to Markdown                                   | Granular single-page extraction        |
-| `batch_convert_webpages_to_markdown` | Batch Webpages to Markdown                            | Knowledge base building, site archives |
-| `convert_pdf_to_markdown`            | PDF to Markdown                                       | Academic papers, financial reports     |
-| `batch_convert_pdfs_to_markdown`     | Batch PDFs to Markdown                                | Mass document digitization             |
+| `discover_links`                     | Discover webpage links, supports domain filtering     | Site map discovery, link audits        |
+| `inspect_page`                       | Inspect page metadata (status code, content type, etc.) | Target page pre-flight check         |
+| `parse_webpage_to_markdown`          | Webpage to Markdown                                   | Granular single-page extraction        |
+| `parse_webpages_to_markdown`         | Batch Webpages to Markdown                            | Knowledge base building, site archives |
+| `parse_pdf_to_markdown`              | PDF to Markdown                                       | Academic papers, financial reports     |
+| `parse_pdfs_to_markdown`             | Batch PDFs to Markdown                                | Mass document digitization             |
 
 > [!WARNING]
 >

@@ -78,12 +78,12 @@ graph LR
 
 | 模块                                                               | 领域     | 工具                                 | 功能                                             |
 | ------------------------------------------------------------------ | -------- | ------------------------------------ | ------------------------------------------------ |
-| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取 | `extract_links`                      | 链接提取与分类                                   |
-|                                                                    |          | `get_page_info`                      | 页面元数据获取                                   |
-| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py)     | 内容转换 | `convert_webpage_to_markdown`        | 网页转 Markdown（method="auto" 时优先 Pipeline） |
-|                                                                    |          | `batch_convert_webpages_to_markdown` | 批量网页转换                                     |
-| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py)               | PDF 处理 | `convert_pdf_to_markdown`            | PDF 转 Markdown（method="auto" 时优先 Pipeline） |
-|                                                                    |          | `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                             |
+| [`extraction.py`](../src/negentropy/perceives/tools/extraction.py) | 数据提取 | `discover_links`                     | 链接发现与分类                                   |
+|                                                                    |          | `inspect_page`                       | 页面元数据检查                                   |
+| [`markdown.py`](../src/negentropy/perceives/tools/markdown.py)     | 内容转换 | `parse_webpage_to_markdown`          | 网页转 Markdown（method="auto" 时优先 Pipeline） |
+|                                                                    |          | `parse_webpages_to_markdown`         | 批量网页转换                                     |
+| [`pdf.py`](../src/negentropy/perceives/tools/pdf.py)               | PDF 处理 | `parse_pdf_to_markdown`              | PDF 转 Markdown（method="auto" 时优先 Pipeline） |
+|                                                                    |          | `parse_pdfs_to_markdown`             | 批量 PDF 转 Markdown                             |
 
 ### 响应模型层
 
@@ -114,7 +114,7 @@ graph LR
 ```mermaid
 graph TD
     subgraph "MCP 工具层"
-        MT["convert_webpage_to_markdown<br/>convert_pdf_to_markdown"]
+        MT["parse_webpage_to_markdown<br/>parse_pdf_to_markdown"]
     end
 
     subgraph "Pipeline 层"
