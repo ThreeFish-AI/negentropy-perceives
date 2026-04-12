@@ -90,20 +90,26 @@ Add the following to your `claude_desktop_config.json` in Claude Desktop:
 
 ### Toolkit Overview
 
-| Tool                                 | Function                                              | Use Case                               |
-| :----------------------------------- | :---------------------------------------------------- | :------------------------------------- |
-| `discover_links`                     | Discover webpage links, supports domain filtering     | Site map discovery, link audits        |
-| `inspect_page`                       | Inspect page metadata (status code, content type, etc.) | Target page pre-flight check         |
-| `parse_webpage_to_markdown`          | Webpage to Markdown                                   | Granular single-page extraction        |
-| `parse_webpages_to_markdown`         | Batch Webpages to Markdown                            | Knowledge base building, site archives |
-| `parse_pdf_to_markdown`              | PDF to Markdown                                       | Academic papers, financial reports     |
-| `parse_pdfs_to_markdown`             | Batch PDFs to Markdown                                | Mass document digitization             |
+<center>
+
+| Tool                         | Function                                                | Use Case                               |
+| :--------------------------- | :------------------------------------------------------ | :------------------------------------- |
+| `discover_links`             | Discover webpage links, supports domain filtering       | Site map discovery, link audits        |
+| `inspect_page`               | Inspect page metadata (status code, content type, etc.) | Target page pre-flight check           |
+| `parse_webpage_to_markdown`  | Webpage to Markdown                                     | Granular single-page extraction        |
+| `parse_webpages_to_markdown` | Batch Webpages to Markdown                              | Knowledge base building, site archives |
+| `parse_pdf_to_markdown`      | PDF to Markdown                                         | Academic papers, financial reports     |
+| `parse_pdfs_to_markdown`     | Batch PDFs to Markdown                                  | Mass document digitization             |
+
+</center>
 
 > [!WARNING]
 >
 > Please adhere to the targeted website's Terms of Service (TOS) and sensibly restrict request frequencies. This tool is intended exclusively for legal and compliant data acquisition.
 
 ### Web Scraping Strategies
+
+<center>
 
 | Method               | Description                                    |
 | :------------------- | :--------------------------------------------- |
@@ -113,7 +119,11 @@ Add the following to your `claude_desktop_config.json` in Claude Desktop:
 | `stealth_selenium`   | Covert Selenium, shatters anti-scraping blocks |
 | `stealth_playwright` | Stealth Playwright, lightweight anti-detection |
 
+</center>
+
 ### PDF Engines
+
+<center>
 
 | Engine  | Specialty                               | GPU Acceleration |
 | :------ | :-------------------------------------- | :--------------- |
@@ -122,6 +132,8 @@ Add the following to your `claude_desktop_config.json` in Claude Desktop:
 | Marker  | Academic documents, Nougat model        | CUDA             |
 | PyMuPDF | Lightning-fast text extraction          | —                |
 | PyPDF   | Absolute baseline fallback              | —                |
+
+</center>
 
 > In `auto` mode, the system cascades through a graceful degradation chain: Docling → MinerU → Marker → PyMuPDF → PyPDF. Activating `smart` mode enlists an LLM to orchestrate a competitive parallel run across engines, ultimately fusing the optimum output.
 
@@ -152,6 +164,8 @@ A 5-tier orthogonal architecture: SDK → MCP Tools → Pipeline Orchestration �
 
 ## Documentation Navigator
 
+<center>
+
 | Document                                   | Content                                                                   | Who is it for             |
 | :----------------------------------------- | :------------------------------------------------------------------------ | :------------------------ |
 | [User Guide](./docs/user-guide.md)         | Deep dive into 6 tools, MCP Server setup, SDK interfaces, advanced tweaks | All Users                 |
@@ -159,7 +173,7 @@ A 5-tier orthogonal architecture: SDK → MCP Tools → Pipeline Orchestration �
 | [Developer Guide](./docs/development.md)   | Environment setup, test framework, CI/CD, PR guidelines                   | Developers                |
 | [Changelog](CHANGELOG.md)                  | Release history and change logs                                           | Everyone                  |
 
-> 🌐 **Chinese Documentation**: [中文版 README](./docs/zh-CN/README.md)
+</center>
 
 ---
 
