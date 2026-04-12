@@ -15,37 +15,36 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("builtin_formatter")
-class BuiltinFormatterTool:
+class BuiltinFormatterTool(WebToolBase):
     """内置 Markdown 排版工具。
 
     委托给 ``markdown.formatter.MarkdownFormatter``。
     """
 
-    @property
-    def name(self) -> str:
-        return "builtin_formatter"
+    tool_name = "builtin_formatter"
 
     def is_available(self) -> bool:
         return True  # 纯内部实现，始终可用
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """格式化 Markdown 内容。"""
-        from ...markdown.formatter import MarkdownFormatter
+        from ....markdown.formatter import MarkdownFormatter
 
         markdown = ctx.markdown
         if not markdown:
             return StageResult(
                 success=False,
                 error="无 Markdown 内容可格式化",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -61,7 +60,7 @@ class BuiltinFormatterTool:
                 return StageResult(
                     success=True,
                     output=ctx,
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                     metadata={"formatted": False, "reason": "格式化结果为空"},
                 )
 
@@ -70,7 +69,7 @@ class BuiltinFormatterTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={
                     "formatted": True,
                     "input_length": len(markdown),
@@ -84,7 +83,7 @@ class BuiltinFormatterTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"formatted": False, "error": str(e)},
             )
 

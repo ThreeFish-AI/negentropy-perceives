@@ -13,24 +13,23 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("trafilatura")
-class TrafilaturaTool:
+class TrafilaturaTool(WebToolBase):
     """基于 trafilatura 的主内容提取工具。
 
     trafilatura 是一个专门用于网页正文提取的库，在学术网页和新闻站点
     上具备优异的提取精度。
     """
 
-    @property
-    def name(self) -> str:
-        return "trafilatura"
+    tool_name = "trafilatura"
 
     def is_available(self) -> bool:
         try:
@@ -40,7 +39,7 @@ class TrafilaturaTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 trafilatura 提取主内容。"""
         try:
             import trafilatura
@@ -48,7 +47,7 @@ class TrafilaturaTool:
             return StageResult(
                 success=False,
                 error="trafilatura 未安装",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         raw_html = ctx.raw_html
@@ -56,7 +55,7 @@ class TrafilaturaTool:
             return StageResult(
                 success=False,
                 error="raw_html 为空，无法提取主内容",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -75,7 +74,7 @@ class TrafilaturaTool:
                 return StageResult(
                     success=False,
                     error="trafilatura 未能提取到主内容",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.metadata["main_content_html"] = main_html
@@ -83,7 +82,7 @@ class TrafilaturaTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(main_html)},
             )
         except Exception as e:
@@ -91,21 +90,19 @@ class TrafilaturaTool:
             return StageResult(
                 success=False,
                 error=f"trafilatura 提取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("readability")
-class ReadabilityTool:
+class ReadabilityTool(WebToolBase):
     """基于 readability-lxml 的主内容提取工具。
 
     readability-lxml 是 Mozilla Readability 算法的 Python 实现，
     适用于标准文章类页面。
     """
 
-    @property
-    def name(self) -> str:
-        return "readability"
+    tool_name = "readability"
 
     def is_available(self) -> bool:
         try:
@@ -115,7 +112,7 @@ class ReadabilityTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 readability-lxml 提取主内容。"""
         try:
             from readability import Document
@@ -123,7 +120,7 @@ class ReadabilityTool:
             return StageResult(
                 success=False,
                 error="readability-lxml 未安装",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         raw_html = ctx.raw_html
@@ -131,7 +128,7 @@ class ReadabilityTool:
             return StageResult(
                 success=False,
                 error="raw_html 为空，无法提取主内容",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -143,7 +140,7 @@ class ReadabilityTool:
                 return StageResult(
                     success=False,
                     error="readability 未能提取到主内容",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.metadata["main_content_html"] = main_html
@@ -154,7 +151,7 @@ class ReadabilityTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(main_html)},
             )
         except Exception as e:
@@ -162,20 +159,18 @@ class ReadabilityTool:
             return StageResult(
                 success=False,
                 error=f"readability 提取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("beautifulsoup_heuristic")
-class BeautifulSoupHeuristicTool:
+class BeautifulSoupHeuristicTool(WebToolBase):
     """基于 BeautifulSoup 启发式规则的主内容提取工具。
 
     委托给现有 ``html_preprocessor.extract_content_area()``。
     """
 
-    @property
-    def name(self) -> str:
-        return "beautifulsoup_heuristic"
+    tool_name = "beautifulsoup_heuristic"
 
     def is_available(self) -> bool:
         try:
@@ -185,16 +180,16 @@ class BeautifulSoupHeuristicTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 BeautifulSoup 启发式规则提取主内容区域。"""
-        from ...markdown.html_preprocessor import extract_content_area
+        from ....markdown.html_preprocessor import extract_content_area
 
         raw_html = ctx.raw_html
         if not raw_html:
             return StageResult(
                 success=False,
                 error="raw_html 为空，无法提取主内容",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -204,7 +199,7 @@ class BeautifulSoupHeuristicTool:
                 return StageResult(
                     success=False,
                     error="BeautifulSoup 启发式未提取到有效主内容",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.metadata["main_content_html"] = main_html
@@ -212,7 +207,7 @@ class BeautifulSoupHeuristicTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(main_html)},
             )
         except Exception as e:
@@ -220,7 +215,7 @@ class BeautifulSoupHeuristicTool:
             return StageResult(
                 success=False,
                 error=f"BeautifulSoup 启发式提取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 

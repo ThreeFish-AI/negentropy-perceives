@@ -11,11 +11,10 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Dict, List, Optional
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     AssemblyInput,
     AssemblyOutput,
     ExtractedCodeBlock,
@@ -24,6 +23,7 @@ from ..models import (
     ExtractedTableV2,
     TextBlock,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -33,26 +33,23 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class BuiltinAssembler:
+class BuiltinAssembler(PDFToolBase):
     """内置 Markdown 组装器。
 
     将各 Stage 结果按阅读顺序合并为 Markdown 文档，
     并委托 ``MarkdownFormatter`` 和 ``normalize_image_references`` 做后处理。
     """
 
-    @property
-    def name(self) -> str:
-        return "builtin_assembler"
+    tool_name = "builtin_assembler"
 
     def is_available(self) -> bool:
         return True
 
-    async def execute(self, input_data: AssemblyInput) -> StageResult[AssemblyOutput]:
+    async def _run(self, input_data: AssemblyInput) -> StageResult[AssemblyOutput]:
         """组装 Markdown 文档。"""
-        start = time.monotonic()
         try:
-            from ...markdown.formatter import MarkdownFormatter
-            from ...markdown.image_ref_normalizer import (
+            from ....markdown.formatter import MarkdownFormatter
+            from ....markdown.image_ref_normalizer import (
                 normalize_image_references,
             )
 
@@ -171,12 +168,10 @@ class BuiltinAssembler:
                 },
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="builtin_assembler",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:

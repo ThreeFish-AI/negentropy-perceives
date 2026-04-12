@@ -23,17 +23,17 @@ import json
 import logging
 import os
 import shutil
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     AssemblyOutput,
     ImageExtractionOutput,
     PipelineResult,
     PreprocessingOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -67,24 +67,21 @@ class _AssetBundlingInput:
 # ---------------------------------------------------------------------------
 
 
-class BuiltinBundler:
+class BuiltinBundler(PDFToolBase):
     """内置资源打包工具。
 
     将 Markdown 文件和图片资源整理到统一的输出目录中。
     """
 
-    @property
-    def name(self) -> str:
-        return "builtin_bundler"
+    tool_name = "builtin_bundler"
 
     def is_available(self) -> bool:
         return True
 
-    async def execute(
+    async def _run(
         self, input_data: _AssetBundlingInput
     ) -> StageResult[PipelineResult]:
         """执行资源打包。"""
-        start = time.monotonic()
         try:
             # 1. 确定输出目录
             if input_data.output_dir:
@@ -162,12 +159,10 @@ class BuiltinBundler:
                 result.page_count = input_data.preprocessing.page_count
                 result.characteristics = input_data.preprocessing.characteristics
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=result,
-                engine_used="builtin_bundler",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:

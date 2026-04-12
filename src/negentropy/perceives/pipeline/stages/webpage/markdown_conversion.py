@@ -12,23 +12,23 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
+from .._helpers import get_best_html
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("markitdown")
-class MarkItDownTool:
+class MarkItDownTool(WebToolBase):
     """基于 MarkItDown 的 Markdown 转换工具。
 
     委托给现有 ``markdown.converter.MarkdownConverter.html_to_markdown()``。
     """
 
-    @property
-    def name(self) -> str:
-        return "markitdown"
+    tool_name = "markitdown"
 
     def is_available(self) -> bool:
         try:
@@ -38,20 +38,16 @@ class MarkItDownTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 MarkItDown 将 HTML 转换为 Markdown。"""
-        from ...markdown.converter import MarkdownConverter
+        from ....markdown.converter import MarkdownConverter
 
-        input_html = (
-            ctx.cleaned_html
-            or ctx.metadata.get("main_content_html", "")
-            or ctx.raw_html
-        )
+        input_html = get_best_html(ctx)
         if not input_html:
             return StageResult(
                 success=False,
                 error="无可用 HTML 内容进行 Markdown 转换",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -62,7 +58,7 @@ class MarkItDownTool:
                 return StageResult(
                     success=False,
                     error="MarkItDown 转换结果为空",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.markdown = markdown
@@ -70,7 +66,7 @@ class MarkItDownTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={
                     "input_length": len(input_html),
                     "output_length": len(markdown),
@@ -81,21 +77,19 @@ class MarkItDownTool:
             return StageResult(
                 success=False,
                 error=f"MarkItDown 转换失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("html2text")
-class Html2TextTool:
+class Html2TextTool(WebToolBase):
     """基于 html2text 的 Markdown 转换工具。
 
     html2text 是一个将 HTML 转换为 Markdown 的轻量级库，
     对简单页面有良好的输出质量。
     """
 
-    @property
-    def name(self) -> str:
-        return "html2text"
+    tool_name = "html2text"
 
     def is_available(self) -> bool:
         try:
@@ -105,7 +99,7 @@ class Html2TextTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 html2text 将 HTML 转换为 Markdown。"""
         try:
             import html2text
@@ -113,19 +107,15 @@ class Html2TextTool:
             return StageResult(
                 success=False,
                 error="html2text 未安装",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
-        input_html = (
-            ctx.cleaned_html
-            or ctx.metadata.get("main_content_html", "")
-            or ctx.raw_html
-        )
+        input_html = get_best_html(ctx)
         if not input_html:
             return StageResult(
                 success=False,
                 error="无可用 HTML 内容进行 Markdown 转换",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -144,7 +134,7 @@ class Html2TextTool:
                 return StageResult(
                     success=False,
                     error="html2text 转换结果为空",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.markdown = markdown
@@ -152,7 +142,7 @@ class Html2TextTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={
                     "input_length": len(input_html),
                     "output_length": len(markdown),
@@ -163,7 +153,7 @@ class Html2TextTool:
             return StageResult(
                 success=False,
                 error=f"html2text 转换失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 

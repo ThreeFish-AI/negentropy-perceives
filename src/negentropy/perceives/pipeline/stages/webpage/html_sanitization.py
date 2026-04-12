@@ -15,23 +15,23 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
+from .._helpers import get_best_html
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("beautifulsoup")
-class BeautifulSoupSanitizeTool:
+class BeautifulSoupSanitizeTool(WebToolBase):
     """基于 BeautifulSoup 的 HTML 清洗工具。
 
     委托给 ``markdown.html_preprocessor.preprocess_html()``。
     """
 
-    @property
-    def name(self) -> str:
-        return "beautifulsoup"
+    tool_name = "beautifulsoup"
 
     def is_available(self) -> bool:
         try:
@@ -41,17 +41,17 @@ class BeautifulSoupSanitizeTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """清洗 HTML 内容。"""
-        from ...markdown.html_preprocessor import preprocess_html
+        from ....markdown.html_preprocessor import preprocess_html
 
         # 优先使用 S4 产出的主内容 HTML，否则回退到 raw_html
-        input_html = ctx.metadata.get("main_content_html", "") or ctx.raw_html
+        input_html = get_best_html(ctx)
         if not input_html:
             return StageResult(
                 success=False,
                 error="无可用 HTML 内容进行清洗",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -61,7 +61,7 @@ class BeautifulSoupSanitizeTool:
                 return StageResult(
                     success=False,
                     error="HTML 清洗后内容为空",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             ctx.cleaned_html = cleaned
@@ -69,7 +69,7 @@ class BeautifulSoupSanitizeTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={
                     "input_length": len(input_html),
                     "output_length": len(cleaned),
@@ -83,7 +83,7 @@ class BeautifulSoupSanitizeTool:
             return StageResult(
                 success=False,
                 error=f"HTML 清洗失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 

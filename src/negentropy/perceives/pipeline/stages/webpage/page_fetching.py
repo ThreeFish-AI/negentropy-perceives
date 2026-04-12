@@ -14,20 +14,19 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("aiohttp")
-class AiohttpFetchTool:
+class AiohttpFetchTool(WebToolBase):
     """基于 aiohttp 的轻量级异步 HTTP 获取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "aiohttp"
+    tool_name = "aiohttp"
 
     def is_available(self) -> bool:
         try:
@@ -37,7 +36,7 @@ class AiohttpFetchTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 aiohttp 获取网页 HTML。"""
         import aiohttp
 
@@ -67,7 +66,7 @@ class AiohttpFetchTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"status_code": resp.status, "content_length": len(html)},
             )
         except Exception as e:
@@ -75,17 +74,15 @@ class AiohttpFetchTool:
             return StageResult(
                 success=False,
                 error=f"aiohttp 获取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("playwright")
-class PlaywrightFetchTool:
+class PlaywrightFetchTool(WebToolBase):
     """基于 Playwright 的浏览器渲染获取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "playwright"
+    tool_name = "playwright"
 
     def is_available(self) -> bool:
         try:
@@ -95,9 +92,9 @@ class PlaywrightFetchTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 Playwright 渲染并获取网页 HTML。"""
-        from ...scraping.browser import playwright_session
+        from ....scraping.browser import playwright_session
 
         url = ctx.url
         wait_for = ctx.config.get("wait_for_element")
@@ -114,7 +111,7 @@ class PlaywrightFetchTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(html)},
             )
         except Exception as e:
@@ -122,20 +119,18 @@ class PlaywrightFetchTool:
             return StageResult(
                 success=False,
                 error=f"Playwright 获取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("selenium")
-class SeleniumFetchTool:
+class SeleniumFetchTool(WebToolBase):
     """基于 Selenium 的浏览器渲染获取工具。
 
     委托给现有 ``scraping.engine.SeleniumScraper``。
     """
 
-    @property
-    def name(self) -> str:
-        return "selenium"
+    tool_name = "selenium"
 
     def is_available(self) -> bool:
         try:
@@ -145,9 +140,9 @@ class SeleniumFetchTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 Selenium 渲染并获取网页 HTML。"""
-        from ...scraping.engine import SeleniumScraper
+        from ....scraping.engine import SeleniumScraper
 
         url = ctx.url
         wait_for = ctx.config.get("wait_for_element")
@@ -160,7 +155,7 @@ class SeleniumFetchTool:
                 return StageResult(
                     success=False,
                     error=f"Selenium 获取失败: {result['error']}",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             # Selenium 返回的是解析后的结构，需提取 HTML
@@ -177,7 +172,7 @@ class SeleniumFetchTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(ctx.raw_html)},
             )
         except Exception as e:
@@ -185,7 +180,7 @@ class SeleniumFetchTool:
             return StageResult(
                 success=False,
                 error=f"Selenium 获取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 

@@ -13,11 +13,11 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Dict, List, Tuple
 
-from ..base import Stage, StageResult
-from ..models import LayoutAnalysisOutput, LayoutRegion, PreprocessingOutput
+from ...base import Stage, StageResult
+from ...models import LayoutAnalysisOutput, LayoutRegion, PreprocessingOutput
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -27,28 +27,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class DoclingLayoutTool:
+class DoclingLayoutAnalyzer(PDFToolBase):
     """基于 Docling 的版面分析工具。"""
 
-    @property
-    def name(self) -> str:
-        return "docling"
+    tool_name = "docling"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 Docling 执行版面分析。"""
-        start = time.monotonic()
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(
@@ -126,12 +123,10 @@ class DoclingLayoutTool:
                 metadata={"engine": "docling"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="docling",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -139,30 +134,27 @@ class DoclingLayoutTool:
             return StageResult(success=False, error=f"Docling 版面分析失败: {e}")
 
 
-class MinerULayoutTool:
+class MinerULayoutAnalyzer(PDFToolBase):
     """基于 MinerU 的版面分析工具。"""
 
-    @property
-    def name(self) -> str:
-        return "mineru"
+    tool_name = "mineru"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.mineru_engine import MinerUEngine
+            from ....pdf.mineru_engine import MinerUEngine
 
             return MinerUEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 MinerU 执行版面分析。"""
-        start = time.monotonic()
         try:
             import asyncio
 
-            from ...pdf.mineru_engine import MinerUEngine
+            from ....pdf.mineru_engine import MinerUEngine
 
             engine = MinerUEngine()
             result = await asyncio.to_thread(
@@ -215,12 +207,10 @@ class MinerULayoutTool:
                 metadata={"engine": "mineru"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="mineru",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -228,30 +218,27 @@ class MinerULayoutTool:
             return StageResult(success=False, error=f"MinerU 版面分析失败: {e}")
 
 
-class MarkerLayoutTool:
+class MarkerLayoutAnalyzer(PDFToolBase):
     """基于 Marker 的版面分析工具。"""
 
-    @property
-    def name(self) -> str:
-        return "marker"
+    tool_name = "marker"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.marker_engine import MarkerEngine
+            from ....pdf.marker_engine import MarkerEngine
 
             return MarkerEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 Marker 执行版面分析。"""
-        start = time.monotonic()
         try:
             import asyncio
 
-            from ...pdf.marker_engine import MarkerEngine
+            from ....pdf.marker_engine import MarkerEngine
 
             engine = MarkerEngine()
             result = await asyncio.to_thread(engine.convert, str(input_data.local_path))
@@ -311,12 +298,10 @@ class MarkerLayoutTool:
                 metadata={"engine": "marker"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="marker",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -324,32 +309,29 @@ class MarkerLayoutTool:
             return StageResult(success=False, error=f"Marker 版面分析失败: {e}")
 
 
-class PyMuPDFLayoutTool:
+class FitzLayoutAnalyzer(PDFToolBase):
     """基于 PyMuPDF 的启发式版面分析工具。
 
     通过分析字体大小、位置和块类型进行启发式布局检测。
     """
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 PyMuPDF 启发式方法执行版面分析。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             fitz = import_fitz()
 
@@ -428,12 +410,10 @@ class PyMuPDFLayoutTool:
                 metadata={"engine": "pymupdf_heuristic"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -446,10 +426,10 @@ class PyMuPDFLayoutTool:
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
-    "docling": DoclingLayoutTool,
-    "mineru": MinerULayoutTool,
-    "marker": MarkerLayoutTool,
-    "pymupdf": PyMuPDFLayoutTool,
+    "docling": DoclingLayoutAnalyzer,
+    "mineru": MinerULayoutAnalyzer,
+    "marker": MarkerLayoutAnalyzer,
+    "pymupdf": FitzLayoutAnalyzer,
 }
 
 
