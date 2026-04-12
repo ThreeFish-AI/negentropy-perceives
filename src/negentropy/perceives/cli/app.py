@@ -5,9 +5,7 @@ from __future__ import annotations
 try:
     import typer
 except ImportError:
-    raise ImportError(
-        "CLI dependencies not installed. Install with: uv add typer rich"
-    )
+    raise ImportError("CLI dependencies not installed. Install with: uv add typer rich")
 
 app = typer.Typer(
     name="perceives",

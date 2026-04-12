@@ -488,7 +488,6 @@ class TestContentExtraction:
         assert "Article content" in result
 
 
-
 class TestWebpageConversion:
     """测试网页转换功能"""
 

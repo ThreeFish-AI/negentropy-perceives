@@ -59,7 +59,7 @@ class TestAntiDetectionScraperStealth:
             new_callable=AsyncMock,
             return_value={"title": "Test", "content": {}},
         ) as mock_method:
-            result = await scraper.scrape_with_stealth(
+            _result = await scraper.scrape_with_stealth(
                 url="https://example.com", method="playwright"
             )
             mock_method.assert_called_once()

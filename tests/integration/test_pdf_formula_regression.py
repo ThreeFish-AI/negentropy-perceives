@@ -4,7 +4,6 @@
 - assets/Context Engineering 2.0 - The Context of Context Engineering.pdf
 """
 
-import os
 from pathlib import Path
 
 import pytest
@@ -12,7 +11,6 @@ import pytest
 from negentropy.perceives.pdf.math_formula import (
     FormulaReconstructor,
     MathRegion,
-    has_math_unicode,
     unicode_to_latex,
 )
 
@@ -33,6 +31,7 @@ pytestmark = pytest.mark.skipif(
 def _open_pdf():
     """打开测试 PDF 文件。"""
     import fitz
+
     return fitz.open(str(CE_PDF))
 
 
@@ -106,7 +105,9 @@ class TestPyMuPDFFormulaExtraction:
         try:
             for page_num in range(min(5, len(doc))):
                 page = doc[page_num]
-                blocks, regions = reconstructor.extract_formulas_from_page(page, page_num)
+                blocks, regions = reconstructor.extract_formulas_from_page(
+                    page, page_num
+                )
                 all_regions.extend(regions)
                 all_blocks.extend(blocks)
         finally:
@@ -151,8 +152,7 @@ class TestPyMuPDFFormulaExtraction:
             if cmd in all_text:
                 latex_commands_found.append(cmd)
         assert len(latex_commands_found) > 0, (
-            f"增强文本块中未找到任何 LaTeX 命令。"
-            f"前 500 字符: {all_text[:500]}"
+            f"增强文本块中未找到任何 LaTeX 命令。前 500 字符: {all_text[:500]}"
         )
 
 
@@ -248,6 +248,9 @@ class TestFullPDFProcessingPipeline:
             assert result["success"] is True
             enhanced = result.get("enhanced_assets", {})
             # formulas_extracted 不应出现（因为未启用）
-            assert enhanced.get("formulas_extracted") is None or enhanced.get("formulas_extracted", 0) == 0
+            assert (
+                enhanced.get("formulas_extracted") is None
+                or enhanced.get("formulas_extracted", 0) == 0
+            )
         finally:
             processor.cleanup()

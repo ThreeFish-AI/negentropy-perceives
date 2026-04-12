@@ -15,9 +15,8 @@
 """
 
 import pytest
-import asyncio
 import time
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
 
 from negentropy.perceives.infra import RateLimiter, rate_limiter
 from negentropy.perceives.infra import RetryManager, retry_manager
@@ -149,6 +148,8 @@ class TestRetryManager:
 
         assert delay_1 == 2.0
         assert delay_2 == 4.0
+
+
 class TestUtilityFunctions:
     """Test standalone utility functions."""
 
@@ -201,4 +202,3 @@ class TestUtilityFunctions:
         """Test global utility instances are properly initialized."""
         assert rate_limiter is not None
         assert retry_manager is not None
-

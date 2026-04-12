@@ -132,7 +132,10 @@ class TestErrorResilience:
             }
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(
                 pdf_processor,
                 "batch_process_pdfs",
@@ -285,7 +288,10 @@ class TestErrorResilience:
                 assert result.url == f"https://stress-test.com/page-{i}"
                 # If markdown_content is available, verify content integrity
                 if markdown:
-                    assert "Test data integrity marker" in markdown or "Content block" in markdown
+                    assert (
+                        "Test data integrity marker" in markdown
+                        or "Content block" in markdown
+                    )
 
             # Performance should be reasonable even under stress
             assert stress_duration < 5.0  # Should complete within 5 seconds

@@ -47,9 +47,10 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_list_tools_returns_server_tools(self):
         """list_tools 应返回底层 Client 的结果。"""
-        with patch("fastmcp.client.transports.StreamableHttpTransport"), patch(
-            "fastmcp.Client"
-        ) as client_cls:
+        with (
+            patch("fastmcp.client.transports.StreamableHttpTransport"),
+            patch("fastmcp.Client") as client_cls,
+        ):
             tool = SimpleNamespace(name="discover_links")
             mock_client = AsyncMock()
             mock_client.list_tools = AsyncMock(return_value=[tool])
@@ -63,9 +64,10 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_call_tool_delegates(self):
         """call_tool 应透传工具名和参数。"""
-        with patch("fastmcp.client.transports.StreamableHttpTransport"), patch(
-            "fastmcp.Client"
-        ) as client_cls:
+        with (
+            patch("fastmcp.client.transports.StreamableHttpTransport"),
+            patch("fastmcp.Client") as client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.call_tool = AsyncMock(return_value={"success": True})
             client_cls.return_value = mock_client
@@ -79,9 +81,10 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_connect_wraps_connection_errors(self):
         """连接错误应映射为 NegentropyPerceivesConnectionError。"""
-        with patch("fastmcp.client.transports.StreamableHttpTransport"), patch(
-            "fastmcp.Client"
-        ) as client_cls:
+        with (
+            patch("fastmcp.client.transports.StreamableHttpTransport"),
+            patch("fastmcp.Client") as client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.side_effect = RuntimeError("boom")
             client_cls.return_value = mock_client
@@ -93,9 +96,10 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_call_tool_wraps_tool_errors(self):
         """工具调用错误应映射为 NegentropyPerceivesToolError。"""
-        with patch("fastmcp.client.transports.StreamableHttpTransport"), patch(
-            "fastmcp.Client"
-        ) as client_cls:
+        with (
+            patch("fastmcp.client.transports.StreamableHttpTransport"),
+            patch("fastmcp.Client") as client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.call_tool = AsyncMock(side_effect=RuntimeError("boom"))
             client_cls.return_value = mock_client
@@ -152,7 +156,9 @@ class TestSDKDirectMode:
         """Direct 模式下 list_tools 应抛出 NegentropyPerceivesError。"""
         client = NegentropyPerceivesClient(mode="direct")
         await client.connect()
-        with pytest.raises(NegentropyPerceivesError, match="not available in direct mode"):
+        with pytest.raises(
+            NegentropyPerceivesError, match="not available in direct mode"
+        ):
             await client.list_tools()
 
     @pytest.mark.asyncio
@@ -160,7 +166,9 @@ class TestSDKDirectMode:
         """Direct 模式下 call_tool 应抛出 NegentropyPerceivesError。"""
         client = NegentropyPerceivesClient(mode="direct")
         await client.connect()
-        with pytest.raises(NegentropyPerceivesError, match="not available in direct mode"):
+        with pytest.raises(
+            NegentropyPerceivesError, match="not available in direct mode"
+        ):
             await client.call_tool("discover_links")
 
     @pytest.mark.asyncio

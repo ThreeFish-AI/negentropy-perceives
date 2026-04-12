@@ -4,7 +4,6 @@
 """
 
 import time
-from unittest.mock import patch
 
 
 from negentropy.perceives.tools._registry import (
@@ -84,6 +83,7 @@ class TestValidatePageRange:
         assert result is None
         assert "less than" in error
 
+
 class TestElapsedMs:
     """测试耗时计算辅助函数"""
 
@@ -96,4 +96,3 @@ class TestElapsedMs:
         start = time.time() - 0.1  # 100ms ago
         result = elapsed_ms(start)
         assert result >= 90  # Allow some tolerance
-

@@ -48,16 +48,19 @@ class TestFormHandlerFillForm:
         mock_driver = MagicMock(spec=["find_element", "current_url"])
         handler = FormHandler(mock_driver)
 
-        with patch.object(
-            handler,
-            "_fill_field",
-            new_callable=AsyncMock,
-            return_value={"success": True},
-        ), patch.object(
-            handler,
-            "_submit_form",
-            new_callable=AsyncMock,
-            return_value={"success": True, "new_url": "https://example.com/done"},
+        with (
+            patch.object(
+                handler,
+                "_fill_field",
+                new_callable=AsyncMock,
+                return_value={"success": True},
+            ),
+            patch.object(
+                handler,
+                "_submit_form",
+                new_callable=AsyncMock,
+                return_value={"success": True, "new_url": "https://example.com/done"},
+            ),
         ):
             result = await handler.fill_form(
                 {"#input": "test"}, submit=True, submit_button_selector="#submit"

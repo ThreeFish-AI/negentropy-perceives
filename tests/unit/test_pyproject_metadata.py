@@ -99,10 +99,7 @@ class TestCoverageOmitNoDeadPaths:
         """coverage omit 中不包含指向不存在具体文件的路径。"""
         data = _load_pyproject()
         omit_patterns = (
-            data.get("tool", {})
-            .get("coverage", {})
-            .get("run", {})
-            .get("omit", [])
+            data.get("tool", {}).get("coverage", {}).get("run", {}).get("omit", [])
         )
 
         for pattern in omit_patterns:

@@ -102,9 +102,7 @@ class TestDoclingCEPDFConversion:
         md = docling_result.markdown
         has_inline = "$" in md
         has_block = "$$" in md
-        assert has_inline or has_block, (
-            "Markdown 中未找到 LaTeX 公式标记 ($ 或 $$)"
-        )
+        assert has_inline or has_block, "Markdown 中未找到 LaTeX 公式标记 ($ 或 $$)"
 
     @pytest.mark.integration
     @skip_formula_on_mps
@@ -121,9 +119,7 @@ class TestDoclingCEPDFConversion:
     def test_tables_have_structure(self, docling_result) -> None:
         """表格应包含结构化 Markdown（管道分隔符）。"""
         for table in docling_result.tables:
-            assert "|" in table.markdown, (
-                f"表格缺少管道分隔符: {table.markdown[:100]}"
-            )
+            assert "|" in table.markdown, f"表格缺少管道分隔符: {table.markdown[:100]}"
 
     @pytest.mark.integration
     def test_images_detected(self, docling_result) -> None:
@@ -196,9 +192,7 @@ class TestDoclingArxivPDFConversion:
         md = docling_result.markdown.lower()
         has_abstract = "abstract" in md
         has_intro = "introduction" in md or "intro" in md
-        assert has_abstract or has_intro, (
-            "学术论文中未找到 Abstract 或 Introduction"
-        )
+        assert has_abstract or has_intro, "学术论文中未找到 Abstract 或 Introduction"
 
     @pytest.mark.integration
     def test_tables_have_pipe_separator(self, docling_result) -> None:
@@ -313,7 +307,10 @@ class TestDoclingFallbackCompatibility:
             )
             # 当 _docling_engine is None 且 method="docling"，应返回错误
             assert result["success"] is False
-            assert "不可用" in result.get("error", "") or "docling" in result.get("error", "").lower()
+            assert (
+                "不可用" in result.get("error", "")
+                or "docling" in result.get("error", "").lower()
+            )
         finally:
             processor.cleanup()
 
@@ -344,7 +341,8 @@ class TestConversionQualityComparison:
 
         # PyMuPDF CPU 路径（仍需独立执行以获取对比数据）
         proc_pymupdf = PDFProcessor(
-            enable_enhanced_features=True, prefer_docling=False,
+            enable_enhanced_features=True,
+            prefer_docling=False,
         )
 
         try:
@@ -438,9 +436,7 @@ class TestGPUDeviceVerification:
             assert "formula_enrichment" in device_config.adjustments
             logger.info("MPS formula enrichment 降级验证通过")
         else:
-            pytest.skip(
-                f"非 MPS 设备 ({device_config.device_type.value})，跳过此验证"
-            )
+            pytest.skip(f"非 MPS 设备 ({device_config.device_type.value})，跳过此验证")
 
     @pytest.mark.integration
     def test_converter_warmup_performance(self, warm_docling_converter: float) -> None:

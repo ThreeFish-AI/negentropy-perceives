@@ -11,8 +11,7 @@ import time
 import pytest
 from unittest.mock import patch
 
-from negentropy.perceives.tools import app, web_scraper
-from negentropy.perceives.scraping import WebScraper
+from negentropy.perceives.tools import app
 from negentropy.perceives.markdown.converter import MarkdownConverter
 
 
@@ -46,9 +45,7 @@ class TestMCPToolRegistration:
             )
 
         # 确保注册的工具数量与预期一致
-        assert len(tool_names) == 6, (
-            f"注册工具数量 {len(tool_names)} 与预期的6个不符"
-        )
+        assert len(tool_names) == 6, f"注册工具数量 {len(tool_names)} 与预期的6个不符"
 
     @pytest.mark.asyncio
     async def test_tool_schema_completeness(self):
@@ -291,10 +288,7 @@ class TestPDFToolIntegration:
 
         # Verify the tools are properly registered
         assert tools_by_name["parse_pdf_to_markdown"].name == "parse_pdf_to_markdown"
-        assert (
-            tools_by_name["parse_pdfs_to_markdown"].name
-            == "parse_pdfs_to_markdown"
-        )
+        assert tools_by_name["parse_pdfs_to_markdown"].name == "parse_pdfs_to_markdown"
 
     @pytest.mark.asyncio
     async def test_pdf_tool_integration_with_mocks(self):
@@ -366,9 +360,7 @@ class TestMCPToolWorkflows:
 
             # 工作流工具应该能够无缝访问
             convert_tool = await app.get_tool("parse_webpage_to_markdown")
-            batch_convert_tool = await app.get_tool(
-                "parse_webpages_to_markdown"
-            )
+            batch_convert_tool = await app.get_tool("parse_webpages_to_markdown")
 
             assert convert_tool is not None
             assert batch_convert_tool is not None

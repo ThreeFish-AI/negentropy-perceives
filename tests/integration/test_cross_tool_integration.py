@@ -32,9 +32,7 @@ class TestCrossToolIntegration:
     """Integration tests for scenarios involving multiple tools working together."""
 
     @pytest.mark.asyncio
-    async def test_webpage_to_pdf_to_markdown_workflow(
-        self, e2e_tools, pdf_processor
-    ):
+    async def test_webpage_to_pdf_to_markdown_workflow(self, e2e_tools, pdf_processor):
         """Test a complete workflow: extract links from webpage, then process PDFs found."""
         tools = select_tools(e2e_tools, "discover_links", "parse_pdf_to_markdown")
         discover_links_tool = tools["discover_links"]
@@ -100,9 +98,7 @@ class TestCrossToolIntegration:
 
             # Extract PDF links from the extracted links
             pdf_links = [
-                link.url
-                for link in links_response.links
-                if link.url.endswith(".pdf")
+                link.url for link in links_response.links if link.url.endswith(".pdf")
             ]
             assert len(pdf_links) == 3
 
@@ -202,9 +198,7 @@ class TestCrossToolIntegration:
         }
 
         with (
-            patch.object(
-                web_scraper, "scrape_multiple_urls"
-            ) as mock_batch_scrape,
+            patch.object(web_scraper, "scrape_multiple_urls") as mock_batch_scrape,
             patch(
                 "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
@@ -333,9 +327,7 @@ class TestCrossToolIntegration:
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
-            patch.object(
-                pdf_processor, "batch_process_pdfs"
-            ) as mock_batch_pdf,
+            patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
         ):
             mock_scrape.return_value = scrape_result
             mock_pdf.return_value = pdf_result
@@ -527,9 +519,7 @@ class TestRealWorldIntegrationScenarios:
                 "negentropy.perceives.ops.pdf._create_pdf_processor",
                 return_value=pdf_processor,
             ),
-            patch.object(
-                pdf_processor, "batch_process_pdfs"
-            ) as mock_batch_pdf,
+            patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
         ):
             mock_batch_pdf.return_value = batch_result
 

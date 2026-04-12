@@ -95,9 +95,7 @@ PORTAL_CONTENT = {
                 "text": "Meet Our Research Team",
             },
         ],
-        "images": [
-            {"src": "/assets/portal-logo.png", "alt": "Research Portal Logo"}
-        ],
+        "images": [{"src": "/assets/portal-logo.png", "alt": "Research Portal Logo"}],
     },
     "meta_description": "Latest research publications and papers",
     "metadata": {
@@ -456,9 +454,13 @@ class TestDocumentPipeline:
         batch_pdf_tool = e2e_tools["parse_pdfs_to_markdown"]
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
         ):
+
             async def mock_batch_process(
                 pdf_sources,
                 method="auto",
@@ -525,7 +527,6 @@ class TestDocumentPipeline:
 
             # BatchPDFResponse does not have a summary attribute, access individual attributes instead
             successful_count = pdf_batch_result.successful_count
-            failed_count = pdf_batch_result.failed_count
             total_pdfs = pdf_batch_result.total_pdfs
             assert total_pdfs == 3
             assert successful_count == 3

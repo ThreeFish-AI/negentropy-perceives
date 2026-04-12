@@ -177,7 +177,9 @@ class TestExtractWithBs4Config:
         html = "<html><body></body></html>"
         soup = BeautifulSoup(html, "html.parser")
 
-        config = {"missing": {"selector": ".nonexistent", "attr": "text", "multiple": False}}
+        config = {
+            "missing": {"selector": ".nonexistent", "attr": "text", "multiple": False}
+        }
         result = extract_with_bs4_config(soup, config)
         assert result["missing"] is None
 
@@ -369,7 +371,9 @@ class TestExtractWithPlaywrightConfig:
         """测试元素未找到时返回 None"""
         page = self._make_page({})
 
-        config = {"missing": {"selector": ".nonexistent", "attr": "text", "multiple": False}}
+        config = {
+            "missing": {"selector": ".nonexistent", "attr": "text", "multiple": False}
+        }
         result = await extract_with_playwright_config(page, config)
         assert result["missing"] is None
 
@@ -433,7 +437,9 @@ class TestExtractDefaultContentPlaywright:
 
         page.query_selector_all = AsyncMock(return_value=[link])
 
-        result = await extract_default_content_playwright(page, base_url="https://custom.com")
+        result = await extract_default_content_playwright(
+            page, base_url="https://custom.com"
+        )
 
         assert result["links"][0]["url"] == "https://custom.com/relative"
 
@@ -479,9 +485,14 @@ class TestExtractDefaultContentPlaywright:
 class TestExtractPageDataSelenium:
     """测试 Selenium 整页数据提取门面函数。"""
 
-    def _make_driver(self, *, title="Test Page", url="https://example.com",
-                     page_source="<html><body></body></html>",
-                     meta_desc="Test description"):
+    def _make_driver(
+        self,
+        *,
+        title="Test Page",
+        url="https://example.com",
+        page_source="<html><body></body></html>",
+        meta_desc="Test description",
+    ):
         """创建 mock Selenium driver。"""
         driver = MagicMock()
         driver.title = title
@@ -494,6 +505,7 @@ class TestExtractPageDataSelenium:
             driver.find_element.return_value = meta_elem
         else:
             from selenium.common.exceptions import NoSuchElementException
+
             driver.find_element.side_effect = NoSuchElementException()
 
         return driver

@@ -71,17 +71,17 @@ class TestSectionStructure:
         """文档包含所有必需的二级标题。"""
         h2_titles = self.H2_PATTERN.findall(doc_content)
         for section in self.REQUIRED_H2_SECTIONS:
-            assert any(
-                section in title for title in h2_titles
-            ), f"缺少必需章节: '## {section}'"
+            assert any(section in title for title in h2_titles), (
+                f"缺少必需章节: '## {section}'"
+            )
 
     @pytest.mark.parametrize("section", FORBIDDEN_H2_SECTIONS)
     def test_no_redundant_section(self, doc_content: str, section: str):
         """文档不包含冗余章节: {section}。"""
         h2_titles = self.H2_PATTERN.findall(doc_content)
-        assert not any(
-            section == title.strip() for title in h2_titles
-        ), f"文档包含冗余章节 '## {section}'，应链接到对应权威文档"
+        assert not any(section == title.strip() for title in h2_titles), (
+            f"文档包含冗余章节 '## {section}'，应链接到对应权威文档"
+        )
 
 
 class TestOrthogonalityConstraints:
@@ -101,16 +101,13 @@ class TestOrthogonalityConstraints:
 
     def test_has_cross_reference_to_development(self, doc_content: str):
         """文档包含到开发指南的交叉引用链接。"""
-        assert "development.md" in doc_content, (
-            "缺少到 development.md 的交叉引用链接"
-        )
+        assert "development.md" in doc_content, "缺少到 development.md 的交叉引用链接"
 
     def test_has_env_var_reference_section(self, doc_content: str):
         """文档包含环境变量完整参考章节（原 configuration.md 内容已迁入）。"""
         assert "### 环境变量完整参考" in doc_content, (
             "缺少 '### 环境变量完整参考' 章节（configuration.md 内容应已迁入）"
         )
-
 
 
 class TestMcpToolCompleteness:
@@ -133,12 +130,9 @@ class TestMcpToolCompleteness:
     def test_all_tools_documented(self, doc_content: str):
         """文档包含所有 6 个 MCP 工具的文档。"""
         tool_section = self._extract_mcp_tool_section(doc_content)
-        tool_numbers = [
-            int(n) for n in self.TOOL_HEADING_PATTERN.findall(tool_section)
-        ]
+        tool_numbers = [int(n) for n in self.TOOL_HEADING_PATTERN.findall(tool_section)]
         assert len(tool_numbers) >= self.EXPECTED_TOOL_COUNT, (
-            f"仅找到 {len(tool_numbers)} 个工具文档，"
-            f"期望 {self.EXPECTED_TOOL_COUNT}"
+            f"仅找到 {len(tool_numbers)} 个工具文档，期望 {self.EXPECTED_TOOL_COUNT}"
         )
 
     def test_tool_numbers_continuous(self, doc_content: str):
@@ -202,13 +196,16 @@ class TestCommandsEnvVarAccuracy:
         """命令速查 bash 代码块中引用的 NEGENTROPY_PERCEIVES_ 变量在 config.py 中有对应字段。"""
         from negentropy.perceives.config import NegentropyPerceivesSettings
 
-        valid_fields = {name.upper() for name in NegentropyPerceivesSettings.model_fields}
+        valid_fields = {
+            name.upper() for name in NegentropyPerceivesSettings.model_fields
+        }
 
-        bash_blocks = _extract_bash_blocks(doc_content)
+        _bash_blocks = _extract_bash_blocks(doc_content)
         # 仅扫描「开发者命令速查」章节范围内的环境变量
         commands_section = doc_content[
-            doc_content.find("## 开发者命令速查") :
-            doc_content.find("## MCP Server 配置")
+            doc_content.find("## 开发者命令速查") : doc_content.find(
+                "## MCP Server 配置"
+            )
             if "## MCP Server 配置" in doc_content
             else len(doc_content)
         ]
@@ -264,10 +261,14 @@ class TestSectionNumberContinuity:
     ) -> list[int]:
         """提取两个 H2 标题之间的 ### N. 编号列表。"""
         start = doc_content.find(start_heading)
-        end = doc_content.find(end_heading, start + 1) if end_heading else len(doc_content)
+        end = (
+            doc_content.find(end_heading, start + 1)
+            if end_heading
+            else len(doc_content)
+        )
         if start == -1:
             return []
-        section = doc_content[start:end if end != -1 else len(doc_content)]
+        section = doc_content[start : end if end != -1 else len(doc_content)]
         return [int(n) for n in re.findall(r"^### (\d+)\.", section, re.MULTILINE)]
 
     def test_advanced_scenarios_numbering_continuous(self, doc_content: str):

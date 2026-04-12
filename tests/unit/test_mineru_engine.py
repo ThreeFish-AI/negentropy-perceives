@@ -11,10 +11,9 @@
 """
 
 import json
-import platform
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -191,14 +190,26 @@ class TestMinerUEngineConfigKey:
         result = MinerUEngine._is_apple_silicon()
         assert isinstance(result, bool)
 
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Darwin")
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="arm64")
-    def test_apple_silicon_detected(self, _mock_machine: object, _mock_system: object) -> None:
+    @patch(
+        "negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Darwin"
+    )
+    @patch(
+        "negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="arm64"
+    )
+    def test_apple_silicon_detected(
+        self, _mock_machine: object, _mock_system: object
+    ) -> None:
         assert MinerUEngine._is_apple_silicon() is True
 
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Linux")
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="x86_64")
-    def test_not_apple_silicon(self, _mock_machine: object, _mock_system: object) -> None:
+    @patch(
+        "negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Linux"
+    )
+    @patch(
+        "negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="x86_64"
+    )
+    def test_not_apple_silicon(
+        self, _mock_machine: object, _mock_system: object
+    ) -> None:
         assert MinerUEngine._is_apple_silicon() is False
 
     def test_different_configs_produce_different_keys(self) -> None:
@@ -297,7 +308,9 @@ class TestMinerUNormalizeOutput:
 
     def test_normalize_output_non_array_json(self, tmp_path: Path) -> None:
         """非数组 JSON 应返回 None。"""
-        (tmp_path / "content_list.json").write_text('{"key": "value"}', encoding="utf-8")
+        (tmp_path / "content_list.json").write_text(
+            '{"key": "value"}', encoding="utf-8"
+        )
         engine = MinerUEngine()
         result = engine._normalize_output(tmp_path, str(tmp_path / "test.pdf"))
         assert result is None
@@ -387,7 +400,12 @@ class TestMinerUStructuredExtraction:
 
     def test_extract_formulas_from_content_list(self) -> None:
         content_list = [
-            {"type": "equation", "latex": r"\sum_i x_i", "format": "block", "page_no": 0},
+            {
+                "type": "equation",
+                "latex": r"\sum_i x_i",
+                "format": "block",
+                "page_no": 0,
+            },
             {"type": "equation", "latex": r"\alpha", "format": "inline", "page_no": 0},
         ]
         engine = MinerUEngine()
@@ -516,7 +534,9 @@ class TestMinerUTableDimensions:
         assert cols == 2
 
     def test_html_table_dimensions(self) -> None:
-        content = "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+        content = (
+            "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+        )
         engine = MinerUEngine()
         rows, cols = engine._parse_table_dimensions(content, is_html=True)
         assert rows == 2

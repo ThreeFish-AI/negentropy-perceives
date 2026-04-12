@@ -8,11 +8,9 @@
 - Caption 提取多层降级验证
 """
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from negentropy.perceives.pdf.docling_engine import (
     DoclingCodeBlock,
@@ -132,7 +130,10 @@ class TestDoclingEngineAvailability:
 class TestDoclingEngineConfigKey:
     """验证配置签名生成。"""
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_default_config_key(self, _mock: object) -> None:
         engine = DoclingEngine(device="cpu")
         key = engine._config_key()
@@ -141,7 +142,10 @@ class TestDoclingEngineConfigKey:
         assert "formula=True" in key
         assert "dev=cpu" in key
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_custom_config_key(self, _mock: object) -> None:
         engine = DoclingEngine(
             enable_table_structure=False,
@@ -153,13 +157,19 @@ class TestDoclingEngineConfigKey:
         assert "tbl=False:fast" in key
         assert "code=False" in key
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_different_configs_produce_different_keys(self, _mock: object) -> None:
         e1 = DoclingEngine(table_mode="accurate", device="cpu")
         e2 = DoclingEngine(table_mode="fast", device="cpu")
         assert e1._config_key() != e2._config_key()
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_config_key_includes_device(self, _mock: object) -> None:
         """配置签名应包含设备信息。"""
         engine = DoclingEngine(device="cpu")
@@ -167,8 +177,13 @@ class TestDoclingEngineConfigKey:
         assert "dev=cpu" in key
         assert "threads=" in key
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", side_effect=lambda d: d if d and d != "auto" else "cpu")
-    def test_different_devices_produce_different_cache_keys(self, _mock: object) -> None:
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        side_effect=lambda d: d if d and d != "auto" else "cpu",
+    )
+    def test_different_devices_produce_different_cache_keys(
+        self, _mock: object
+    ) -> None:
         """不同设备的引擎应产生不同缓存键。"""
         e_cpu = DoclingEngine(device="cpu")
         e_mps = DoclingEngine(device="mps")
@@ -461,7 +476,10 @@ class TestDoclingEnginePageRange:
         mock_converter.convert.return_value = mock_result
         return mock_converter
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_page_range_passed_to_converter(self, _mock_device: object) -> None:
         """page_range=(80, 82) 应转换为 Docling 1-based (81, 82) 并传递。"""
         engine = DoclingEngine(device="cpu")
@@ -474,7 +492,10 @@ class TestDoclingEnginePageRange:
         call_kwargs = mock_converter.convert.call_args
         assert call_kwargs.kwargs["page_range"] == (81, 82)
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_no_page_range_omits_kwarg(self, _mock_device: object) -> None:
         """page_range=None 时不应传递 page_range 给 converter。"""
         engine = DoclingEngine(device="cpu")
@@ -486,7 +507,10 @@ class TestDoclingEnginePageRange:
         call_kwargs = mock_converter.convert.call_args
         assert "page_range" not in call_kwargs.kwargs
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_single_page_range(self, _mock_device: object) -> None:
         """page_range=(0, 1) 应转换为 Docling (1, 1)（单页）。"""
         engine = DoclingEngine(device="cpu")
@@ -553,9 +577,7 @@ class TestPDFProcessorDoclingIntegration:
                 tables=[DoclingTable(markdown="| A |", rows=1, columns=1)],
                 images=[DoclingImage(page_number=0, caption="Fig 1")],
                 formulas=[DoclingFormula(latex=r"\alpha", formula_type="inline")],
-                code_blocks=[
-                    DoclingCodeBlock(code="x=1", language="python")
-                ],
+                code_blocks=[DoclingCodeBlock(code="x=1", language="python")],
                 metadata={"title": "Test"},
                 page_count=3,
             )

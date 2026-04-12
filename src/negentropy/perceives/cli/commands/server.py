@@ -4,14 +4,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .._progress import console
 
 try:
     import typer
 except ImportError:
-    raise ImportError(
-        "CLI dependencies not installed. Install with: uv add typer rich"
-    )
+    raise ImportError("CLI dependencies not installed. Install with: uv add typer rich")
 
 
 def run(

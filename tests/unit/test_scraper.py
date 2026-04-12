@@ -200,7 +200,7 @@ class TestWebScraper:
             mock_scrape.return_value = {"url": "test", "method": "simple"}
 
             # This should not raise an error
-            result = await scraper.scrape_url("https://example.com", method="auto")
+            _result = await scraper.scrape_url("https://example.com", method="auto")
 
             # Verify method selection worked
             assert mock_scrape.called
@@ -336,13 +336,8 @@ class TestWebScraper:
             "content": {"text": "test content"},
         }
 
-        with patch.object(
-            scraper.http_scraper, "scrape", return_value=mock_result
-        ):
-            result = await scraper.scrape_url(
-                "https://example.com", method="scrapy"
-            )
+        with patch.object(scraper.http_scraper, "scrape", return_value=mock_result):
+            result = await scraper.scrape_url("https://example.com", method="scrapy")
 
             assert result["url"] == "https://example.com"
             assert result["status_code"] == 200
-

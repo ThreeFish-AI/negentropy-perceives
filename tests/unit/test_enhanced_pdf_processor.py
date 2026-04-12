@@ -2,7 +2,7 @@
 
 import pytest
 import tempfile
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from negentropy.perceives.pdf.enhanced import (
     EnhancedPDFProcessor,
@@ -413,7 +413,7 @@ class TestEnhancedPDFProcessor:
                 import fitz
 
                 doc = fitz.open("fake.pdf")
-                images = processor.extract_images_from_pdf_page(doc, 0)
+                _images = processor.extract_images_from_pdf_page(doc, 0)
             except ImportError:
                 # If fitz is not available, the test should pass
                 pass
@@ -449,12 +449,16 @@ class TestImageNaming:
         yield processor
         processor.cleanup()
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_slugify_basic(self, processor):
         """Test basic slugification."""
         assert processor._slugify("Hello World") == "hello-world"
-        assert processor._slugify("Figure 1: Architecture Diagram") == "figure-1-architecture-diagram"
+        assert (
+            processor._slugify("Figure 1: Architecture Diagram")
+            == "figure-1-architecture-diagram"
+        )
 
     def test_slugify_special_chars(self, processor):
         """Test slugify strips special characters."""
@@ -476,7 +480,8 @@ class TestImageNaming:
     def test_generate_image_name_with_caption(self, processor):
         """Test image name generation prioritizes caption."""
         name = processor._generate_image_name(
-            page_num=0, img_index=0,
+            page_num=0,
+            img_index=0,
             caption="Figure 1: Architecture Diagram",
         )
         assert "figure-1-architecture-diagram" == name
@@ -484,7 +489,8 @@ class TestImageNaming:
     def test_generate_image_name_with_xref_name(self, processor):
         """Test image name from xref internal name."""
         name = processor._generate_image_name(
-            page_num=2, img_index=0,
+            page_num=2,
+            img_index=0,
             xref_name="company-logo",
         )
         assert "p3-company-logo" == name
@@ -492,7 +498,8 @@ class TestImageNaming:
     def test_generate_image_name_with_context(self, processor):
         """Test image name from nearby text context."""
         name = processor._generate_image_name(
-            page_num=0, img_index=0,
+            page_num=0,
+            img_index=0,
             nearby_text="This section describes the authentication flow in detail",
         )
         assert name.startswith("p1-")
@@ -501,7 +508,8 @@ class TestImageNaming:
     def test_generate_image_name_fallback(self, processor):
         """Test fallback image name when no context available."""
         name = processor._generate_image_name(
-            page_num=4, img_index=2,
+            page_num=4,
+            img_index=2,
             pdf_name="annual-report-2025",
         )
         assert name == "annual-report-2025-p5-3"
@@ -555,6 +563,7 @@ class TestUnicodeMathDetection:
         yield processor
         processor.cleanup()
         import shutil
+
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_detects_unicode_math_symbols(self, processor):

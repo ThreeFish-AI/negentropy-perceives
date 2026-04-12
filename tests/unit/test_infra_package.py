@@ -1,7 +1,5 @@
 """infra/ 子包结构与向后兼容性验证。"""
 
-import pytest
-
 
 class TestInfraPackageExports:
     """验证 infra/ 子包的 __init__.py 导出完整性。"""
@@ -41,6 +39,3 @@ class TestInfraPackageExports:
         assert callable(validate_url)
         assert validate_url("https://example.com") is None
         assert validate_url("not-a-url") is not None
-
-
-

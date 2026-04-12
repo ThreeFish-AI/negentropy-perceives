@@ -56,8 +56,24 @@ class TestPyMuPDFBlockExtraction:
         mock_page = Mock()
         mock_page.get_text.return_value = [
             (0, 0, 500, 30, "Abstract\n", 0, 0),
-            (0, 40, 500, 120, "First paragraph line one.\nFirst paragraph line two.\n", 1, 0),
-            (0, 130, 500, 210, "Second paragraph line one.\nSecond paragraph line two.\n", 2, 0),
+            (
+                0,
+                40,
+                500,
+                120,
+                "First paragraph line one.\nFirst paragraph line two.\n",
+                1,
+                0,
+            ),
+            (
+                0,
+                130,
+                500,
+                210,
+                "Second paragraph line one.\nSecond paragraph line two.\n",
+                2,
+                0,
+            ),
         ]
         mock_doc.load_page.return_value = mock_page
 
@@ -65,7 +81,9 @@ class TestPyMuPDFBlockExtraction:
             tmp_path = Path(f.name)
 
         try:
-            result = await processor._extract_with_pymupdf(tmp_path, include_metadata=False)
+            result = await processor._extract_with_pymupdf(
+                tmp_path, include_metadata=False
+            )
             text = result["text"]
 
             assert result["success"] is True
@@ -104,7 +122,9 @@ class TestPyMuPDFBlockExtraction:
             tmp_path = Path(f.name)
 
         try:
-            result = await processor._extract_with_pymupdf(tmp_path, include_metadata=False)
+            result = await processor._extract_with_pymupdf(
+                tmp_path, include_metadata=False
+            )
             text = result["text"]
 
             assert "Text block" in text
@@ -139,7 +159,9 @@ class TestPyMuPDFBlockExtraction:
             tmp_path = Path(f.name)
 
         try:
-            result = await processor._extract_with_pymupdf(tmp_path, include_metadata=False)
+            result = await processor._extract_with_pymupdf(
+                tmp_path, include_metadata=False
+            )
             text = result["text"]
 
             # Should be in reading order: First, Second, Third
@@ -202,7 +224,9 @@ class TestConvertToMarkdown:
 
     def test_paragraphs_preserved_through_conversion(self, processor):
         """段落应在 Markdown 转换后保持 \\n\\n 分隔。"""
-        text = "First paragraph text.\n\nSecond paragraph text.\n\nThird paragraph text."
+        text = (
+            "First paragraph text.\n\nSecond paragraph text.\n\nThird paragraph text."
+        )
         result = processor._convert_to_markdown(text)
 
         # Result should have paragraph separation (either from MarkItDown or fallback)
@@ -292,7 +316,9 @@ class TestAcademicPDFStructure:
 
         # Should have multiple paragraphs separated by \n\n
         parts = [p.strip() for p in result.split("\n\n") if p.strip()]
-        assert len(parts) >= 4  # Title, author, abstract heading, abstract text, intro, ...
+        assert (
+            len(parts) >= 4
+        )  # Title, author, abstract heading, abstract text, intro, ...
 
         # Verify no single-newline paragraph separations in the output
         # (all separations should be \n\n)
@@ -330,7 +356,9 @@ class TestAcademicPDFStructure:
             tmp_path = Path(f.name)
 
         try:
-            result = await processor._extract_with_pymupdf(tmp_path, include_metadata=False)
+            result = await processor._extract_with_pymupdf(
+                tmp_path, include_metadata=False
+            )
             text = result["text"]
 
             # Lines within the block should be merged with spaces
@@ -403,7 +431,11 @@ class TestBuildHtmlFromTextParagraphs:
 class TestRealPDFIntegration:
     """使用实际 PDF 文件验证端到端段落分隔。"""
 
-    PDF_PATH = Path(__file__).parent.parent.parent / "assets" / "Context Engineering 2.0 - The Context of Context Engineering.pdf"
+    PDF_PATH = (
+        Path(__file__).parent.parent.parent
+        / "assets"
+        / "Context Engineering 2.0 - The Context of Context Engineering.pdf"
+    )
 
     @pytest.mark.asyncio
     async def test_pdf_paragraph_separation(self):
@@ -439,7 +471,11 @@ class TestRealPDFIntegration:
             # Verify no extremely long single-line paragraphs
             # (which would indicate missing paragraph breaks)
             for i, para in enumerate(paragraphs):
-                if not para.startswith("#") and not para.startswith("|") and not para.startswith("!"):
+                if (
+                    not para.startswith("#")
+                    and not para.startswith("|")
+                    and not para.startswith("!")
+                ):
                     assert len(para) < 3000, (
                         f"Paragraph {i} is suspiciously long ({len(para)} chars). "
                         f"May be missing internal paragraph breaks: {para[:100]}..."
@@ -739,13 +775,16 @@ class TestWebPageHTMLConversion:
     def setup_converter(self):
         try:
             from negentropy.perceives.markdown.converter import MarkdownConverter
+
             self.converter = MarkdownConverter()
         except ImportError:
             pytest.skip("MarkItDown not available")
 
     def test_html_p_tags_produce_double_newline(self):
         """多个 <p> 标签应产生 \\n\\n 分隔的段落。"""
-        html = "<html><body><p>First paragraph.</p><p>Second paragraph.</p></body></html>"
+        html = (
+            "<html><body><p>First paragraph.</p><p>Second paragraph.</p></body></html>"
+        )
         result = self.converter.html_to_markdown(html)
 
         assert "First paragraph." in result
@@ -753,7 +792,7 @@ class TestWebPageHTMLConversion:
         # 两个段落之间应有 \n\n
         first_idx = result.index("First paragraph.")
         second_idx = result.index("Second paragraph.")
-        between = result[first_idx + len("First paragraph."):second_idx]
+        between = result[first_idx + len("First paragraph.") : second_idx]
         assert "\n\n" in between, (
             f"Expected \\n\\n between paragraphs, got: {repr(between)}"
         )

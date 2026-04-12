@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..infra import rate_limiter
 from ..schemas import BatchPDFResponse, PDFResponse
@@ -109,10 +109,7 @@ async def parse_pdf_to_markdown(
             )
             if pipeline_result is not None:
                 enhanced_assets = None
-                if (
-                    pipeline_result.images_count > 0
-                    or pipeline_result.tables_count > 0
-                ):
+                if pipeline_result.images_count > 0 or pipeline_result.tables_count > 0:
                     enhanced_assets = {
                         "images_extracted": pipeline_result.images_count,
                         "tables_extracted": pipeline_result.tables_count,

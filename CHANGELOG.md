@@ -4,6 +4,17 @@ All notable changes to the Negentropy Perceives project will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### 🔧 修复
+
+- **Ruff 代码检查 (47 错)** — 清除全项目 ruff lint 错误至零：
+  - F401 未使用导入（34 处）— 自动移除 `src/` 和 `tests/` 中 34 个未使用导入
+  - F841 未使用变量（10 处）— 移除或加 `_` 前缀标记有意忽略的变量
+  - E741 歧义变量名（2 处）— `l` → `link` / `line`
+  - E402 导入位置（1 处）— `conftest.py` 中 `Path` 导入上移至文件顶部
+- **Ruff 格式化 (62 files)** — 统一全项目代码格式
+
 ## v0.3.0-fix.1 — CI 流水线修复
 
 > 修复 GitHub Actions CI 全线失败问题，恢复 7/7 Job 全绿。

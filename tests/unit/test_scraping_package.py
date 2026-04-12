@@ -1,7 +1,5 @@
 """scraping/ 子包结构与向后兼容性验证。"""
 
-import pytest
-
 
 class TestScrapingPackageExports:
     """验证 scraping/ 子包的 __init__.py 导出完整性。"""
@@ -48,5 +46,3 @@ class TestScrapingPackageExports:
         assert callable(playwright_session)
         assert callable(stealth_selenium_session)
         assert callable(stealth_playwright_session)
-
-

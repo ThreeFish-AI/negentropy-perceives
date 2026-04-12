@@ -116,9 +116,7 @@ class TestLLMClientCompletion:
         with patch.object(LLMClient, "is_available", return_value=False):
             client = LLMClient()
             with pytest.raises(RuntimeError, match="litellm 未安装"):
-                await client.acomplete(
-                    messages=[{"role": "user", "content": "test"}]
-                )
+                await client.acomplete(messages=[{"role": "user", "content": "test"}])
 
 
 # ============================================================
@@ -155,9 +153,7 @@ class TestLLMClientJSONParsing:
 
     def test_parse_nested_json(self) -> None:
         data = {
-            "engine_tasks": [
-                {"engine": "docling", "focus": "全文档", "priority": 8}
-            ],
+            "engine_tasks": [{"engine": "docling", "focus": "全文档", "priority": 8}],
             "synthesis_strategy": "merge",
         }
         response = LLMResponse(content=json.dumps(data))

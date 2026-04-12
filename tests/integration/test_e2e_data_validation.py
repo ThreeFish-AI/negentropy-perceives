@@ -105,20 +105,33 @@ class TestDataValidation:
             assert (
                 any(
                     symbol in markdown_content
-                    for symbol in ["\u2211", "\u2206", "\u220f", "\u222b", "\u221a", "\u221e"]
+                    for symbol in [
+                        "\u2211",
+                        "\u2206",
+                        "\u220f",
+                        "\u222b",
+                        "\u221a",
+                        "\u221e",
+                    ]
                 )
                 or "Mathematical:" in markdown_content
             )
 
             # Check for currency symbols
             assert (
-                any(symbol in markdown_content for symbol in ["$", "\u20ac", "\u00a3", "\u00a5"])
+                any(
+                    symbol in markdown_content
+                    for symbol in ["$", "\u20ac", "\u00a3", "\u00a5"]
+                )
                 or "Currency:" in markdown_content
             )
 
             # Check for emojis - these might be preserved differently by different markdown converters
             # We'll check for any of the world emojis or the containing text
-            assert any(emoji in markdown_content for emoji in ["\U0001f30d", "\U0001f30f", "\U0001f30e"]) or (
+            assert any(
+                emoji in markdown_content
+                for emoji in ["\U0001f30d", "\U0001f30f", "\U0001f30e"]
+            ) or (
                 "Hello, world!" in markdown_content
                 and ("中文" in markdown_content or "Español" in markdown_content)
             )
@@ -162,7 +175,10 @@ class TestDataValidation:
             return large_consistent_doc
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_consistent_pdf_process
             ),
@@ -231,7 +247,10 @@ class TestDataValidation:
             }
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(
                 pdf_processor,
                 "batch_process_pdfs",
@@ -290,7 +309,10 @@ class TestDataValidation:
             }
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(
                 pdf_processor, "process_pdf", side_effect=mock_concurrent_with_markers
             ),

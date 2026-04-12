@@ -137,7 +137,9 @@ class TestSeleniumSession:
         mock_wait_instance = Mock()
         mock_wait_cls.return_value = mock_wait_instance
 
-        with selenium_session("https://example.com", wait_for_element=".content") as driver:
+        with selenium_session(
+            "https://example.com", wait_for_element=".content"
+        ) as driver:
             assert driver is mock_driver
 
         mock_wait_cls.assert_called_once()
@@ -193,7 +195,9 @@ class TestPlaywrightSession:
         mock_instance, mock_pw, mock_browser, mock_page = self._setup_playwright_mocks()
 
         with patch("playwright.async_api.async_playwright", return_value=mock_instance):
-            async with playwright_session("https://example.com", wait_for_element="#app"):
+            async with playwright_session(
+                "https://example.com", wait_for_element="#app"
+            ):
                 pass
 
             mock_page.wait_for_selector.assert_called_once()
@@ -327,9 +331,7 @@ class TestStealthPlaywrightSession:
             self._setup_playwright_mocks()
         )
 
-        with patch(
-            "playwright.async_api.async_playwright", return_value=mock_instance
-        ):
+        with patch("playwright.async_api.async_playwright", return_value=mock_instance):
             async with stealth_playwright_session("https://example.com") as page:
                 assert page is mock_page
                 mock_page.goto.assert_called_once()
@@ -346,9 +348,7 @@ class TestStealthPlaywrightSession:
             self._setup_playwright_mocks()
         )
 
-        with patch(
-            "playwright.async_api.async_playwright", return_value=mock_instance
-        ):
+        with patch("playwright.async_api.async_playwright", return_value=mock_instance):
             async with stealth_playwright_session("https://example.com"):
                 pass
 
@@ -366,9 +366,7 @@ class TestStealthPlaywrightSession:
             self._setup_playwright_mocks()
         )
 
-        with patch(
-            "playwright.async_api.async_playwright", return_value=mock_instance
-        ):
+        with patch("playwright.async_api.async_playwright", return_value=mock_instance):
             async with stealth_playwright_session(
                 "https://example.com", wait_for_element="#app"
             ):
@@ -385,9 +383,7 @@ class TestStealthPlaywrightSession:
             self._setup_playwright_mocks()
         )
 
-        with patch(
-            "playwright.async_api.async_playwright", return_value=mock_instance
-        ):
+        with patch("playwright.async_api.async_playwright", return_value=mock_instance):
             with pytest.raises(RuntimeError):
                 async with stealth_playwright_session("https://example.com"):
                     raise RuntimeError("test")

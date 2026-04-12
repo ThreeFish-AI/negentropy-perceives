@@ -11,9 +11,7 @@ from .._progress import console
 try:
     import typer
 except ImportError:
-    raise ImportError(
-        "CLI dependencies not installed. Install with: uv add typer rich"
-    )
+    raise ImportError("CLI dependencies not installed. Install with: uv add typer rich")
 
 
 def run(
@@ -27,15 +25,27 @@ def run(
     internal_only: bool = typer.Option(
         False, "--internal-only", help="Only discover internal (same-domain) links"
     ),
-    format: str = typer.Option("json", "--format", "-f", help="Output: json|markdown|plain"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output file path"),
-    remote: Optional[str] = typer.Option(None, "--remote", help="MCP server URL (remote mode)"),
+    format: str = typer.Option(
+        "json", "--format", "-f", help="Output: json|markdown|plain"
+    ),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Output file path"
+    ),
+    remote: Optional[str] = typer.Option(
+        None, "--remote", help="MCP server URL (remote mode)"
+    ),
 ) -> None:
     """Discover and filter hyperlinks from a web page."""
-    asyncio.run(_run(url, filter_domains, exclude_domains, internal_only, format, output, remote))
+    asyncio.run(
+        _run(
+            url, filter_domains, exclude_domains, internal_only, format, output, remote
+        )
+    )
 
 
-async def _run(url, filter_domains, exclude_domains, internal_only, format, output, remote):
+async def _run(
+    url, filter_domains, exclude_domains, internal_only, format, output, remote
+):
     if remote:
         from ...sdk import NegentropyPerceivesClient
 
@@ -65,6 +75,7 @@ async def _run(url, filter_domains, exclude_domains, internal_only, format, outp
 def _write_output(content: str, output: Optional[str]) -> None:
     if output:
         from pathlib import Path
+
         Path(output).write_text(content, encoding="utf-8")
         console.print(f"[green]Output saved to {output}[/green]")
     else:

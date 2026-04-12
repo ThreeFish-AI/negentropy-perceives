@@ -72,7 +72,11 @@ class TestRunTestsScript:
         stale_file.write_text("stale")
 
         result = subprocess.run(
-            ["bash", "-c", f"cd {tmp_path} && source {self.script} 2>/dev/null; cleanup"],
+            [
+                "bash",
+                "-c",
+                f"cd {tmp_path} && source {self.script} 2>/dev/null; cleanup",
+            ],
             capture_output=True,
             text=True,
             env={**os.environ, "PATH": os.environ["PATH"]},

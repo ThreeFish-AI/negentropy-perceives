@@ -45,7 +45,9 @@ class TestPDFToolsIntegration:
         convert_tool = pdf_test_tools["parse_pdf_to_markdown"]
 
         # Mock the PDF processor via create_pdf_processor
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor:
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor"
+        ) as mock_get_processor:
             mock_get_processor.return_value = pdf_processor
             # Mock the PDF processor's process_pdf method
             with patch.object(pdf_processor, "process_pdf") as mock_process:
@@ -135,14 +137,20 @@ class TestPDFToolsIntegration:
             },
         }
 
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor:
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor"
+        ) as mock_get_processor:
             mock_get_processor.return_value = pdf_processor
             with patch.object(pdf_processor, "batch_process_pdfs") as mock_batch:
                 mock_batch.return_value = batch_result
 
                 # Execute batch tool
                 result = await batch_tool.fn(
-                    pdf_sources=["/test/doc1.pdf", "/test/doc2.pdf", "/test/missing.pdf"],
+                    pdf_sources=[
+                        "/test/doc1.pdf",
+                        "/test/doc2.pdf",
+                        "/test/missing.pdf",
+                    ],
                     **build_pdf_tool_kwargs(),
                 )
 
@@ -173,7 +181,10 @@ class TestPDFToolsIntegration:
         from negentropy.perceives.pdf.processor import PDFProcessor
 
         pdf_processor = PDFProcessor()
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor):
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor",
+            return_value=pdf_processor,
+        ):
             with patch.object(pdf_processor, "process_pdf") as mock_process:
                 mock_process.return_value = {
                     "success": False,
@@ -187,7 +198,10 @@ class TestPDFToolsIntegration:
                 assert result.success is False
 
         # Test empty PDF sources list for batch tool - should be validated by the tool
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor):
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor",
+            return_value=pdf_processor,
+        ):
             with patch.object(pdf_processor, "batch_process_pdfs") as mock_batch:
                 mock_batch.return_value = {
                     "success": False,
@@ -206,7 +220,10 @@ class TestPDFToolsIntegration:
 
         # Mock PDF processing with page range
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             range_result = {
@@ -240,7 +257,10 @@ class TestPDFToolsIntegration:
 
         # Test file not found error
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             mock_process.return_value = {
@@ -264,7 +284,10 @@ class TestPDFToolsIntegration:
 
         # Test URL download failure
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             mock_process.return_value = {
@@ -294,7 +317,10 @@ class TestPDFToolsIntegration:
 
         # Test text output format
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             text_result = {
@@ -319,7 +345,10 @@ class TestPDFToolsIntegration:
 
         # Test markdown output format (default)
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             markdown_result = {
@@ -364,7 +393,10 @@ class TestPDFToolsIntegration:
         convert_tool = pdf_test_tools["parse_pdf_to_markdown"]
 
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             mock_process.return_value = {
@@ -413,7 +445,9 @@ class TestPDFIntegrationWithRealProcessing:
 
         try:
             # Mock the PDF extraction methods to avoid needing real PDF libraries
-            with patch("negentropy.perceives.pdf.processor._import_fitz") as mock_import_fitz:
+            with patch(
+                "negentropy.perceives.pdf.processor._import_fitz"
+            ) as mock_import_fitz:
                 mock_fitz = MagicMock()
                 mock_import_fitz.return_value = mock_fitz
                 # Mock successful PyMuPDF processing
@@ -544,7 +578,10 @@ class TestPDFIntegrationWithRealProcessing:
 
         # Mock URL detection and download process
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             # Simulate successful URL download and processing
@@ -611,7 +648,10 @@ class TestPDFIntegrationWithRealProcessing:
 
         # Perform multiple PDF processing operations
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor),
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                return_value=pdf_processor,
+            ),
             patch.object(pdf_processor, "process_pdf") as mock_process,
         ):
             mock_process.return_value = {
@@ -659,7 +699,10 @@ class TestPDFIntegrationWithRealProcessing:
         from negentropy.perceives.pdf.processor import PDFProcessor
 
         pdf_processor = PDFProcessor()
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor):
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor",
+            return_value=pdf_processor,
+        ):
             with patch.object(pdf_processor, "process_pdf") as mock_process:
                 mock_process.return_value = {
                     "success": False,
@@ -681,7 +724,10 @@ class TestPDFIntegrationWithRealProcessing:
                 assert result.success is False
 
         # Test invalid page range format - validation happens at execution
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor):
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor",
+            return_value=pdf_processor,
+        ):
             with patch.object(pdf_processor, "process_pdf") as mock_process:
                 mock_process.return_value = {
                     "success": False,
@@ -703,7 +749,10 @@ class TestPDFIntegrationWithRealProcessing:
                 assert result.success is False
 
         # Test empty batch list - validation happens at execution
-        with patch("negentropy.perceives.ops.pdf._create_pdf_processor", return_value=pdf_processor):
+        with patch(
+            "negentropy.perceives.ops.pdf._create_pdf_processor",
+            return_value=pdf_processor,
+        ):
             with patch.object(pdf_processor, "batch_process_pdfs") as mock_batch:
                 mock_batch.return_value = {
                     "success": False,

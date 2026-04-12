@@ -35,9 +35,12 @@ class TestAppMain:
         monkeypatch.setattr(app_module.sys, "argv", ["negentropy-perceives"])
 
         mock_app = SimpleNamespace(run=fake_run)
-        with patch.dict("sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}):
+        with patch.dict(
+            "sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}
+        ):
             # 清除已缓存的 tools 导入（若有），确保延迟导入使用 mock
             import sys
+
             for mod_name in list(sys.modules):
                 if mod_name == "negentropy.perceives.tools":
                     sys.modules[mod_name] = SimpleNamespace(app=mock_app)
@@ -87,8 +90,11 @@ class TestAppMain:
         monkeypatch.setattr(app_module.sys, "argv", ["negentropy-perceives"])
 
         mock_app = SimpleNamespace(run=fake_run)
-        with patch.dict("sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}):
+        with patch.dict(
+            "sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}
+        ):
             import sys
+
             for mod_name in list(sys.modules):
                 if mod_name == "negentropy.perceives.tools":
                     sys.modules[mod_name] = SimpleNamespace(app=mock_app)

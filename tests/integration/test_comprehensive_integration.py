@@ -349,7 +349,9 @@ class TestMarkdownPipeline:
                 "content": {"html": edge_case["html"]},
             }
 
-            with patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper:
+            with patch(
+                "negentropy.perceives.tools.markdown.web_scraper"
+            ) as mock_scraper:
                 mock_scraper.scrape_url = AsyncMock(return_value=mock_result)
 
                 result = await convert_tool.fn(

@@ -84,7 +84,9 @@ class TestSeleniumStealth:
         self.scraper = AntiDetectionScraper()
 
     @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
-    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch(
+        "negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium"
+    )
     @patch("negentropy.perceives.scraping.anti_detection._scroll_page_selenium")
     @patch("negentropy.perceives.scraping.anti_detection._random_delay")
     @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
@@ -124,7 +126,9 @@ class TestSeleniumStealth:
         mock_scroll.assert_not_called()
 
     @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
-    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch(
+        "negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium"
+    )
     @patch("negentropy.perceives.scraping.anti_detection._scroll_page_selenium")
     @patch("negentropy.perceives.scraping.anti_detection._random_delay")
     @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
@@ -154,7 +158,9 @@ class TestSeleniumStealth:
         mock_scroll.assert_called_once_with(mock_driver)
 
     @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_selenium")
-    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium")
+    @patch(
+        "negentropy.perceives.scraping.anti_detection._simulate_human_behavior_selenium"
+    )
     @patch("negentropy.perceives.scraping.anti_detection._random_delay")
     @patch("negentropy.perceives.scraping.anti_detection.stealth_selenium_session")
     @pytest.mark.asyncio
@@ -236,7 +242,9 @@ class TestPlaywrightStealth:
         self.scraper = AntiDetectionScraper()
 
     @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_playwright")
-    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright")
+    @patch(
+        "negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright"
+    )
     @patch("negentropy.perceives.scraping.anti_detection._scroll_page_playwright")
     @patch("negentropy.perceives.scraping.anti_detection._random_delay")
     @patch("negentropy.perceives.scraping.anti_detection.stealth_playwright_session")
@@ -274,7 +282,9 @@ class TestPlaywrightStealth:
         mock_scroll.assert_not_called()
 
     @patch("negentropy.perceives.scraping.anti_detection.extract_page_data_playwright")
-    @patch("negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright")
+    @patch(
+        "negentropy.perceives.scraping.anti_detection._simulate_human_behavior_playwright"
+    )
     @patch("negentropy.perceives.scraping.anti_detection._random_delay")
     @patch("negentropy.perceives.scraping.anti_detection.stealth_playwright_session")
     @pytest.mark.asyncio
@@ -795,7 +805,7 @@ class TestFormHandlingErrorCases:
         handler = FormHandler(mock_driver)
 
         with patch("asyncio.sleep"):
-            result = await handler._submit_form_selenium()
+            _result = await handler._submit_form_selenium()
 
         # 应该尝试直接提交表单
         assert mock_driver.find_element.call_count > 1

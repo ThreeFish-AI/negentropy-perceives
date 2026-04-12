@@ -92,9 +92,9 @@ class WebAuditSkill(Skill):
             }
 
         # Step 2: 对内部链接执行页面检查
-        internal_urls = [
-            link.url for link in links_result.links if link.is_internal
-        ][:max_pages]
+        internal_urls = [link.url for link in links_result.links if link.is_internal][
+            :max_pages
+        ]
 
         page_health = []
         for page_url in internal_urls:
@@ -118,8 +118,8 @@ class WebAuditSkill(Skill):
             "internal_links_count": links_result.internal_links_count,
             "external_links_count": links_result.external_links_count,
             "link_inventory": [
-                {"url": l.url, "text": l.text, "is_internal": l.is_internal}
-                for l in links_result.links
+                {"url": link.url, "text": link.text, "is_internal": link.is_internal}
+                for link in links_result.links
             ],
             "pages_inspected": len(page_health),
             "page_health": page_health,

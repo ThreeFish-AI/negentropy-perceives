@@ -1,13 +1,9 @@
 """src/negentropy/perceives/pdf/math_formula.py 核心模块的单元测试。"""
 
-import pytest
-
 from negentropy.perceives.pdf.math_formula import (
-    UNICODE_TO_LATEX,
     DoclingFormulaEnricher,
     FormulaReconstructor,
     MathRegion,
-    MathSpan,
     detect_script_type,
     has_math_unicode,
     is_math_font,
@@ -159,37 +155,32 @@ class TestScriptDetection:
 
     def test_normal_text(self) -> None:
         result = detect_script_type(
-            span_size=12.0, span_origin_y=100.0,
-            baseline_y=100.0, normal_size=12.0
+            span_size=12.0, span_origin_y=100.0, baseline_y=100.0, normal_size=12.0
         )
         assert result == "normal"
 
     def test_superscript(self) -> None:
         result = detect_script_type(
-            span_size=8.0, span_origin_y=95.0,
-            baseline_y=100.0, normal_size=12.0
+            span_size=8.0, span_origin_y=95.0, baseline_y=100.0, normal_size=12.0
         )
         assert result == "superscript"
 
     def test_subscript(self) -> None:
         result = detect_script_type(
-            span_size=8.0, span_origin_y=105.0,
-            baseline_y=100.0, normal_size=12.0
+            span_size=8.0, span_origin_y=105.0, baseline_y=100.0, normal_size=12.0
         )
         assert result == "subscript"
 
     def test_small_text_defaults_to_superscript(self) -> None:
         """字号很小但 y 偏移不显著时默认为上标。"""
         result = detect_script_type(
-            span_size=6.0, span_origin_y=100.0,
-            baseline_y=100.0, normal_size=12.0
+            span_size=6.0, span_origin_y=100.0, baseline_y=100.0, normal_size=12.0
         )
         assert result == "superscript"
 
     def test_zero_normal_size(self) -> None:
         result = detect_script_type(
-            span_size=8.0, span_origin_y=95.0,
-            baseline_y=100.0, normal_size=0.0
+            span_size=8.0, span_origin_y=95.0, baseline_y=100.0, normal_size=0.0
         )
         assert result == "normal"
 
@@ -221,7 +212,12 @@ class TestFormulaReconstructor:
         line_dict = {
             "bbox": [0, 100, 500, 112],
             "spans": [
-                {"text": "x ∈ S", "font": "TimesNewRoman", "size": 12.0, "origin": (50, 100)},
+                {
+                    "text": "x ∈ S",
+                    "font": "TimesNewRoman",
+                    "size": 12.0,
+                    "origin": (50, 100),
+                },
             ],
         }
         result = self.reconstructor.reconstruct_line_formulas(line_dict)
@@ -232,12 +228,22 @@ class TestFormulaReconstructor:
         line_dict = {
             "bbox": [0, 100, 500, 112],
             "spans": [
-                {"text": "The ", "font": "TimesNewRoman", "size": 12.0, "origin": (10, 100)},
+                {
+                    "text": "The ",
+                    "font": "TimesNewRoman",
+                    "size": 12.0,
+                    "origin": (10, 100),
+                },
                 {"text": "E", "font": "CMMI10", "size": 12.0, "origin": (50, 100)},
                 # 字号为 8.5 (ratio=0.708, < 0.75 触发脚本检测)
                 # baseline 由多数 span 确定为 ~100，y 偏移 +5 > 2.0 → subscript
                 {"text": "rel", "font": "CMMI10", "size": 8.5, "origin": (60, 105)},
-                {"text": " set", "font": "TimesNewRoman", "size": 12.0, "origin": (80, 100)},
+                {
+                    "text": " set",
+                    "font": "TimesNewRoman",
+                    "size": 12.0,
+                    "origin": (80, 100),
+                },
             ],
         }
         result = self.reconstructor.reconstruct_line_formulas(line_dict)
@@ -251,13 +257,22 @@ class TestFormulaReconstructor:
         """居中且含数学内容的块应被识别为块级公式。"""
         block_dict = {
             "bbox": [150, 200, 450, 220],
-            "lines": [{
-                "spans": [
-                    {"text": "C = ⋃ Char(e)", "font": "CMMI10", "size": 12.0, "origin": (200, 210)},
-                ]
-            }],
+            "lines": [
+                {
+                    "spans": [
+                        {
+                            "text": "C = ⋃ Char(e)",
+                            "font": "CMMI10",
+                            "size": 12.0,
+                            "origin": (200, 210),
+                        },
+                    ]
+                }
+            ],
         }
-        is_block, eq_num = self.reconstructor.is_block_formula(block_dict, page_width=600)
+        is_block, eq_num = self.reconstructor.is_block_formula(
+            block_dict, page_width=600
+        )
         assert is_block is True
         assert eq_num is None
 
@@ -265,13 +280,22 @@ class TestFormulaReconstructor:
         """含等式编号的块应提取编号。"""
         block_dict = {
             "bbox": [100, 200, 500, 220],
-            "lines": [{
-                "spans": [
-                    {"text": "C = ⋃ Char(e) (2)", "font": "CMMI10", "size": 12.0, "origin": (200, 210)},
-                ]
-            }],
+            "lines": [
+                {
+                    "spans": [
+                        {
+                            "text": "C = ⋃ Char(e) (2)",
+                            "font": "CMMI10",
+                            "size": 12.0,
+                            "origin": (200, 210),
+                        },
+                    ]
+                }
+            ],
         }
-        is_block, eq_num = self.reconstructor.is_block_formula(block_dict, page_width=600)
+        is_block, eq_num = self.reconstructor.is_block_formula(
+            block_dict, page_width=600
+        )
         assert is_block is True
         assert eq_num == "2"
 
@@ -279,11 +303,18 @@ class TestFormulaReconstructor:
         """左对齐的文本块不应被识别为块级公式。"""
         block_dict = {
             "bbox": [20, 200, 200, 220],
-            "lines": [{
-                "spans": [
-                    {"text": "Some text ∈ here", "font": "CMMI10", "size": 12.0, "origin": (30, 210)},
-                ]
-            }],
+            "lines": [
+                {
+                    "spans": [
+                        {
+                            "text": "Some text ∈ here",
+                            "font": "CMMI10",
+                            "size": 12.0,
+                            "origin": (30, 210),
+                        },
+                    ]
+                }
+            ],
         }
         is_block, _ = self.reconstructor.is_block_formula(block_dict, page_width=600)
         assert is_block is False

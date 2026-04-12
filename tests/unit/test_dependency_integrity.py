@@ -72,9 +72,7 @@ class TestRemovedDependencies:
             ("scrapy", "scrapy 方法已降级为 http_scraper，不再需要 Scrapy 框架依赖"),
         ],
     )
-    def test_removed_package_not_imported(
-        self, module_name: str, reason: str
-    ) -> None:
+    def test_removed_package_not_imported(self, module_name: str, reason: str) -> None:
         """已移除的包不应在 src/negentropy/perceives/ 中被直接 import。"""
         for file_name, import_type, mod in _ALL_IMPORTS:
             top_module = mod.split(".")[0]
@@ -98,6 +96,5 @@ class TestDevDependencyClassification:
         for file_name, import_type, mod in _ALL_IMPORTS:
             top_module = mod.split(".")[0]
             assert top_module != module_name, (
-                f"{file_name} 中 {import_type} {mod}，"
-                f"但 {module_name} 已移至 dev 依赖"
+                f"{file_name} 中 {import_type} {mod}，但 {module_name} 已移至 dev 依赖"
             )

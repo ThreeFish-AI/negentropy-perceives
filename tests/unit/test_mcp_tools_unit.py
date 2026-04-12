@@ -106,7 +106,9 @@ class TestMCPToolsMarkdown:
         """测试单页面Markdown转换成功"""
         with (
             patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper,
-            patch("negentropy.perceives.tools.markdown.markdown_converter") as mock_converter,
+            patch(
+                "negentropy.perceives.tools.markdown.markdown_converter"
+            ) as mock_converter,
             patch("negentropy.perceives.ops.markdown.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
@@ -167,7 +169,9 @@ class TestMCPToolsMarkdown:
         """测试批量Markdown转换成功"""
         with (
             patch("negentropy.perceives.tools.markdown.web_scraper") as mock_scraper,
-            patch("negentropy.perceives.tools.markdown.markdown_converter") as mock_converter,
+            patch(
+                "negentropy.perceives.tools.markdown.markdown_converter"
+            ) as mock_converter,
         ):
             mock_scrape_results = [
                 {
@@ -232,7 +236,9 @@ class TestMCPToolsPDF:
     async def test_parse_pdf_to_markdown_success(self):
         """测试PDF转Markdown成功"""
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor,
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor"
+            ) as mock_get_processor,
             patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
@@ -289,7 +295,9 @@ class TestMCPToolsPDF:
     async def test_parse_pdfs_to_markdown_success(self):
         """测试批量PDF转换成功"""
         with (
-            patch("negentropy.perceives.ops.pdf._create_pdf_processor") as mock_get_processor,
+            patch(
+                "negentropy.perceives.ops.pdf._create_pdf_processor"
+            ) as mock_get_processor,
             patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):
             mock_limiter.wait = AsyncMock()
