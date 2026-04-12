@@ -12,11 +12,12 @@ import asyncio
 import logging
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
-from .base import StageResult, StageTool
+from .base import Stage, StageResult, StageTool
 from .registry import get_tool
 
 logger = logging.getLogger(__name__)
 
+TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
 
 
@@ -199,3 +200,56 @@ class StageScheduler:
             except ValueError:
                 logger.debug("工具 '%s' 未注册，跳过", name)
         return tools
+
+
+class CompetitiveStage(Stage[TInput, TOutput]):
+    """多工具并行竞争 Stage。
+
+    并行运行多个候选工具，通过选择器择优。
+    委托 ``StageScheduler._run_competition`` 执行实际竞争逻辑。
+    """
+
+    def __init__(
+        self,
+        stage_id: str,
+        stage_name: str,
+        candidates: List[StageTool],
+        selector: Optional[
+            Callable[[List[StageResult[TOutput]]], StageResult[TOutput]]
+        ] = None,
+        max_concurrent: int = 2,
+        timeout: float = 120.0,
+    ):
+        self._stage_id = stage_id
+        self._stage_name = stage_name
+        self._candidates = candidates
+        self._selector = selector
+        self._max_concurrent = max_concurrent
+        self._timeout = timeout
+        self._scheduler = StageScheduler()
+
+    @property
+    def stage_id(self) -> str:
+        return self._stage_id
+
+    @property
+    def stage_name(self) -> str:
+        return self._stage_name
+
+    async def execute(self, input_data: TInput) -> StageResult[TOutput]:
+        """并行执行候选工具并择优。"""
+        available = [c for c in self._candidates if c.is_available()]
+        if not available:
+            return StageResult(
+                success=False,
+                error=f"Stage '{self._stage_id}' 无可用候选工具",
+            )
+
+        return await self._scheduler._run_competition(
+            stage_name=self._stage_id,
+            tools=available,
+            input_data=input_data,
+            max_concurrent=self._max_concurrent,
+            timeout=self._timeout,
+            selector=self._selector,
+        )

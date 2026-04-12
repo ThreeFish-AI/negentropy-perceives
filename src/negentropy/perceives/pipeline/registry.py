@@ -67,15 +67,6 @@ def get_tool(name: str) -> StageTool:
     return _TOOL_REGISTRY[name]()
 
 
-def get_tool_class(name: str) -> Type[StageTool]:
-    """根据名称获取工具类（不实例化）。"""
-    if name not in _TOOL_REGISTRY:
-        raise ValueError(
-            f"未知工具: '{name}'. 可用工具: {sorted(_TOOL_REGISTRY.keys())}"
-        )
-    return _TOOL_REGISTRY[name]
-
-
 def list_available_tools() -> Dict[str, bool]:
     """列出所有已注册工具及其可用性。
 
@@ -90,8 +81,3 @@ def list_available_tools() -> Dict[str, bool]:
         except Exception:
             result[name] = False
     return result
-
-
-def list_registered_tools() -> list[str]:
-    """列出所有已注册工具名称。"""
-    return sorted(_TOOL_REGISTRY.keys())
