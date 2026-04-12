@@ -13,7 +13,7 @@ from typing import Dict, List
 
 from ...base import Stage, StageResult
 from ...models import (
-    ExtractedImageV2,
+    ExtractedImage,
     ImageExtractionOutput,
     PreprocessingOutput,
 )
@@ -62,7 +62,7 @@ class FitzImageExtractor(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(doc.page_count, input_data.page_range[1])
 
-            images: List[ExtractedImageV2] = []
+            images: List[ExtractedImage] = []
             img_idx = 0
 
             for page_idx in range(start_page, end_page):
@@ -81,7 +81,7 @@ class FitzImageExtractor(PDFToolBase):
                         )
 
                     images.append(
-                        ExtractedImageV2(
+                        ExtractedImage(
                             image_id=extracted_img.id,
                             filename=extracted_img.filename,
                             local_path=extracted_img.local_path,

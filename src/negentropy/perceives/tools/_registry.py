@@ -8,11 +8,11 @@ from fastmcp import FastMCP
 from ..config import settings
 from ..markdown.converter import MarkdownConverter
 from ..scraping import WebScraper
-from ._observability import elapsed_ms
 from ._support import (
     PDFMethod,
     PDFOutputFormat,
     ScrapeMethod,
+    elapsed_ms,
     normalize_extract_config as _normalize_extract_config,
     validate_page_range as _validate_page_range,
     validate_url as _validate_url,

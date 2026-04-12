@@ -16,7 +16,7 @@ from typing import Dict, List
 
 from ...base import Stage, StageResult
 from ...models import (
-    ExtractedFormulaV2,
+    ExtractedFormula,
     FormulaExtractionOutput,
     PreprocessingOutput,
 )
@@ -61,10 +61,10 @@ class MinerUFormulaExtractor(PDFToolBase):
             if result is None:
                 return StageResult(success=False, error="MinerU 转换返回空结果")
 
-            formulas: List[ExtractedFormulaV2] = []
+            formulas: List[ExtractedFormula] = []
             for idx, f in enumerate(result.formulas):
                 formulas.append(
-                    ExtractedFormulaV2(
+                    ExtractedFormula(
                         formula_id=f"formula_{idx}",
                         latex=f.latex,
                         formula_type=f.formula_type,
@@ -122,10 +122,10 @@ class DoclingFormulaExtractor(PDFToolBase):
             if result is None:
                 return StageResult(success=False, error="Docling 转换返回空结果")
 
-            formulas: List[ExtractedFormulaV2] = []
+            formulas: List[ExtractedFormula] = []
             for idx, f in enumerate(result.formulas):
                 formulas.append(
-                    ExtractedFormulaV2(
+                    ExtractedFormula(
                         formula_id=f"formula_{idx}",
                         latex=f.latex,
                         formula_type=f.formula_type,
@@ -190,7 +190,7 @@ class FitzHeuristicFormulaExtractor(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(doc.page_count, input_data.page_range[1])
 
-            formulas: List[ExtractedFormulaV2] = []
+            formulas: List[ExtractedFormula] = []
             formula_idx = 0
 
             for page_idx in range(start_page, end_page):
@@ -208,7 +208,7 @@ class FitzHeuristicFormulaExtractor(PDFToolBase):
                             region.bbox.get("y1", 0),
                         )
                     formulas.append(
-                        ExtractedFormulaV2(
+                        ExtractedFormula(
                             formula_id=f"formula_{formula_idx}",
                             latex=region.latex,
                             formula_type=region.formula_type,

@@ -16,6 +16,7 @@ from ._registry import (
     elapsed_ms,
     validate_page_range,
 )
+from ._support import try_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -133,49 +134,44 @@ async def convert_pdf_to_markdown(
 
         # ── Pipeline 路径（method="auto" 且 Pipeline 配置可用时） ──
         if method == "auto":
-            try:
-                from ..pipeline import run_pdf_pipeline
+            from ..pipeline import run_pdf_pipeline
 
-                pipeline_result = await run_pdf_pipeline(
-                    source=pdf_source,
-                    page_range=page_range_tuple,
-                    extract_images=extract_images,
-                    extract_tables=extract_tables,
-                    extract_formulas=extract_formulas,
-                    embed_images=embed_images,
-                    output_dir=output_dir,
+            pipeline_result = await try_pipeline(
+                run_pdf_pipeline,
+                success_check=lambda r: getattr(r, "success", False),
+                source=pdf_source,
+                page_range=page_range_tuple,
+                extract_images=extract_images,
+                extract_tables=extract_tables,
+                extract_formulas=extract_formulas,
+                embed_images=embed_images,
+                output_dir=output_dir,
+            )
+            if pipeline_result is not None:
+                enhanced_assets = None
+                if (
+                    pipeline_result.images_count > 0
+                    or pipeline_result.tables_count > 0
+                ):
+                    enhanced_assets = {
+                        "images_extracted": pipeline_result.images_count,
+                        "tables_extracted": pipeline_result.tables_count,
+                        "formulas_extracted": pipeline_result.formulas_count,
+                        "code_blocks_detected": pipeline_result.code_blocks_count,
+                        "engines_used": pipeline_result.engines_used,
+                    }
+                return PDFResponse(
+                    success=True,
+                    pdf_source=pdf_source,
+                    method="pipeline_auto",
+                    output_format=output_format,
+                    content=pipeline_result.markdown,
+                    metadata=pipeline_result.metadata,
+                    page_count=getattr(pipeline_result, "page_count", 0),
+                    word_count=pipeline_result.word_count,
+                    conversion_time=elapsed_ms(_start) / 1000.0,
+                    enhanced_assets=enhanced_assets,
                 )
-                if pipeline_result.success:
-                    enhanced_assets = None
-                    if (
-                        pipeline_result.images_count > 0
-                        or pipeline_result.tables_count > 0
-                    ):
-                        enhanced_assets = {
-                            "images_extracted": pipeline_result.images_count,
-                            "tables_extracted": pipeline_result.tables_count,
-                            "formulas_extracted": pipeline_result.formulas_count,
-                            "code_blocks_detected": pipeline_result.code_blocks_count,
-                            "engines_used": pipeline_result.engines_used,
-                        }
-                    return PDFResponse(
-                        success=True,
-                        pdf_source=pdf_source,
-                        method="pipeline_auto",
-                        output_format=output_format,
-                        content=pipeline_result.markdown,
-                        metadata=pipeline_result.metadata,
-                        page_count=getattr(pipeline_result, "page_count", 0),
-                        word_count=pipeline_result.word_count,
-                        conversion_time=elapsed_ms(_start) / 1000.0,
-                        enhanced_assets=enhanced_assets,
-                    )
-                # Pipeline 失败时降级到传统路径
-                logger.info(
-                    "Pipeline 路径失败，降级到传统路径: %s", pipeline_result.error
-                )
-            except Exception as pipeline_exc:
-                logger.info("Pipeline 路径异常，降级到传统路径: %s", pipeline_exc)
 
         # ── 传统路径（直接调用 PDFProcessor） ──
 

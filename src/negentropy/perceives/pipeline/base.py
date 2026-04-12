@@ -9,7 +9,6 @@
 
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, Generic, Optional, Protocol, TypeVar, runtime_checkable
@@ -50,13 +49,6 @@ class Stage(ABC, Generic[TInput, TOutput]):
     def is_available(self) -> bool:
         """检测此 Stage 的默认引擎是否可用。"""
         return True
-
-    async def _timed_execute(self, input_data: TInput) -> StageResult[TOutput]:
-        """带计时的执行包装。"""
-        start = time.monotonic()
-        result = await self.execute(input_data)
-        result.elapsed_ms = (time.monotonic() - start) * 1000
-        return result
 
 
 @runtime_checkable

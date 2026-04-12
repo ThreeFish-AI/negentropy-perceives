@@ -14,7 +14,7 @@ from typing import Dict, List
 
 from ...base import Stage, StageResult
 from ...models import (
-    ExtractedTableV2,
+    ExtractedTable,
     PreprocessingOutput,
     TableExtractionOutput,
 )
@@ -56,10 +56,10 @@ class DoclingTableExtractor(PDFToolBase):
             if result is None:
                 return StageResult(success=False, error="Docling 转换返回空结果")
 
-            tables: List[ExtractedTableV2] = []
+            tables: List[ExtractedTable] = []
             for idx, table in enumerate(result.tables):
                 tables.append(
-                    ExtractedTableV2(
+                    ExtractedTable(
                         table_id=f"tbl_{idx}",
                         markdown=table.markdown,
                         rows=table.rows,
@@ -122,7 +122,7 @@ class FitzTableExtractor(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(doc.page_count, input_data.page_range[1])
 
-            tables: List[ExtractedTableV2] = []
+            tables: List[ExtractedTable] = []
             table_idx = 0
 
             for page_idx in range(start_page, end_page):
@@ -131,7 +131,7 @@ class FitzTableExtractor(PDFToolBase):
                 page_tables = processor.extract_tables_with_geometry(page, page_idx)  # type: ignore[call-arg]
                 for extracted_table in page_tables:  # type: ignore[union-attr]
                     tables.append(
-                        ExtractedTableV2(
+                        ExtractedTable(
                             table_id=f"tbl_{table_idx}",
                             markdown=extracted_table.markdown,  # type: ignore[union-attr]
                             rows=extracted_table.rows,  # type: ignore[union-attr]
@@ -192,12 +192,12 @@ class CamelotTableExtractor(PDFToolBase):
 
             raw_tables = camelot.read_pdf(str(input_data.local_path), pages=pages)
 
-            tables: List[ExtractedTableV2] = []
+            tables: List[ExtractedTable] = []
             for idx, table in enumerate(raw_tables):
                 md = table.df.to_markdown(index=False)
                 rows, cols = table.df.shape
                 tables.append(
-                    ExtractedTableV2(
+                    ExtractedTable(
                         table_id=f"tbl_{idx}",
                         markdown=md,
                         rows=rows,
@@ -250,7 +250,7 @@ class PDFPlumberTableExtractor(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(len(pdf.pages), input_data.page_range[1])
 
-            tables: List[ExtractedTableV2] = []
+            tables: List[ExtractedTable] = []
             table_idx = 0
 
             for page_idx in range(start_page, end_page):
@@ -276,7 +276,7 @@ class PDFPlumberTableExtractor(PDFToolBase):
 
                     md = "\n".join(md_lines)
                     tables.append(
-                        ExtractedTableV2(
+                        ExtractedTable(
                             table_id=f"tbl_{table_idx}",
                             markdown=md,
                             rows=len(raw_table) - 1,
