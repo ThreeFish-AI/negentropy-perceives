@@ -566,8 +566,8 @@ class TestPDFProcessorDoclingIntegration:
         assert "docling" in proc.supported_methods
         proc.cleanup()
 
-    def test_build_result_from_docling(self) -> None:
-        """_build_result_from_docling 应生成标准输出格式。"""
+    def test_build_result_from_engine(self) -> None:
+        """_build_result_from_engine 应生成标准输出格式。"""
         from negentropy.perceives.pdf.processor import PDFProcessor
 
         proc = PDFProcessor(enable_enhanced_features=False, prefer_docling=False)
@@ -582,8 +582,9 @@ class TestPDFProcessorDoclingIntegration:
                 page_count=3,
             )
 
-            result = proc._build_result_from_docling(
+            result = proc._build_result_from_engine(
                 docling_result,
+                engine_name="docling",
                 pdf_source="/tmp/test.pdf",
                 include_metadata=True,
                 output_format="markdown",
@@ -623,8 +624,9 @@ class TestPDFProcessorDoclingIntegration:
                 ],
                 page_count=1,
             )
-            result = proc._build_result_from_docling(
+            result = proc._build_result_from_engine(
                 docling_result,
+                engine_name="docling",
                 pdf_source="/tmp/test.pdf",
                 include_metadata=True,
                 output_format="markdown",
@@ -658,8 +660,9 @@ class TestPDFProcessorDoclingIntegration:
                 ],
                 page_count=1,
             )
-            result = proc._build_result_from_docling(
+            result = proc._build_result_from_engine(
                 docling_result,
+                engine_name="docling",
                 pdf_source="/tmp/test.pdf",
                 include_metadata=True,
                 output_format="markdown",
@@ -681,8 +684,9 @@ class TestPDFProcessorDoclingIntegration:
                 markdown="Content",
                 page_count=1,
             )
-            result = proc._build_result_from_docling(
+            result = proc._build_result_from_engine(
                 docling_result,
+                engine_name="docling",
                 pdf_source="/tmp/test.pdf",
                 include_metadata=False,
                 output_format="text",

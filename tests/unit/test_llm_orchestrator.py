@@ -160,7 +160,7 @@ class TestQuickScan:
         mock_doc.__getitem__ = lambda self, idx: mock_page
 
         with patch(
-            "negentropy.perceives.pdf.llm_orchestrator._import_fitz"
+            "negentropy.perceives.pdf.llm.orchestrator._import_fitz"
         ) as mock_fitz:
             mock_fitz.return_value.open.return_value = mock_doc
             chars = orchestrator._quick_scan(Path("/fake/test.pdf"), None)
