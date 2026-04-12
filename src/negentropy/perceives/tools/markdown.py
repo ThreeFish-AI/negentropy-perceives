@@ -16,6 +16,7 @@ from ._registry import (
     validate_url,
     web_scraper,
 )
+from ._support import try_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -127,36 +128,30 @@ async def convert_webpage_to_markdown(
 
         # ── Pipeline 路径（method="auto" 且 Pipeline 配置可用时） ──
         if method == "auto":
-            try:
-                from ..pipeline import run_webpage_pipeline
+            from ..pipeline import run_webpage_pipeline
 
-                pipeline_result = await run_webpage_pipeline(
+            pipeline_result = await try_pipeline(
+                run_webpage_pipeline,
+                success_check=lambda r: isinstance(r, dict) and r.get("success"),
+                url=url,
+                method=method,
+                extract_main_content=extract_main_content,
+                include_metadata=include_metadata,
+                embed_images=embed_images,
+                custom_options=custom_options,
+                formatting_options=formatting_options,
+            )
+            if pipeline_result is not None:
+                return MarkdownResponse(
+                    success=True,
                     url=url,
-                    method=method,
-                    extract_main_content=extract_main_content,
-                    include_metadata=include_metadata,
-                    embed_images=embed_images,
-                    custom_options=custom_options,
-                    formatting_options=formatting_options,
+                    method="pipeline_auto",
+                    markdown_content=pipeline_result.get("markdown_content", ""),
+                    metadata=pipeline_result.get("metadata", {}),
+                    word_count=pipeline_result.get("word_count", 0),
+                    images_embedded=0,
+                    conversion_time=elapsed_ms(_start) / 1000.0,
                 )
-                if pipeline_result.get("success"):
-                    return MarkdownResponse(
-                        success=True,
-                        url=url,
-                        method="pipeline_auto",
-                        markdown_content=pipeline_result.get("markdown_content", ""),
-                        metadata=pipeline_result.get("metadata", {}),
-                        word_count=pipeline_result.get("word_count", 0),
-                        images_embedded=0,
-                        conversion_time=elapsed_ms(_start) / 1000.0,
-                    )
-                # Pipeline 失败时降级到传统路径
-                logger.info(
-                    "Pipeline 路径失败，降级到传统路径: %s",
-                    pipeline_result.get("error"),
-                )
-            except Exception as pipeline_exc:
-                logger.info("Pipeline 路径异常，降级到传统路径: %s", pipeline_exc)
 
         # ── 传统路径（直接调用 web_scraper + markdown_converter） ──
         scrape_result = await web_scraper.scrape_url(
