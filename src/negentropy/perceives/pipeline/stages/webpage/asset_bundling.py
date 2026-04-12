@@ -12,36 +12,35 @@ import logging
 from typing import Any, Dict
 from urllib.parse import urlparse
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("builtin_bundler")
-class BuiltinBundlerTool:
+class BuiltinBundlerTool(WebToolBase):
     """内置资源打包工具。
 
     聚合所有 Stage 产出，执行可选的图片嵌入，
     并构建最终元数据摘要。
     """
 
-    @property
-    def name(self) -> str:
-        return "builtin_bundler"
+    tool_name = "builtin_bundler"
 
     def is_available(self) -> bool:
         return True  # 纯内部实现，始终可用
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """打包并聚合最终结果。"""
         markdown = ctx.markdown
         if not markdown:
             return StageResult(
                 success=False,
                 error="无 Markdown 内容可打包",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         try:
@@ -61,7 +60,7 @@ class BuiltinBundlerTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata=metadata,
             )
         except Exception as e:
@@ -69,12 +68,12 @@ class BuiltinBundlerTool:
             return StageResult(
                 success=False,
                 error=f"资源打包失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
     async def _embed_images(self, ctx: StageContext) -> Dict[str, Any]:
         """执行图片 base64 嵌入。"""
-        from ...markdown.image_embedder import embed_images_in_markdown
+        from ....markdown.image_embedder import embed_images_in_markdown
 
         embed_options = ctx.config.get("embed_options", {})
 

@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 from typing import Dict, List
 
-from ..base import Stage, StageResult
-from ..models import DocumentCharacteristics, PreprocessingOutput
+from ...base import Stage, StageResult
+from ...models import DocumentCharacteristics, PreprocessingOutput
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -25,32 +25,29 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class PyMuPDFQuickScanner:
+class FitzQuickScanner(PDFToolBase):
     """基于 PyMuPDF 的文档特征快速扫描工具。
 
     复用 ``LLMOrchestrator._quick_scan()`` 的核心扫描逻辑。
     """
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[DocumentCharacteristics]:
         """对已预处理的 PDF 执行轻量级特征扫描。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             fitz = import_fitz()
 
@@ -152,12 +149,10 @@ class PyMuPDFQuickScanner:
                 content_types.append("图片")
             chars.estimated_content_types = content_types or ["纯文本"]
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=chars,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
                 metadata={
                     "scan_pages": scan_pages,
                     "total_chars": total_chars,
@@ -178,7 +173,7 @@ class PyMuPDFQuickScanner:
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
-    "pymupdf": PyMuPDFQuickScanner,
+    "pymupdf": FitzQuickScanner,
 }
 
 

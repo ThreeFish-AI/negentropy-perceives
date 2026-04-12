@@ -10,15 +10,15 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Dict, List
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     ExtractedTableV2,
     PreprocessingOutput,
     TableExtractionOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -28,28 +28,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class DoclingTableExtractor:
+class DoclingTableExtractor(PDFToolBase):
     """基于 Docling TableFormer 的表格提取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "docling"
+    tool_name = "docling"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TableExtractionOutput]:
         """使用 Docling 提取结构化表格。"""
-        start = time.monotonic()
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             engine = DoclingEngine(enable_table_structure=True)
             result = engine.convert(
@@ -79,12 +76,10 @@ class DoclingTableExtractor:
                 metadata={"engine": "docling"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="docling",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -92,33 +87,30 @@ class DoclingTableExtractor:
             return StageResult(success=False, error=f"Docling 表格提取失败: {e}")
 
 
-class PyMuPDFTableExtractor:
+class FitzTableExtractor(PDFToolBase):
     """基于 PyMuPDF 的启发式表格提取工具。
 
     委托给 ``EnhancedPDFProcessor.extract_tables_with_geometry()``。
     """
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TableExtractionOutput]:
         """使用 PyMuPDF 启发式提取表格。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
-            from ...pdf.enhanced import EnhancedPDFProcessor
+            from ....pdf._imports import import_fitz
+            from ....pdf.enhanced import EnhancedPDFProcessor
 
             fitz = import_fitz()
             processor = EnhancedPDFProcessor()
@@ -160,12 +152,10 @@ class PyMuPDFTableExtractor:
                 metadata={"engine": "pymupdf"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -173,12 +163,10 @@ class PyMuPDFTableExtractor:
             return StageResult(success=False, error=f"PyMuPDF 表格提取失败: {e}")
 
 
-class CamelotTableExtractor:
+class CamelotTableExtractor(PDFToolBase):
     """基于 Camelot 的表格提取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "camelot"
+    tool_name = "camelot"
 
     def is_available(self) -> bool:
         try:
@@ -188,11 +176,10 @@ class CamelotTableExtractor:
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TableExtractionOutput]:
         """使用 Camelot 提取表格。"""
-        start = time.monotonic()
         try:
             import camelot
 
@@ -225,12 +212,10 @@ class CamelotTableExtractor:
                 metadata={"engine": "camelot"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="camelot",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -238,12 +223,10 @@ class CamelotTableExtractor:
             return StageResult(success=False, error=f"Camelot 表格提取失败: {e}")
 
 
-class PDFPlumberTableExtractor:
+class PDFPlumberTableExtractor(PDFToolBase):
     """基于 pdfplumber 的表格提取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "pdfplumber"
+    tool_name = "pdfplumber"
 
     def is_available(self) -> bool:
         try:
@@ -253,11 +236,10 @@ class PDFPlumberTableExtractor:
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TableExtractionOutput]:
         """使用 pdfplumber 提取表格。"""
-        start = time.monotonic()
         try:
             import pdfplumber
 
@@ -313,12 +295,10 @@ class PDFPlumberTableExtractor:
                 metadata={"engine": "pdfplumber"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pdfplumber",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -334,7 +314,7 @@ _TOOLS: Dict[str, type] = {
     "docling": DoclingTableExtractor,
     "camelot": CamelotTableExtractor,
     "pdfplumber": PDFPlumberTableExtractor,
-    "pymupdf": PyMuPDFTableExtractor,
+    "pymupdf": FitzTableExtractor,
 }
 
 

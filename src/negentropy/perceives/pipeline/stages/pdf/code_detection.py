@@ -11,15 +11,15 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Dict, List
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     CodeDetectionOutput,
     ExtractedCodeBlock,
     PreprocessingOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -29,28 +29,25 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class DoclingCodeDetector:
+class DoclingCodeDetector(PDFToolBase):
     """基于 Docling 的代码块检测工具。"""
 
-    @property
-    def name(self) -> str:
-        return "docling"
+    tool_name = "docling"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[CodeDetectionOutput]:
         """使用 Docling 检测代码块。"""
-        start = time.monotonic()
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(
@@ -78,12 +75,10 @@ class DoclingCodeDetector:
                 metadata={"engine": "docling"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="docling",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -91,30 +86,27 @@ class DoclingCodeDetector:
             return StageResult(success=False, error=f"Docling 代码块检测失败: {e}")
 
 
-class MarkerCodeDetector:
+class MarkerCodeDetector(PDFToolBase):
     """基于 Marker 的代码块检测工具。"""
 
-    @property
-    def name(self) -> str:
-        return "marker"
+    tool_name = "marker"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.marker_engine import MarkerEngine
+            from ....pdf.marker_engine import MarkerEngine
 
             return MarkerEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[CodeDetectionOutput]:
         """使用 Marker 检测代码块。"""
-        start = time.monotonic()
         try:
             import asyncio
 
-            from ...pdf.marker_engine import MarkerEngine
+            from ....pdf.marker_engine import MarkerEngine
 
             engine = MarkerEngine()
             result = await asyncio.to_thread(engine.convert, str(input_data.local_path))
@@ -139,12 +131,10 @@ class MarkerCodeDetector:
                 metadata={"engine": "marker"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="marker",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -152,38 +142,35 @@ class MarkerCodeDetector:
             return StageResult(success=False, error=f"Marker 代码块检测失败: {e}")
 
 
-class AlgorithmDetectorTool:
+class AlgorithmCodeDetector(PDFToolBase):
     """基于启发式评分的算法/伪代码检测工具。
 
     委托给 ``markdown.algorithm_detector.detect_algorithm_regions()``，
     在已提取的文本中扫描算法伪代码区域。
     """
 
-    @property
-    def name(self) -> str:
-        return "algorithm_detector"
+    tool_name = "algorithm_detector"
 
     def is_available(self) -> bool:
         try:
-            from ...markdown.algorithm_detector import detect_algorithm_regions  # noqa: F401
+            from ....markdown.algorithm_detector import detect_algorithm_regions  # noqa: F401
 
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[CodeDetectionOutput]:
         """使用启发式评分检测算法/伪代码块。
 
         从 PDF 中提取全文，然后用 ``detect_algorithm_regions()`` 扫描。
         """
-        start = time.monotonic()
         try:
-            from ...markdown.algorithm_detector import (
+            from ....markdown.algorithm_detector import (
                 detect_algorithm_regions,
             )
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             fitz = import_fitz()
 
@@ -228,12 +215,10 @@ class AlgorithmDetectorTool:
                 },
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="algorithm_detector",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -248,7 +233,7 @@ class AlgorithmDetectorTool:
 _TOOLS: Dict[str, type] = {
     "docling": DoclingCodeDetector,
     "marker": MarkerCodeDetector,
-    "algorithm_detector": AlgorithmDetectorTool,
+    "algorithm_detector": AlgorithmCodeDetector,
 }
 
 

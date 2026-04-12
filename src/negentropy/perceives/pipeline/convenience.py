@@ -109,7 +109,7 @@ async def run_pdf_pipeline(
         )
 
     # 确保导入 PDF Stage 工具以触发注册
-    from . import pdf_stages as _  # noqa: F401
+    from .stages import pdf as _  # noqa: F401
 
     orchestrator = PipelineOrchestrator(
         stages_config=stages_config,
@@ -256,7 +256,7 @@ async def run_webpage_pipeline(
         }
 
     # 确保导入 WebPage Stage 工具以触发注册
-    from . import webpage_stages as _  # noqa: F401
+    from .stages import webpage as _  # noqa: F401
 
     orchestrator = PipelineOrchestrator(
         stages_config=stages_config,

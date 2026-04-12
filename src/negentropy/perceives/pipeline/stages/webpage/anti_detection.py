@@ -13,23 +13,22 @@ from __future__ import annotations
 import logging
 from typing import Dict
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("playwright_stealth")
-class PlaywrightStealthTool:
+class PlaywrightStealthTool(WebToolBase):
     """基于 Playwright 隐身注入的反检测工具。
 
     委托给 ``scraping.anti_detection.AntiDetectionScraper`` 的 Playwright 路径。
     """
 
-    @property
-    def name(self) -> str:
-        return "playwright_stealth"
+    tool_name = "playwright_stealth"
 
     def is_available(self) -> bool:
         try:
@@ -39,9 +38,9 @@ class PlaywrightStealthTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 Playwright 隐身模式获取网页 HTML。"""
-        from ...scraping.anti_detection import AntiDetectionScraper
+        from ....scraping.anti_detection import AntiDetectionScraper
 
         url = ctx.url
         wait_for = ctx.config.get("wait_for_element")
@@ -60,7 +59,7 @@ class PlaywrightStealthTool:
                 return StageResult(
                     success=False,
                     error=f"Playwright 隐身获取失败: {result['error']}",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             html = result.get("content", {}).get("html", "")
@@ -72,7 +71,7 @@ class PlaywrightStealthTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(ctx.raw_html)},
             )
         except Exception as e:
@@ -80,20 +79,18 @@ class PlaywrightStealthTool:
             return StageResult(
                 success=False,
                 error=f"Playwright 隐身获取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 
 @register_tool("undetected_chromedriver")
-class UndetectedChromeDriverTool:
+class UndetectedChromeDriverTool(WebToolBase):
     """基于 undetected-chromedriver 的反检测工具。
 
     委托给 ``scraping.anti_detection.AntiDetectionScraper`` 的 Selenium 路径。
     """
 
-    @property
-    def name(self) -> str:
-        return "undetected_chromedriver"
+    tool_name = "undetected_chromedriver"
 
     def is_available(self) -> bool:
         try:
@@ -103,9 +100,9 @@ class UndetectedChromeDriverTool:
         except ImportError:
             return False
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """使用 undetected-chromedriver 获取网页 HTML。"""
-        from ...scraping.anti_detection import AntiDetectionScraper
+        from ....scraping.anti_detection import AntiDetectionScraper
 
         url = ctx.url
         wait_for = ctx.config.get("wait_for_element")
@@ -124,7 +121,7 @@ class UndetectedChromeDriverTool:
                 return StageResult(
                     success=False,
                     error=f"undetected-chromedriver 获取失败: {result['error']}",
-                    engine_used=self.name,
+                    engine_used=self.tool_name,
                 )
 
             html = result.get("content", {}).get("html", "")
@@ -136,7 +133,7 @@ class UndetectedChromeDriverTool:
             return StageResult(
                 success=True,
                 output=ctx,
-                engine_used=self.name,
+                engine_used=self.tool_name,
                 metadata={"content_length": len(ctx.raw_html)},
             )
         except Exception as e:
@@ -144,7 +141,7 @@ class UndetectedChromeDriverTool:
             return StageResult(
                 success=False,
                 error=f"undetected-chromedriver 获取失败: {e}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
 

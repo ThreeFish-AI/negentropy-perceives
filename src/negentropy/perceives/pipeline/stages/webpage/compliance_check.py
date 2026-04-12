@@ -12,25 +12,24 @@ from typing import Any, Dict
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
-from ..base import StageResult
-from ..models import StageContext
-from ..registry import register_tool
+from ...base import StageResult
+from ...models import StageContext
+from ...registry import register_tool
+from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
 
 
 @register_tool("robotparser")
-class RobotParserTool:
+class RobotParserTool(WebToolBase):
     """基于 ``urllib.robotparser`` 的 robots.txt 合规检查工具。"""
 
-    @property
-    def name(self) -> str:
-        return "robotparser"
+    tool_name = "robotparser"
 
     def is_available(self) -> bool:
         return True  # 纯标准库实现，始终可用
 
-    async def execute(self, ctx: StageContext) -> StageResult[StageContext]:
+    async def _run(self, ctx: StageContext) -> StageResult[StageContext]:
         """执行合规检查。
 
         流程：
@@ -47,14 +46,14 @@ class RobotParserTool:
             return StageResult(
                 success=False,
                 error=f"URL 格式无效: {url}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         if parsed.scheme not in ("http", "https"):
             return StageResult(
                 success=False,
                 error=f"仅支持 http/https 协议，当前: {parsed.scheme}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         # ── Step 2: 构造 robots.txt URL ──────────────────────────────
@@ -118,13 +117,13 @@ class RobotParserTool:
                 success=False,
                 output=ctx,
                 error=f"robots.txt 禁止抓取: {url}",
-                engine_used=self.name,
+                engine_used=self.tool_name,
             )
 
         return StageResult(
             success=True,
             output=ctx,
-            engine_used=self.name,
+            engine_used=self.tool_name,
             metadata=robots_info,
         )
 

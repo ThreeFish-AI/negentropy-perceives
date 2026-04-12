@@ -9,15 +9,15 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Dict, List
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     ExtractedImageV2,
     ImageExtractionOutput,
     PreprocessingOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -27,33 +27,30 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class PyMuPDFImageExtractor:
+class FitzImageExtractor(PDFToolBase):
     """基于 PyMuPDF 的图片提取工具。
 
     委托给 ``EnhancedPDFProcessor.extract_images_from_pdf_page()``。
     """
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[ImageExtractionOutput]:
         """使用 PyMuPDF 提取图片。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
-            from ...pdf.enhanced import EnhancedPDFProcessor
+            from ....pdf._imports import import_fitz
+            from ....pdf.enhanced import EnhancedPDFProcessor
 
             fitz = import_fitz()
             processor = EnhancedPDFProcessor()
@@ -107,12 +104,10 @@ class PyMuPDFImageExtractor:
                 metadata={"engine": "pymupdf"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -125,7 +120,7 @@ class PyMuPDFImageExtractor:
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
-    "pymupdf": PyMuPDFImageExtractor,
+    "pymupdf": FitzImageExtractor,
 }
 
 

@@ -12,15 +12,15 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 from typing import Dict, List, Optional
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     PreprocessingOutput,
     TextBlock,
     TextExtractionOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -30,29 +30,26 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class PyMuPDFTextExtractor:
+class FitzTextExtractor(PDFToolBase):
     """基于 PyMuPDF 的文本提取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TextExtractionOutput]:
         """使用 PyMuPDF 提取文本块。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             fitz = import_fitz()
 
@@ -116,12 +113,10 @@ class PyMuPDFTextExtractor:
                 metadata={"engine": "pymupdf"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -129,28 +124,25 @@ class PyMuPDFTextExtractor:
             return StageResult(success=False, error=f"PyMuPDF 文本提取失败: {e}")
 
 
-class DoclingTextExtractor:
+class DoclingTextExtractor(PDFToolBase):
     """基于 Docling 的文本提取工具。"""
 
-    @property
-    def name(self) -> str:
-        return "docling"
+    tool_name = "docling"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TextExtractionOutput]:
         """使用 Docling 提取文本。"""
-        start = time.monotonic()
         try:
-            from ...pdf.docling_engine import DoclingEngine
+            from ....pdf.docling_engine import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(
@@ -205,12 +197,10 @@ class DoclingTextExtractor:
                 metadata={"engine": "docling"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="docling",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -218,29 +208,26 @@ class DoclingTextExtractor:
             return StageResult(success=False, error=f"Docling 文本提取失败: {e}")
 
 
-class PyPDFTextExtractor:
+class PyPDFTextExtractor(PDFToolBase):
     """基于 pypdf 的文本提取工具（降级方案）。"""
 
-    @property
-    def name(self) -> str:
-        return "pypdf"
+    tool_name = "pypdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_pypdf
+            from ....pdf._imports import import_pypdf
 
             import_pypdf()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TextExtractionOutput]:
         """使用 pypdf 提取文本。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_pypdf
+            from ....pdf._imports import import_pypdf
 
             pypdf = import_pypdf()
 
@@ -282,12 +269,10 @@ class PyPDFTextExtractor:
                 metadata={"engine": "pypdf"},
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pypdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except Exception as e:
@@ -300,7 +285,7 @@ class PyPDFTextExtractor:
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
-    "pymupdf": PyMuPDFTextExtractor,
+    "pymupdf": FitzTextExtractor,
     "docling": DoclingTextExtractor,
     "pypdf": PyPDFTextExtractor,
 }

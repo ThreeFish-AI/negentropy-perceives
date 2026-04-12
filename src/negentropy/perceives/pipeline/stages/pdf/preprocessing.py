@@ -12,16 +12,16 @@ from __future__ import annotations
 
 import logging
 import tempfile
-import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from ..base import Stage, StageResult
-from ..models import (
+from ...base import Stage, StageResult
+from ...models import (
     DocumentCharacteristics,
     PreprocessingInput,
     PreprocessingOutput,
 )
+from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
@@ -31,30 +31,27 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class PyMuPDFPreprocessor:
+class FitzPreprocessor(PDFToolBase):
     """基于 PyMuPDF 的预处理工具。"""
 
-    @property
-    def name(self) -> str:
-        return "pymupdf"
+    tool_name = "pymupdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_fitz
+            from ....pdf._imports import import_fitz
 
             import_fitz()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingInput
     ) -> StageResult[PreprocessingOutput]:
         """执行 PDF 预处理：源解析、元数据提取、页码规范化。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_fitz
-            from ...pdf._sources import download_pdf_to_temp, is_pdf_url
+            from ....pdf._imports import import_fitz
+            from ....pdf._sources import download_pdf_to_temp, is_pdf_url
 
             fitz = import_fitz()
 
@@ -123,12 +120,10 @@ class PyMuPDFPreprocessor:
                 page_range=page_range,
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pymupdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
                 metadata={"source": input_data.source},
             )
 
@@ -139,30 +134,27 @@ class PyMuPDFPreprocessor:
             return StageResult(success=False, error=f"预处理失败: {e}")
 
 
-class PyPDFPreprocessor:
+class PyPDFPreprocessor(PDFToolBase):
     """基于 pypdf 的预处理工具（降级方案）。"""
 
-    @property
-    def name(self) -> str:
-        return "pypdf"
+    tool_name = "pypdf"
 
     def is_available(self) -> bool:
         try:
-            from ...pdf._imports import import_pypdf
+            from ....pdf._imports import import_pypdf
 
             import_pypdf()
             return True
         except ImportError:
             return False
 
-    async def execute(
+    async def _run(
         self, input_data: PreprocessingInput
     ) -> StageResult[PreprocessingOutput]:
         """使用 pypdf 执行基础预处理。"""
-        start = time.monotonic()
         try:
-            from ...pdf._imports import import_pypdf
-            from ...pdf._sources import download_pdf_to_temp, is_pdf_url
+            from ....pdf._imports import import_pypdf
+            from ....pdf._sources import download_pdf_to_temp, is_pdf_url
 
             pypdf = import_pypdf()
 
@@ -222,12 +214,10 @@ class PyPDFPreprocessor:
                 page_range=page_range,
             )
 
-            elapsed = (time.monotonic() - start) * 1000
             return StageResult(
                 success=True,
                 output=output,
-                engine_used="pypdf",
-                elapsed_ms=elapsed,
+                engine_used=self.tool_name,
             )
 
         except ImportError as e:
@@ -242,7 +232,7 @@ class PyPDFPreprocessor:
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
-    "pymupdf": PyMuPDFPreprocessor,
+    "pymupdf": FitzPreprocessor,
     "pypdf": PyPDFPreprocessor,
 }
 
