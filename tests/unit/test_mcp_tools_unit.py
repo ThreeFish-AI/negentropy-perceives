@@ -237,7 +237,7 @@ class TestMCPToolsPDF:
         """测试PDF转Markdown成功"""
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor"
+                "negentropy.perceives.core.services.create_pdf_processor"
             ) as mock_get_processor,
             patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):
@@ -296,7 +296,7 @@ class TestMCPToolsPDF:
         """测试批量PDF转换成功"""
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor"
+                "negentropy.perceives.core.services.create_pdf_processor"
             ) as mock_get_processor,
             patch("negentropy.perceives.ops.pdf.rate_limiter") as mock_limiter,
         ):

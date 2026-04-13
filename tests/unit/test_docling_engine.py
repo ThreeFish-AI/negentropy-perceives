@@ -131,7 +131,7 @@ class TestDoclingEngineConfigKey:
     """验证配置签名生成。"""
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_default_config_key(self, _mock: object) -> None:
@@ -143,7 +143,7 @@ class TestDoclingEngineConfigKey:
         assert "dev=cpu" in key
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_custom_config_key(self, _mock: object) -> None:
@@ -158,7 +158,7 @@ class TestDoclingEngineConfigKey:
         assert "code=False" in key
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_different_configs_produce_different_keys(self, _mock: object) -> None:
@@ -167,7 +167,7 @@ class TestDoclingEngineConfigKey:
         assert e1._config_key() != e2._config_key()
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_config_key_includes_device(self, _mock: object) -> None:
@@ -178,7 +178,7 @@ class TestDoclingEngineConfigKey:
         assert "threads=" in key
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         side_effect=lambda d: d if d and d != "auto" else "cpu",
     )
     def test_different_devices_produce_different_cache_keys(
@@ -477,7 +477,7 @@ class TestDoclingEnginePageRange:
         return mock_converter
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_page_range_passed_to_converter(self, _mock_device: object) -> None:
@@ -493,7 +493,7 @@ class TestDoclingEnginePageRange:
         assert call_kwargs.kwargs["page_range"] == (81, 82)
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_no_page_range_omits_kwarg(self, _mock_device: object) -> None:
@@ -508,7 +508,7 @@ class TestDoclingEnginePageRange:
         assert "page_range" not in call_kwargs.kwargs
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_single_page_range(self, _mock_device: object) -> None:

@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 
 from negentropy.perceives.pdf.hardware import DeviceType
-from negentropy.perceives.pdf.device_config import (
+from negentropy.perceives.pdf.hardware.device_config import (
     DoclingDeviceConfig,
     _apply_cuda_optimizations,
     _apply_mps_constraints,
@@ -271,7 +271,7 @@ class TestCUDAOptimizations:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=True,
     )
     def test_cuda_enables_flash_attention(
@@ -286,7 +286,7 @@ class TestCUDAOptimizations:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=False,
     )
     def test_cuda_no_flash_attention_when_missing(
@@ -300,7 +300,7 @@ class TestCUDAOptimizations:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=False,
     )
     def test_cuda_preserves_all_features(self, _mock_fa: object, mock_hw: Mock) -> None:
@@ -318,7 +318,7 @@ class TestCUDAOptimizations:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=False,
     )
     def test_cuda_sets_optimized_batch_sizes(
@@ -362,7 +362,7 @@ class TestResolveDeviceConfig:
     """验证 resolve_device_config 核心入口。"""
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_cpu_no_adjustments(self, _mock: object) -> None:
@@ -375,7 +375,7 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="mps",
     )
     def test_mps_applies_constraints(self, _mock_dev: object, mock_hw: Mock) -> None:
@@ -390,11 +390,11 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cuda",
     )
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=True,
     )
     def test_cuda_applies_optimizations(
@@ -410,7 +410,7 @@ class TestResolveDeviceConfig:
         assert config.ocr_batch_size > 4  # GPU batch size 优化
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_explicit_cpu_preference(self, _mock: object) -> None:
@@ -421,7 +421,7 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="mps",
     )
     def test_custom_num_threads(self, _mock_dev: object, mock_hw: Mock) -> None:
@@ -432,7 +432,7 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="xpu",
     )
     def test_xpu_applies_defaults(self, _mock_dev: object, mock_hw: Mock) -> None:
@@ -446,7 +446,7 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="mps",
     )
     def test_user_override_batch_size(self, _mock_dev: object, mock_hw: Mock) -> None:
@@ -461,11 +461,11 @@ class TestResolveDeviceConfig:
 
     @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cuda",
     )
     @patch(
-        "negentropy.perceives.pdf.device_config._check_flash_attention_available",
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
         return_value=False,
     )
     def test_all_batch_size_overrides(
@@ -484,7 +484,7 @@ class TestResolveDeviceConfig:
         assert config.table_batch_size == 4
 
     @patch(
-        "negentropy.perceives.pdf.device_config.get_device_for_docling",
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="cpu",
     )
     def test_zero_override_keeps_auto(self, _mock: object) -> None:

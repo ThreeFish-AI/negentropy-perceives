@@ -51,7 +51,7 @@ class TestPerformance:
 
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(
@@ -100,7 +100,7 @@ class TestPerformance:
 
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(
@@ -178,7 +178,7 @@ class TestPerformance:
 
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(
