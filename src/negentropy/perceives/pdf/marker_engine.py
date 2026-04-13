@@ -6,6 +6,15 @@
 
 from __future__ import annotations
 
+import warnings
+
+warnings.warn(
+    "Importing from 'pdf.marker_engine' is deprecated, "
+    "use 'pdf.engines.marker' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from .engines.marker import (
     MarkerCodeBlock,
     MarkerConversionResult,

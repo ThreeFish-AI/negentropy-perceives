@@ -36,7 +36,7 @@ class DoclingCodeDetector(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
@@ -47,7 +47,7 @@ class DoclingCodeDetector(PDFToolBase):
     ) -> StageResult[CodeDetectionOutput]:
         """使用 Docling 检测代码块。"""
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(
@@ -93,7 +93,7 @@ class MarkerCodeDetector(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.marker_engine import MarkerEngine
+            from ....pdf.engines.marker import MarkerEngine
 
             return MarkerEngine.is_available()
         except ImportError:
@@ -106,7 +106,7 @@ class MarkerCodeDetector(PDFToolBase):
         try:
             import asyncio
 
-            from ....pdf.marker_engine import MarkerEngine
+            from ....pdf.engines.marker import MarkerEngine
 
             engine = MarkerEngine()
             result = await asyncio.to_thread(engine.convert, str(input_data.local_path))

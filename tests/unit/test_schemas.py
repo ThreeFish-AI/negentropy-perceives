@@ -1,6 +1,6 @@
 """响应模型 (schemas) 单元测试。"""
 
-from negentropy.perceives.schemas import (
+from negentropy.perceives.models import (
     LinkItem,
     LinksResponse,
     PageInfoResponse,

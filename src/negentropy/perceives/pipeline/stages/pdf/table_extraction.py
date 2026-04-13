@@ -35,7 +35,7 @@ class DoclingTableExtractor(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
@@ -46,7 +46,7 @@ class DoclingTableExtractor(PDFToolBase):
     ) -> StageResult[TableExtractionOutput]:
         """使用 Docling 提取结构化表格。"""
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             engine = DoclingEngine(enable_table_structure=True)
             result = engine.convert(

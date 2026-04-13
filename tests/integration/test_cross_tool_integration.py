@@ -78,7 +78,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -200,7 +200,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_multiple_urls") as mock_batch_scrape,
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
@@ -260,7 +260,7 @@ class TestCrossToolIntegration:
         # Mock a failed PDF processing
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -323,7 +323,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -391,7 +391,7 @@ class TestCrossToolIntegration:
         with (
             patch.object(web_scraper, "scrape_url") as mock_scrape,
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,
@@ -516,7 +516,7 @@ class TestRealWorldIntegrationScenarios:
 
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,
@@ -664,7 +664,7 @@ class TestRealWorldIntegrationScenarios:
 
         with (
             patch(
-                "negentropy.perceives.ops.pdf._create_pdf_processor",
+                "negentropy.perceives.core.services.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "process_pdf") as mock_pdf,

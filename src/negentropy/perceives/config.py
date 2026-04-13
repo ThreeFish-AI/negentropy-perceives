@@ -25,7 +25,10 @@ from pydantic_settings import (
 )
 
 from . import __version__
-from ._pipeline_config import PipelineConfig
+
+# 通过向后兼容层导入 PipelineConfig，避免循环引用：
+# config → core.pipeline_config → core.__init__ → core.services → scraping → config.settings
+from ._pipeline_config import PipelineConfig  # noqa: F401 — re-exports from core.pipeline_config
 
 logger = logging.getLogger(__name__)
 

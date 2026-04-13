@@ -4,9 +4,9 @@ from typing import Annotated, List, Optional
 
 from pydantic import Field
 
-from ..ops.extraction import discover_links as _discover_links
-from ..ops.extraction import inspect_page as _inspect_page
-from ..schemas import LinksResponse, PageInfoResponse
+from ..ops.discovery import discover_links as _discover_links
+from ..ops.discovery import inspect_page as _inspect_page
+from ..models import LinksResponse, PageInfoResponse
 from ._registry import app, web_scraper
 
 

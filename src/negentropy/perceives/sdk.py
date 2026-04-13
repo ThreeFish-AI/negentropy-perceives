@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .schemas import (
+from .models import (
     BatchMarkdownResponse,
     BatchPDFResponse,
     LinksResponse,
@@ -179,8 +179,8 @@ class NegentropyPerceivesClient:
     ) -> LinksResponse:
         """Discover and filter hyperlinks from a web page."""
         if self._mode == "direct":
-            from .ops.extraction import discover_links as _op
-            from .tools._registry import web_scraper
+            from .core.services import web_scraper
+            from .ops.discovery import discover_links as _op
 
             return await _op(
                 url=url,
@@ -206,8 +206,8 @@ class NegentropyPerceivesClient:
     ) -> PageInfoResponse:
         """Inspect a web page for metadata and accessibility status."""
         if self._mode == "direct":
-            from .ops.extraction import inspect_page as _op
-            from .tools._registry import web_scraper
+            from .core.services import web_scraper
+            from .ops.discovery import inspect_page as _op
 
             return await _op(url=url, web_scraper=web_scraper)
         return await self.call_tool("inspect_page", {"url": url})
@@ -227,8 +227,8 @@ class NegentropyPerceivesClient:
     ) -> MarkdownResponse:
         """Parse a web page into structured Markdown."""
         if self._mode == "direct":
+            from .core.services import markdown_converter, web_scraper
             from .ops.markdown import parse_webpage_to_markdown as _op
-            from .tools._registry import markdown_converter, web_scraper
 
             return await _op(
                 url=url,
@@ -271,8 +271,8 @@ class NegentropyPerceivesClient:
     ) -> BatchMarkdownResponse:
         """Parse multiple web pages into Markdown format concurrently."""
         if self._mode == "direct":
+            from .core.services import markdown_converter, web_scraper
             from .ops.markdown import parse_webpages_to_markdown as _op
-            from .tools._registry import markdown_converter, web_scraper
 
             return await _op(
                 urls=urls,

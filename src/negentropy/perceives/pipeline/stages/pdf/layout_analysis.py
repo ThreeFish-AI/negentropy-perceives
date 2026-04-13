@@ -34,7 +34,7 @@ class DoclingLayoutAnalyzer(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
@@ -45,7 +45,7 @@ class DoclingLayoutAnalyzer(PDFToolBase):
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 Docling 执行版面分析。"""
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(
@@ -141,7 +141,7 @@ class MinerULayoutAnalyzer(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.mineru_engine import MinerUEngine
+            from ....pdf.engines.mineru import MinerUEngine
 
             return MinerUEngine.is_available()
         except ImportError:
@@ -154,7 +154,7 @@ class MinerULayoutAnalyzer(PDFToolBase):
         try:
             import asyncio
 
-            from ....pdf.mineru_engine import MinerUEngine
+            from ....pdf.engines.mineru import MinerUEngine
 
             engine = MinerUEngine()
             result = await asyncio.to_thread(
@@ -225,7 +225,7 @@ class MarkerLayoutAnalyzer(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.marker_engine import MarkerEngine
+            from ....pdf.engines.marker import MarkerEngine
 
             return MarkerEngine.is_available()
         except ImportError:
@@ -238,7 +238,7 @@ class MarkerLayoutAnalyzer(PDFToolBase):
         try:
             import asyncio
 
-            from ....pdf.marker_engine import MarkerEngine
+            from ....pdf.engines.marker import MarkerEngine
 
             engine = MarkerEngine()
             result = await asyncio.to_thread(engine.convert, str(input_data.local_path))

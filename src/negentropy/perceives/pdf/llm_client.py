@@ -6,6 +6,15 @@
 
 from __future__ import annotations
 
+import warnings
+
+warnings.warn(
+    "Importing from 'pdf.llm_client' is deprecated, "
+    "use 'pdf.llm.client' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from .llm.client import LLMClient, LLMResponse
 
 __all__ = [

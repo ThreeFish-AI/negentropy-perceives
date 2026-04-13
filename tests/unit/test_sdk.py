@@ -175,7 +175,7 @@ class TestSDKDirectMode:
     async def test_discover_links_direct(self):
         """Direct 模式下 discover_links 应调用 ops 层。"""
         with patch(
-            "negentropy.perceives.ops.extraction.discover_links",
+            "negentropy.perceives.ops.discovery.discover_links",
             new_callable=AsyncMock,
             return_value={"success": True, "links": []},
         ) as mock_op:

@@ -4,37 +4,13 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from ..core.pipeline_support import try_pipeline
+from ..core.services import create_pdf_processor
+from ..core.types import PDFMethod, PDFOutputFormat, elapsed_ms, validate_page_range
 from ..infra import rate_limiter
-from ..schemas import BatchPDFResponse, PDFResponse
-from ..tools._support import PDFMethod, PDFOutputFormat, elapsed_ms, try_pipeline
+from ..models import BatchPDFResponse, PDFResponse
 
 logger = logging.getLogger(__name__)
-
-
-def _create_pdf_processor(
-    enable_enhanced_features: bool = True, output_dir: Optional[str] = None
-):
-    """获取 PDF 处理器实例，延迟导入以避免启动警告。"""
-    from ..pdf import PDFProcessor
-
-    return PDFProcessor(
-        enable_enhanced_features=enable_enhanced_features, output_dir=output_dir
-    )
-
-
-def _validate_page_range(
-    page_range: Optional[List[int]],
-) -> tuple[Optional[tuple], Optional[str]]:
-    """校验并转换 page_range。"""
-    if not page_range:
-        return None, None
-    if len(page_range) != 2:
-        return None, "Page range must contain exactly 2 elements: [start, end]"
-    if page_range[0] < 0 or page_range[1] < 0:
-        return None, "Page numbers must be non-negative"
-    if page_range[0] >= page_range[1]:
-        return None, "Start page must be less than end page"
-    return tuple(page_range), None
 
 
 async def parse_pdf_to_markdown(
@@ -71,7 +47,7 @@ async def parse_pdf_to_markdown(
     """
     _start = time.time()
     try:
-        page_range_tuple, page_range_error = _validate_page_range(page_range)
+        page_range_tuple, page_range_error = validate_page_range(page_range)
         if page_range_error:
             return PDFResponse(
                 success=False,
@@ -133,7 +109,7 @@ async def parse_pdf_to_markdown(
         # 传统路径（直接调用 PDFProcessor）
         enable_enhanced = extract_images or extract_tables or extract_formulas
 
-        pdf_processor = _create_pdf_processor(
+        pdf_processor = create_pdf_processor(
             enable_enhanced_features=enable_enhanced, output_dir=output_dir
         )
         result = await pdf_processor.process_pdf(
@@ -228,7 +204,7 @@ async def parse_pdfs_to_markdown(
                 total_conversion_time=0,
             )
 
-        page_range_tuple, page_range_error = _validate_page_range(page_range)
+        page_range_tuple, page_range_error = validate_page_range(page_range)
         if page_range_error:
             return BatchPDFResponse(
                 success=False,
@@ -247,7 +223,7 @@ async def parse_pdfs_to_markdown(
             method,
         )
 
-        pdf_processor = _create_pdf_processor()
+        pdf_processor = create_pdf_processor()
         result = await pdf_processor.batch_process_pdfs(
             pdf_sources=pdf_sources,
             method=method,

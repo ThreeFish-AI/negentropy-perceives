@@ -57,7 +57,7 @@ async def _run(
                 internal_only=internal_only,
             )
     else:
-        from ...ops.extraction import discover_links
+        from ...ops.discovery import discover_links
         from ...tools._registry import web_scraper
 
         result = await discover_links(

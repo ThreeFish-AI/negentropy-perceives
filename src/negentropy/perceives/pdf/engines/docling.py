@@ -166,7 +166,7 @@ class DoclingEngine:
         后续调用返回缓存结果。
         """
         if self._device_config is None:
-            from ..device_config import resolve_device_config
+            from ..hardware.device_config import resolve_device_config
 
             self._device_config = resolve_device_config(
                 device_preference=self._device,
