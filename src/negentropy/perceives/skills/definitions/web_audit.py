@@ -79,8 +79,8 @@ class WebAuditSkill(Skill):
         if not url:
             return {"success": False, "error": "Missing required parameter: url"}
 
-        from ...ops.extraction import discover_links, inspect_page
-        from ...tools._registry import web_scraper
+        from ...core.services import web_scraper
+        from ...ops.discovery import discover_links, inspect_page
 
         # Step 1: 发现所有链接
         links_result = await discover_links(url=url, web_scraper=web_scraper)

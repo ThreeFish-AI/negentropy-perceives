@@ -23,7 +23,7 @@ from .math_formula import (  # noqa: F401
     protect_math_content,
 )
 from .processor import PDFProcessor  # noqa: F401
-from .docling_engine import (  # noqa: F401
+from .engines.docling import (  # noqa: F401
     DoclingEngine,
     DoclingConversionResult,
     DoclingTable,
@@ -31,14 +31,14 @@ from .docling_engine import (  # noqa: F401
     DoclingFormula,
     DoclingCodeBlock,
 )
-from .mineru_engine import (  # noqa: F401
+from .engines.mineru import (  # noqa: F401
     MinerUEngine,
     MinerUConversionResult,
     MinerUTable,
     MinerUImage,
     MinerUFormula,
 )
-from .marker_engine import (  # noqa: F401
+from .engines.marker import (  # noqa: F401
     MarkerEngine,
     MarkerConversionResult,
     MarkerTable,
@@ -46,8 +46,8 @@ from .marker_engine import (  # noqa: F401
     MarkerFormula,
     MarkerCodeBlock,
 )
-from .llm_client import LLMClient, LLMResponse  # noqa: F401
-from .llm_orchestrator import (  # noqa: F401
+from .llm.client import LLMClient, LLMResponse  # noqa: F401
+from .llm.orchestrator import (  # noqa: F401
     LLMOrchestrator,
     OrchestrationResult,
     OrchestrationPlan,

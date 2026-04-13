@@ -131,7 +131,7 @@ class DoclingTextExtractor(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
@@ -142,7 +142,7 @@ class DoclingTextExtractor(PDFToolBase):
     ) -> StageResult[TextExtractionOutput]:
         """使用 Docling 提取文本。"""
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             engine = DoclingEngine()
             result = engine.convert(

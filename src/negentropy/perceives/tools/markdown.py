@@ -6,7 +6,7 @@ from pydantic import Field
 
 from ..ops.markdown import parse_webpage_to_markdown as _parse_webpage
 from ..ops.markdown import parse_webpages_to_markdown as _parse_webpages
-from ..schemas import BatchMarkdownResponse, MarkdownResponse
+from ..models import BatchMarkdownResponse, MarkdownResponse
 from ._registry import ScrapeMethod, app, markdown_converter, web_scraper
 
 

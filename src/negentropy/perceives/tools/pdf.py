@@ -6,7 +6,7 @@ from pydantic import Field
 
 from ..ops.pdf import parse_pdf_to_markdown as _parse_pdf
 from ..ops.pdf import parse_pdfs_to_markdown as _parse_pdfs
-from ..schemas import BatchPDFResponse, PDFResponse
+from ..models import BatchPDFResponse, PDFResponse
 from ._registry import PDFMethod, PDFOutputFormat, app
 
 

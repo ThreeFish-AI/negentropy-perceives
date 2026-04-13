@@ -37,7 +37,7 @@ class MinerUFormulaExtractor(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.mineru_engine import MinerUEngine
+            from ....pdf.engines.mineru import MinerUEngine
 
             return MinerUEngine.is_available()
         except ImportError:
@@ -50,7 +50,7 @@ class MinerUFormulaExtractor(PDFToolBase):
         try:
             import asyncio
 
-            from ....pdf.mineru_engine import MinerUEngine
+            from ....pdf.engines.mineru import MinerUEngine
 
             engine = MinerUEngine()
             result = await asyncio.to_thread(
@@ -101,7 +101,7 @@ class DoclingFormulaExtractor(PDFToolBase):
 
     def is_available(self) -> bool:
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             return DoclingEngine.is_available()
         except ImportError:
@@ -112,7 +112,7 @@ class DoclingFormulaExtractor(PDFToolBase):
     ) -> StageResult[FormulaExtractionOutput]:
         """使用 Docling 提取公式。"""
         try:
-            from ....pdf.docling_engine import DoclingEngine
+            from ....pdf.engines.docling import DoclingEngine
 
             engine = DoclingEngine(enable_formula_enrichment=True)
             result = engine.convert(

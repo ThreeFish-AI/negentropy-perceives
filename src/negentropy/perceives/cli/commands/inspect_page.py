@@ -37,7 +37,7 @@ async def _run(url, format, output, remote):
         async with NegentropyPerceivesClient(base_url=remote) as client:
             result = await client.inspect_page(url=url)
     else:
-        from ...ops.extraction import inspect_page
+        from ...ops.discovery import inspect_page
         from ...tools._registry import web_scraper
 
         result = await inspect_page(url=url, web_scraper=web_scraper)

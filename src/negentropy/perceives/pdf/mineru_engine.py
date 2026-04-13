@@ -6,6 +6,15 @@
 
 from __future__ import annotations
 
+import warnings
+
+warnings.warn(
+    "Importing from 'pdf.mineru_engine' is deprecated, "
+    "use 'pdf.engines.mineru' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from .engines.mineru import (
     MinerUConversionResult,
     MinerUEngine,

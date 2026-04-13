@@ -27,9 +27,9 @@ from .math_formula import (
     FormulaReconstructor,
     MathRegion,
 )
-from .docling_engine import DoclingEngine
-from .mineru_engine import MinerUEngine
-from .marker_engine import MarkerEngine
+from .engines.docling import DoclingEngine
+from .engines.mineru import MinerUEngine
+from .engines.marker import MarkerEngine
 
 logger = logging.getLogger(__name__)
 
@@ -321,8 +321,8 @@ class PDFProcessor:
             # ── LLM 编排路径（smart 模式） ──
             if method == "smart":
                 try:
-                    from .llm_client import LLMClient
-                    from .llm_orchestrator import LLMOrchestrator
+                    from .llm.client import LLMClient
+                    from .llm.orchestrator import LLMOrchestrator
 
                     if not LLMClient.is_available():
                         logger.warning("LiteLLM 未安装，降级至 auto 模式")

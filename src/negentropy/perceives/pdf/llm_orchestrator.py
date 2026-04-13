@@ -6,6 +6,15 @@
 
 from __future__ import annotations
 
+import warnings
+
+warnings.warn(
+    "Importing from 'pdf.llm_orchestrator' is deprecated, "
+    "use 'pdf.llm.orchestrator' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from .llm.orchestrator import (
     EngineResult,
     EngineTask,

@@ -6,6 +6,15 @@
 
 from __future__ import annotations
 
+import warnings
+
+warnings.warn(
+    "Importing from 'pdf.docling_engine' is deprecated, "
+    "use 'pdf.engines.docling' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 from .engines.docling import (
     DoclingCodeBlock,
     DoclingConversionResult,

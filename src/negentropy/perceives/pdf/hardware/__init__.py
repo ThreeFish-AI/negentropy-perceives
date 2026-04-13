@@ -1,8 +1,4 @@
-"""硬件检测与设备配置子路径。
-
-将原 ``hardware.py`` 迁入为 ``detection.py``，
-提供统一导出以保持向后兼容。
-"""
+"""硬件检测与设备配置子路径。"""
 
 from __future__ import annotations
 
@@ -14,6 +10,10 @@ from .detection import (
     get_device_for_docling,
     get_hardware_info,
 )
+from .device_config import (  # noqa: F401
+    DoclingDeviceConfig,
+    resolve_device_config,
+)
 
 __all__ = [
     "DeviceType",
@@ -22,4 +22,6 @@ __all__ = [
     "get_cached_hardware_info",
     "get_device_for_docling",
     "get_hardware_info",
+    "DoclingDeviceConfig",
+    "resolve_device_config",
 ]

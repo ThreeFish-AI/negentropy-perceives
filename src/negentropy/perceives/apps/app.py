@@ -14,7 +14,7 @@ from ..config import (
     reload_settings,
     settings,
 )
-from .._logging import build_uvicorn_log_config, setup_logging
+from ..core.logging import build_uvicorn_log_config, setup_logging
 
 logger = logging.getLogger(__name__)
 

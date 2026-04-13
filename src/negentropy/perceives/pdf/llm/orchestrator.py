@@ -457,13 +457,13 @@ class LLMOrchestrator:
                     logger.info("LLM 计划中包含 docling 但不可用,跳过")
                     continue
                 if engine == "mineru":
-                    from ..mineru_engine import MinerUEngine
+                    from ..engines.mineru import MinerUEngine
 
                     if not MinerUEngine.is_available():
                         logger.info("LLM 计划中包含 mineru 但不可用,跳过")
                         continue
                 if engine == "marker":
-                    from ..marker_engine import MarkerEngine
+                    from ..engines.marker import MarkerEngine
 
                     if not MarkerEngine.is_available():
                         logger.info("LLM 计划中包含 marker 但不可用,跳过")
@@ -674,7 +674,7 @@ class LLMOrchestrator:
     ) -> EngineResult:
         """执行 MinerU 引擎。"""
         try:
-            from ..mineru_engine import MinerUEngine
+            from ..engines.mineru import MinerUEngine
 
             if not MinerUEngine.is_available():
                 return EngineResult(
@@ -751,7 +751,7 @@ class LLMOrchestrator:
     ) -> EngineResult:
         """执行 Marker 引擎。"""
         try:
-            from ..marker_engine import MarkerEngine
+            from ..engines.marker import MarkerEngine
 
             if not MarkerEngine.is_available():
                 return EngineResult(

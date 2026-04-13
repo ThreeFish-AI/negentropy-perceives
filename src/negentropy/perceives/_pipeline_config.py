@@ -1,67 +1,38 @@
-"""Pipeline 编排配置模型。
+"""Pipeline 配置模型 — 向后兼容层。
 
-定义 YAML Pipeline 配置的 Pydantic 数据结构，
-供 ``config.py`` 的 ``NegentropyPerceivesSettings.pipeline`` 字段使用。
+原始实现已迁至 ``core/pipeline_config.py``，
+本文件保留重导出以保持向后兼容。
+
+注意：由于 ``core/__init__.py`` 存在对 ``config.settings`` 的传递依赖，
+此处通过在加载前将模块预注册到 ``sys.modules`` 来绕过循环引用。
 """
 
-from __future__ import annotations
+import importlib.util
+import sys
+import warnings
+from pathlib import Path
 
-from typing import List, Optional
+warnings.warn(
+    "Importing from '_pipeline_config' is deprecated, use 'core.pipeline_config' instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-from pydantic import BaseModel
+# 直接加载 core/pipeline_config.py，绕过 core.__init__ 以避免循环引用
+_module_name = "negentropy.perceives.core.pipeline_config"
+_target = Path(__file__).parent / "core" / "pipeline_config.py"
+_spec = importlib.util.spec_from_file_location(
+    _module_name,
+    str(_target),
+    submodule_search_locations=[],
+)
 
+# 预注册到 sys.modules，使 Pydantic 注解解析能找到正确的模块
+_mod = sys.modules.setdefault(_module_name, importlib.util.module_from_spec(_spec))
+_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 
-class CompetitionJudgeConfig(BaseModel):
-    """竞争模式 LLM 评审配置。"""
-
-    enabled: bool = True
-    strategy: str = "best_of"  # "best_of" | "merge" | "weighted"
-    model: Optional[str] = None  # null = 继承全局 llm.model
-    temperature: float = 0.1
-    max_tokens: int = 2048
-
-
-class CompetitionConfig(BaseModel):
-    """Stage 竞争模式配置。"""
-
-    max_concurrent: int = 2
-    timeout: int = 120
-    judge: CompetitionJudgeConfig = CompetitionJudgeConfig()
-
-
-class StageToolConfig(BaseModel):
-    """Stage 内单个工具的配置。"""
-
-    name: str
-    rank: int = 1
-    enabled: bool = True
-
-
-class StageConfig(BaseModel):
-    """单个 Stage 的配置。"""
-
-    name: str
-    description: str = ""
-    tools: List[StageToolConfig] = []
-    competition_mode: bool = False
-    competition: Optional[CompetitionConfig] = None
-
-
-class PipelineBranchConfig(BaseModel):
-    """单条管线（PDF 或 WebPage）的配置。"""
-
-    stages: List[StageConfig] = []
-
-
-class PipelineDefaultsConfig(BaseModel):
-    """Pipeline 全局默认配置。"""
-
-    competition: CompetitionConfig = CompetitionConfig()
-
-
-class PipelineConfig(BaseModel):
-    """完整 Pipeline 配置。"""
-
-    pdf: PipelineBranchConfig = PipelineBranchConfig()
-    webpage: PipelineBranchConfig = PipelineBranchConfig()
-    defaults: PipelineDefaultsConfig = PipelineDefaultsConfig()
+# 重导出所有公开符号
+_globals = globals()
+for _name in getattr(_mod, "__all__", dir(_mod)):
+    if not _name.startswith("_"):
+        _globals[_name] = getattr(_mod, _name)  # noqa: F401
