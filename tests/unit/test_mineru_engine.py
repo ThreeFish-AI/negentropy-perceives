@@ -191,10 +191,10 @@ class TestMinerUEngineConfigKey:
         assert isinstance(result, bool)
 
     @patch(
-        "negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Darwin"
+        "negentropy.perceives.pdf.engines.mineru.platform.system", return_value="Darwin"
     )
     @patch(
-        "negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="arm64"
+        "negentropy.perceives.pdf.engines.mineru.platform.machine", return_value="arm64"
     )
     def test_apple_silicon_detected(
         self, _mock_machine: object, _mock_system: object
@@ -202,10 +202,10 @@ class TestMinerUEngineConfigKey:
         assert MinerUEngine._is_apple_silicon() is True
 
     @patch(
-        "negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Linux"
+        "negentropy.perceives.pdf.engines.mineru.platform.system", return_value="Linux"
     )
     @patch(
-        "negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="x86_64"
+        "negentropy.perceives.pdf.engines.mineru.platform.machine", return_value="x86_64"
     )
     def test_not_apple_silicon(
         self, _mock_machine: object, _mock_system: object
@@ -638,7 +638,7 @@ class TestPDFProcessorMinerUIntegration:
                 pdf_path = f.name
 
             with patch(
-                "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
+                "negentropy.perceives.pdf.engines.mineru.MinerUEngine.is_available",
                 return_value=False,
             ):
                 result = await proc.process_pdf(pdf_path, method="mineru")

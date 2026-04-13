@@ -27,9 +27,9 @@ from .math_formula import (
     FormulaReconstructor,
     MathRegion,
 )
-from .docling_engine import DoclingEngine, DoclingConversionResult
-from .mineru_engine import MinerUEngine, MinerUConversionResult
-from .marker_engine import MarkerEngine, MarkerConversionResult
+from .docling_engine import DoclingEngine
+from .mineru_engine import MinerUEngine
+from .marker_engine import MarkerEngine
 
 logger = logging.getLogger(__name__)
 
@@ -374,8 +374,9 @@ class PDFProcessor:
                         embed_images=embed_images,
                     )
                     if docling_result and docling_result.markdown:
-                        return self._build_result_from_docling(
+                        return self._build_result_from_engine(
                             docling_result,
+                            engine_name="docling",
                             pdf_source=pdf_source,
                             include_metadata=include_metadata,
                             output_format=output_format,
@@ -405,8 +406,9 @@ class PDFProcessor:
                         page_range=page_range_tuple,
                     )
                     if mineru_result and mineru_result.markdown:
-                        return self._build_result_from_mineru(
+                        return self._build_result_from_engine(
                             mineru_result,
+                            engine_name="mineru",
                             pdf_source=pdf_source,
                             include_metadata=include_metadata,
                             output_format=output_format,
@@ -435,8 +437,9 @@ class PDFProcessor:
                         embed_images=embed_images,
                     )
                     if marker_result and marker_result.markdown:
-                        return self._build_result_from_marker(
+                        return self._build_result_from_engine(
                             marker_result,
+                            engine_name="marker",
                             pdf_source=pdf_source,
                             include_metadata=include_metadata,
                             output_format=output_format,
@@ -1415,17 +1418,33 @@ class PDFProcessor:
                 )
                 self.enhanced_processor.formulas.append(formula)
 
-    def _build_result_from_docling(
+    def _build_result_from_engine(
         self,
-        docling_result: DoclingConversionResult,
+        engine_result: Any,
+        engine_name: str,
         pdf_source: str,
         include_metadata: bool,
         output_format: str,
     ) -> Dict[str, Any]:
-        """将 DoclingConversionResult 转换为项目标准输出格式。"""
-        content = docling_result.markdown
+        """将引擎转换结果转换为项目标准输出格式。
 
-        # 安全网：清理残留的 <!-- formula-not-decoded --> 占位符
+        统一替代原先分引擎的 ``_build_result_from_docling``、
+        ``_build_result_from_mineru`` 和 ``_build_result_from_marker``，
+        利用鸭子类型消除 ~200 行重复代码。
+
+        Args:
+            engine_result: 引擎转换结果（Docling/MinerU/Marker ConversionResult）。
+            engine_name: 引擎名称，用于 ``method_used`` 字段。
+            pdf_source: PDF 源路径或 URL。
+            include_metadata: 是否包含文档元数据。
+            output_format: 输出格式 ``"text"`` 或 ``"markdown"``。
+
+        Returns:
+            项目标准输出字典。
+        """
+        content = engine_result.markdown
+
+        # 安全网：清理残留的公式占位符
         from ..markdown.formula_placeholder_resolver import (
             has_formula_placeholders,
             resolve_formula_placeholders,
@@ -1434,273 +1453,88 @@ class PDFProcessor:
         if has_formula_placeholders(content):
             content = resolve_formula_placeholders(content, remove_unresolved=True)
 
-        text = content
-
         # 构建 enhanced_assets 摘要
         enhanced_assets: Dict[str, Any] = {}
 
-        if docling_result.images:
+        images = getattr(engine_result, "images", None)
+        if images:
             enhanced_assets["images"] = {
-                "count": len(docling_result.images),
+                "count": len(images),
                 "items": [
                     {
-                        "caption": img.caption or "",
-                        "page": img.page_number,
-                        "classification": img.classification,
-                        "filename": img.filename,
-                        "local_path": img.local_path,
-                        "width": img.width,
-                        "height": img.height,
-                        "mime_type": img.mime_type,
+                        "caption": getattr(img, "caption", None) or "",
+                        "page": getattr(img, "page_number", None),
+                        "filename": getattr(img, "filename", None),
+                        "local_path": getattr(img, "local_path", None),
+                        "width": getattr(img, "width", None),
+                        "height": getattr(img, "height", None),
+                        "mime_type": getattr(img, "mime_type", "image/png"),
+                        **(
+                            {"classification": img.classification}
+                            if hasattr(img, "classification") and img.classification is not None
+                            else {}
+                        ),
                     }
-                    for img in docling_result.images
+                    for img in images
                 ],
                 "files": [
-                    img.filename for img in docling_result.images if img.filename
+                    getattr(img, "filename", None)
+                    for img in images
+                    if getattr(img, "filename", None)
                 ],
             }
 
-        if docling_result.tables:
+        tables = getattr(engine_result, "tables", None)
+        if tables:
             enhanced_assets["tables"] = {
-                "count": len(docling_result.tables),
+                "count": len(tables),
                 "items": [
                     {
                         "rows": t.rows,
                         "columns": t.columns,
-                        "caption": t.caption or "",
-                        "page": t.page_number,
+                        "caption": getattr(t, "caption", None) or "",
+                        "page": getattr(t, "page_number", None),
                         "markdown": t.markdown,
                     }
-                    for t in docling_result.tables
+                    for t in tables
                 ],
             }
 
-        if docling_result.formulas:
+        formulas = getattr(engine_result, "formulas", None)
+        if formulas:
             enhanced_assets["formulas"] = {
-                "count": len(docling_result.formulas),
+                "count": len(formulas),
                 "block_count": sum(
-                    1 for f in docling_result.formulas if f.formula_type == "block"
+                    1 for f in formulas if f.formula_type == "block"
                 ),
                 "inline_count": sum(
-                    1 for f in docling_result.formulas if f.formula_type == "inline"
+                    1 for f in formulas if f.formula_type == "inline"
                 ),
             }
 
-        if docling_result.code_blocks:
+        code_blocks = getattr(engine_result, "code_blocks", None)
+        if code_blocks:
             enhanced_assets["code_blocks"] = {
-                "count": len(docling_result.code_blocks),
+                "count": len(code_blocks),
                 "languages": list(
-                    {cb.language for cb in docling_result.code_blocks if cb.language}
-                ),
-            }
-
-        # 输出目录（与 PyMuPDF 路径的 get_extraction_summary 对齐）
-        if self._docling_engine and self._docling_engine._output_dir:
-            enhanced_assets["output_directory"] = str(self._docling_engine._output_dir)
-
-        result: Dict[str, Any] = {
-            "success": True,
-            "text": text,
-            "source": pdf_source,
-            "method_used": "docling",
-            "output_format": output_format,
-            "pages_processed": docling_result.page_count,
-            "word_count": len(text.split()),
-            "character_count": len(text),
-            "enhanced_assets": enhanced_assets,
-        }
-
-        if output_format == "markdown":
-            result["markdown"] = content
-
-        if include_metadata:
-            result["metadata"] = docling_result.metadata
-
-        return result
-
-    def _build_result_from_mineru(
-        self,
-        mineru_result: MinerUConversionResult,
-        pdf_source: str,
-        include_metadata: bool,
-        output_format: str,
-    ) -> Dict[str, Any]:
-        """将 MinerUConversionResult 转换为项目标准输出格式。"""
-        content = mineru_result.markdown
-
-        # 安全网：清理残留的公式占位符
-        from ..markdown.formula_placeholder_resolver import (
-            has_formula_placeholders,
-            resolve_formula_placeholders,
-        )
-
-        if has_formula_placeholders(content):
-            content = resolve_formula_placeholders(content, remove_unresolved=True)
-
-        text = content
-
-        # 构建 enhanced_assets 摘要
-        enhanced_assets: Dict[str, Any] = {}
-
-        if mineru_result.images:
-            enhanced_assets["images"] = {
-                "count": len(mineru_result.images),
-                "items": [
-                    {
-                        "caption": img.caption or "",
-                        "page": img.page_number,
-                        "filename": img.filename,
-                        "local_path": img.local_path,
-                        "width": img.width,
-                        "height": img.height,
-                        "mime_type": img.mime_type,
-                    }
-                    for img in mineru_result.images
-                ],
-                "files": [img.filename for img in mineru_result.images if img.filename],
-            }
-
-        if mineru_result.tables:
-            enhanced_assets["tables"] = {
-                "count": len(mineru_result.tables),
-                "items": [
-                    {
-                        "rows": t.rows,
-                        "columns": t.columns,
-                        "caption": t.caption or "",
-                        "page": t.page_number,
-                        "markdown": t.markdown,
-                    }
-                    for t in mineru_result.tables
-                ],
-            }
-
-        if mineru_result.formulas:
-            enhanced_assets["formulas"] = {
-                "count": len(mineru_result.formulas),
-                "block_count": sum(
-                    1 for f in mineru_result.formulas if f.formula_type == "block"
-                ),
-                "inline_count": sum(
-                    1 for f in mineru_result.formulas if f.formula_type == "inline"
-                ),
-            }
-
-        # MinerU 不支持代码块检测，跳过
-
-        # 输出目录
-        if self._mineru_engine and self._mineru_engine._output_dir:
-            enhanced_assets["output_directory"] = str(self._mineru_engine._output_dir)
-
-        result: Dict[str, Any] = {
-            "success": True,
-            "text": text,
-            "source": pdf_source,
-            "method_used": "mineru",
-            "output_format": output_format,
-            "pages_processed": mineru_result.page_count,
-            "word_count": len(text.split()),
-            "character_count": len(text),
-            "enhanced_assets": enhanced_assets,
-        }
-
-        if output_format == "markdown":
-            result["markdown"] = content
-
-        if include_metadata:
-            result["metadata"] = mineru_result.metadata
-
-        return result
-
-    def _build_result_from_marker(
-        self,
-        marker_result: MarkerConversionResult,
-        pdf_source: str,
-        include_metadata: bool,
-        output_format: str,
-    ) -> Dict[str, Any]:
-        """将 MarkerConversionResult 转换为项目标准输出格式。"""
-        content = marker_result.markdown
-
-        # 安全网：清理残留的公式占位符
-        from ..markdown.formula_placeholder_resolver import (
-            has_formula_placeholders,
-            resolve_formula_placeholders,
-        )
-
-        if has_formula_placeholders(content):
-            content = resolve_formula_placeholders(content, remove_unresolved=True)
-
-        text = content
-
-        # 构建 enhanced_assets 摘要
-        enhanced_assets: Dict[str, Any] = {}
-
-        if marker_result.images:
-            enhanced_assets["images"] = {
-                "count": len(marker_result.images),
-                "items": [
-                    {
-                        "caption": img.caption or "",
-                        "page": img.page_number,
-                        "filename": img.filename,
-                        "local_path": img.local_path,
-                        "width": img.width,
-                        "height": img.height,
-                        "mime_type": img.mime_type,
-                    }
-                    for img in marker_result.images
-                ],
-                "files": [img.filename for img in marker_result.images if img.filename],
-            }
-
-        if marker_result.tables:
-            enhanced_assets["tables"] = {
-                "count": len(marker_result.tables),
-                "items": [
-                    {
-                        "rows": t.rows,
-                        "columns": t.columns,
-                        "caption": t.caption or "",
-                        "page": t.page_number,
-                        "markdown": t.markdown,
-                    }
-                    for t in marker_result.tables
-                ],
-            }
-
-        if marker_result.formulas:
-            enhanced_assets["formulas"] = {
-                "count": len(marker_result.formulas),
-                "block_count": sum(
-                    1 for f in marker_result.formulas if f.formula_type == "block"
-                ),
-                "inline_count": sum(
-                    1 for f in marker_result.formulas if f.formula_type == "inline"
-                ),
-            }
-
-        if marker_result.code_blocks:
-            enhanced_assets["code_blocks"] = {
-                "count": len(marker_result.code_blocks),
-                "languages": list(
-                    {cb.language for cb in marker_result.code_blocks if cb.language}
+                    {cb.language for cb in code_blocks if cb.language}
                 ),
             }
 
         # 输出目录
-        if self._marker_engine and self._marker_engine._output_dir:
-            enhanced_assets["output_directory"] = str(self._marker_engine._output_dir)
+        engine = getattr(self, f"_{engine_name}_engine", None)
+        if engine and hasattr(engine, "_output_dir") and engine._output_dir:
+            enhanced_assets["output_directory"] = str(engine._output_dir)
 
         result: Dict[str, Any] = {
             "success": True,
-            "text": text,
+            "text": content,
             "source": pdf_source,
-            "method_used": "marker",
+            "method_used": engine_name,
             "output_format": output_format,
-            "pages_processed": marker_result.page_count,
-            "word_count": len(text.split()),
-            "character_count": len(text),
+            "pages_processed": engine_result.page_count,
+            "word_count": len(content.split()),
+            "character_count": len(content),
             "enhanced_assets": enhanced_assets,
         }
 
@@ -1708,7 +1542,7 @@ class PDFProcessor:
             result["markdown"] = content
 
         if include_metadata:
-            result["metadata"] = marker_result.metadata
+            result["metadata"] = engine_result.metadata
 
         return result
 

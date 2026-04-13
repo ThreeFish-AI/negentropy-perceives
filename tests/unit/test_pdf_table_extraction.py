@@ -48,7 +48,7 @@ class TestGeometricTableExtraction:
         ]
         return table
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_lines_strategy_finds_bordered_table(self, mock_fitz, processor):
         """Test that 'lines' strategy detects tables with visible borders."""
         mock_doc = Mock()
@@ -69,7 +69,7 @@ class TestGeometricTableExtraction:
         assert "| H0 | H1 |" in tables[0].markdown
         assert tables[0].bbox in bbox_map
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_text_strategy_fallback_for_borderless_tables(self, mock_fitz, processor):
         """Test that 'text' strategy is used when 'lines' finds nothing."""
         mock_doc = Mock()
@@ -96,7 +96,7 @@ class TestGeometricTableExtraction:
         assert mock_page.find_tables.call_count == 2
         mock_page.find_tables.assert_any_call(strategy="text")
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_small_table_filtered_out(self, mock_fitz, processor):
         """Test that single-row or single-column tables are filtered."""
         mock_doc = Mock()
@@ -112,7 +112,7 @@ class TestGeometricTableExtraction:
         bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
         assert len(tables) == 0
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_empty_extract_filtered_out(self, mock_fitz, processor):
         """Test that tables producing empty extract() data are filtered."""
         mock_doc = Mock()
@@ -128,7 +128,7 @@ class TestGeometricTableExtraction:
         bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
         assert len(tables) == 0
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_multiple_tables_on_same_page(self, mock_fitz, processor):
         """Test extraction of multiple tables from one page."""
         mock_doc = Mock()

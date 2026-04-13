@@ -1,23 +1,25 @@
-"""LLM 编排器向后兼容层。
+"""LLM 客户端与编排子路径。
 
-原始实现已迁至 ``llm/orchestrator.py``，
-本文件保留重导出以保持向后兼容。
+提供 LLM 集成能力：
+- ``client``：LLM 客户端封装（基于 LiteLLM）
+- ``orchestrator``：多引擎 PDF 转换编排器
 """
 
 from __future__ import annotations
 
-from .llm.orchestrator import (
+from .client import LLMClient, LLMResponse
+from .orchestrator import (
     EngineResult,
     EngineTask,
     LLMOrchestrator,
     OrchestrationPlan,
     OrchestrationResult,
     PDFCharacteristics,
-    _DEFAULT_PLAN,  # noqa: F401
-    _extract_quality_signals,  # noqa: F401
 )
 
 __all__ = [
+    "LLMClient",
+    "LLMResponse",
     "LLMOrchestrator",
     "OrchestrationResult",
     "OrchestrationPlan",
