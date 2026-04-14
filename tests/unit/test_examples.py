@@ -146,10 +146,10 @@ class TestBasicUsageExamples:
         assert "data" in result
         assert "duration_ms" in result
 
-    def test_examples_list_has_10_entries(self):
+    def test_examples_list_has_6_entries(self):
         from negentropy.perceives.examples.mcp.basic_usage import EXAMPLES
 
-        assert len(EXAMPLES) == 10
+        assert len(EXAMPLES) == 6
 
     def test_python_sdk_example_exists(self):
         from pathlib import Path

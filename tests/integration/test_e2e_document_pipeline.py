@@ -455,7 +455,7 @@ class TestDocumentPipeline:
 
         with (
             patch(
-                "negentropy.perceives.core.services.create_pdf_processor",
+                "negentropy.perceives.ops.pdf.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(pdf_processor, "batch_process_pdfs") as mock_batch_pdf,

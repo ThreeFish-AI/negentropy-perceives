@@ -133,7 +133,7 @@ class TestErrorResilience:
 
         with (
             patch(
-                "negentropy.perceives.core.services.create_pdf_processor",
+                "negentropy.perceives.ops.pdf.create_pdf_processor",
                 return_value=pdf_processor,
             ),
             patch.object(
