@@ -1255,6 +1255,8 @@ class PDFProcessor:
                                 doc,
                                 page_num,
                                 blocks,
+                                self.enhanced_processor.output_dir,
+                                self.enhanced_processor.images,
                                 pdf_name=pdf_name,
                             )
                         )

@@ -28,6 +28,7 @@ _spec = importlib.util.spec_from_file_location(
 )
 
 # 预注册到 sys.modules，使 Pydantic 注解解析能找到正确的模块
+assert _spec is not None, f"Failed to create ModuleSpec for {_target}"
 _mod = sys.modules.setdefault(_module_name, importlib.util.module_from_spec(_spec))
 _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 

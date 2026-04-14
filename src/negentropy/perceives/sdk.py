@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .core.types import PDFMethod, PDFOutputFormat, ScrapeMethod
 from .models import (
     BatchMarkdownResponse,
     BatchPDFResponse,
@@ -216,7 +217,7 @@ class NegentropyPerceivesClient:
         self,
         *,
         url: str,
-        method: str = "auto",
+        method: ScrapeMethod = "auto",
         extract_main_content: bool = True,
         include_metadata: bool = True,
         custom_options: dict[str, Any] | None = None,
@@ -262,7 +263,7 @@ class NegentropyPerceivesClient:
         self,
         *,
         urls: list[str],
-        method: str = "auto",
+        method: ScrapeMethod = "auto",
         extract_main_content: bool = True,
         include_metadata: bool = True,
         custom_options: dict[str, Any] | None = None,
@@ -302,10 +303,10 @@ class NegentropyPerceivesClient:
         self,
         *,
         pdf_source: str,
-        method: str = "auto",
+        method: PDFMethod = "auto",
         include_metadata: bool = True,
         page_range: list[int] | None = None,
-        output_format: str = "markdown",
+        output_format: PDFOutputFormat = "markdown",
         extract_images: bool = True,
         extract_tables: bool = True,
         extract_formulas: bool = True,
@@ -348,10 +349,10 @@ class NegentropyPerceivesClient:
         self,
         *,
         pdf_sources: list[str],
-        method: str = "auto",
+        method: PDFMethod = "auto",
         include_metadata: bool = True,
         page_range: list[int] | None = None,
-        output_format: str = "markdown",
+        output_format: PDFOutputFormat = "markdown",
         extract_images: bool = True,
         extract_tables: bool = True,
         extract_formulas: bool = True,
