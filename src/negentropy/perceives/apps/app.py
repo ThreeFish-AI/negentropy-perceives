@@ -50,33 +50,79 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--init-config",
         action="store_true",
         default=False,
-        help="将默认配置复制到用户配置目录后退出",
+        help="生成用户配置模板后退出（配合 --force 写入完整参考配置）",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="与 --init-config 配合使用，强制覆盖为完整参考配置",
     )
     return parser.parse_args(argv)
 
 
-def _ensure_user_config() -> None:
-    """确保用户配置文件存在，首次运行时从内置默认复制。
+_USER_CONFIG_TEMPLATE = """\
+# =============================================================================
+# Negentropy Perceives 用户配置
+# =============================================================================
+#
+# 本文件仅需声明与内置默认不同的配置项（差异项覆盖）。
+# 内置默认值参见包内 config.default.yaml 或运行:
+#   negentropy-perceives --init-config --force
+#
+# 配置优先级（从低到高）：
+#   1. 内置默认 config.default.yaml
+#   2. 本文件（~/.negentropy/perceives.config.yaml）
+#   3. NEGENTROPY_PERCEIVES_* 环境变量
+#   4. -c / --config 显式指定的配置文件
+#
+# 示例（取消注释并修改即可生效）：
+# ---
+# transport:
+#   mode: stdio
+#
+# http:
+#   host: 0.0.0.0
+#   port: 8092
+#
+# log:
+#   level: DEBUG
+#
+# concurrent_requests: 32
+"""
 
-    若 ~/.negentropy/perceives.config.yaml 不存在，则从内置默认配置
-    生成一份副本供用户修改。
+
+def _ensure_user_config(*, force: bool = False) -> None:
+    """确保用户配置文件存在，首次运行时生成最小化模板。
+
+    生成的模板仅包含注释引导和已注释的示例配置项，
+    避免写入完整默认值导致版本升级时"配置漂移"。
+
+    Args:
+        force: 强制覆盖已有配置文件（用于 --init-config --force）
     """
     user_path = _get_user_config_path()
-    if user_path.exists():
+    if user_path.exists() and not force:
         return
 
     try:
-        bundled_dict = _load_bundled_yaml()
         user_path.parent.mkdir(parents=True, exist_ok=True)
-        with user_path.open("w", encoding="utf-8") as f:
-            yaml.dump(
-                bundled_dict,
-                f,
-                default_flow_style=False,
-                allow_unicode=True,
-                sort_keys=False,
-            )
-        logger.info("已生成用户配置文件: %s", user_path)
+        if force:
+            # --force 模式：写入完整的内置默认配置作为参考
+            bundled_dict = _load_bundled_yaml()
+            with user_path.open("w", encoding="utf-8") as f:
+                yaml.dump(
+                    bundled_dict,
+                    f,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+            logger.info("已生成完整参考配置文件: %s", user_path)
+        else:
+            # 常规模式：写入最小化模板（仅注释引导）
+            user_path.write_text(_USER_CONFIG_TEMPLATE, encoding="utf-8")
+            logger.info("已生成用户配置模板: %s", user_path)
     except OSError as exc:
         logger.warning("无法创建用户配置文件 %s: %s", user_path, exc)
 
@@ -88,7 +134,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # --init-config 模式：生成配置文件后退出
     if args.init_config:
-        _ensure_user_config()
+        _ensure_user_config(force=args.force)
         print(f"用户配置已生成至: {_get_user_config_path()}")
         sys.exit(0)
 

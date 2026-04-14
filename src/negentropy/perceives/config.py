@@ -189,29 +189,20 @@ class _UserYamlConfigSource(PydanticBaseSettingsSource):
     优先级位置（靠前者优先级更高）：init_settings(-c) > env_settings > _UserYamlConfigSource(YAML)
     即：-c 显式配置 > 环境变量 > 合并后的 YAML 配置
 
-    注意：__call__() 返回空字典，实际字段值通过 get_field_value() 逐字段提供。
-    这确保 pydantic-settings 会继续查询后续源以获取更低优先级的值（作为回退）。
+    pydantic-settings v2 通过 ``__call__()`` 获取配置源的完整值字典，
+    高优先级源的值自动覆盖低优先级源。
     """
 
     def __call__(self) -> Dict[str, Any]:
-        """返回空字典，强制 pydantic-settings 使用 get_field_value() 进行逐字段查询。"""
-        return {}
+        """返回合并后的 YAML 配置数据，供 pydantic-settings 参与优先级链合并。"""
+        return dict(_user_yaml_data)
 
     def get_field_value(  # type: ignore[override]
         self,
         field: Any,
         field_name: str,
     ) -> tuple[Any, str | None, bool]:
-        """从用户 YAML 数据中获取字段值。
-
-        仅当字段在用户 YAML 中显式定义时返回值，
-        否则返回 None 以允许后续源（环境变量）提供该字段的值。
-
-        Returns:
-            (field_value, field_key_name, is_complex)
-        """
-        if field_name in _user_yaml_data:
-            return _user_yaml_data[field_name], field_name, False
+        """满足抽象方法协议（实际值已通过 __call__() 提供）。"""
         return None, None, False
 
 
