@@ -663,6 +663,71 @@ class TestCliIntegration:
         assert args.config == "/tmp/x.yaml"
         assert args.init_config is True
 
+    def test_parse_force_flag(self):
+        """--force 标志正确解析。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["--init-config", "--force"])
+        assert args.init_config is True
+        assert args.force is True
+
+    def test_parse_no_force_flag(self):
+        """不带 --force 时 force 为 False。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args([])
+        assert args.force is False
+
+    def test_ensure_user_config_creates_template(self, tmp_path):
+        """首次运行时生成最小化模板（非完整副本）。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config()
+
+        assert config_path.exists()
+        content = config_path.read_text(encoding="utf-8")
+        # 模板应包含注释引导
+        assert "配置优先级" in content
+        # 模板不应包含完整默认值（仅含注释示例）
+        assert "port: 8081" not in content or content.strip().startswith("#")
+
+    def test_ensure_user_config_force_creates_full_copy(self, tmp_path):
+        """--force 模式生成完整的内置默认配置副本。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config(force=True)
+
+        assert config_path.exists()
+        content = config_path.read_text(encoding="utf-8")
+        # 完整副本应包含实际配置值
+        assert "negentropy-perceives" in content
+
+    def test_ensure_user_config_skips_existing(self, tmp_path):
+        """已有配置文件时不覆盖。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("existing: config\n", encoding="utf-8")
+
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config()
+
+        assert config_path.read_text(encoding="utf-8") == "existing: config\n"
+
 
 # ============================================================
 # MinerU 引擎配置字段验证
@@ -900,17 +965,65 @@ class TestBundledDefaultAsSource:
         # 模拟无 -c 场景：将 yaml_file 作为用户配置路径（非 -c 显式指定）
         import negentropy.perceives.config as config_module
 
-        _original_get_user_config_path = config_module._get_user_config_path
+        with patch.object(
+            config_module, "_get_user_config_path", return_value=yaml_file
+        ):
+            with patch.dict(
+                os.environ,
+                {"NEGENTROPY_PERCEIVES_HTTP_PORT": "9999"},
+                clear=False,
+            ):
+                cfg = build_settings(config_path=None)
+                # env_settings > _UserYamlConfigSource
+                assert cfg.http_port == 9999  # 环境变量胜出
+
+    def test_bundled_yaml_values_take_effect_without_c_flag(self, tmp_path):
+        """核心回归：无 -c 参数时，bundled YAML 值通过 _UserYamlConfigSource 生效。
+
+        验证修复 _UserYamlConfigSource.__call__() 返回空字典的 Bug 后，
+        内置默认配置值不再被忽略，而是通过 pydantic-settings 优先级链正确注入。
+        """
+        import negentropy.perceives.config as config_module
+
+        # 使用不存在的用户配置文件，确保仅 bundled 默认生效
+        with patch.object(
+            config_module,
+            "_get_user_config_path",
+            return_value=tmp_path / "nonexistent.yaml",
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = build_settings(config_path=None)
+                # 验证 bundled YAML 中的默认值生效（而非 Pydantic Field 硬编码默认值）
+                assert cfg.server_name == "negentropy-perceives"
+                assert cfg.transport_mode == "http"
+                assert cfg.http_port == 8081
+                assert cfg.http_host == "localhost"
+                assert cfg.concurrent_requests == 16
+                assert cfg.log_level == "INFO"
+                assert cfg.enable_caching is True
+                assert cfg.max_retries == 3
+                assert cfg.browser_headless is True
+                assert cfg.docling_enabled is False
+                assert cfg.mineru_enabled is False
+                assert cfg.marker_enabled is False
+
+    def test_user_yaml_overrides_bundled_without_c_flag(self, tmp_path):
+        """无 -c 时，用户 YAML 差异项覆盖 bundled 默认（通过 _UserYamlConfigSource）。"""
+        yaml_content = "http_port: 9090\nlog_level: DEBUG\n"
+        yaml_file = tmp_path / "user.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        import negentropy.perceives.config as config_module
+
         with patch.object(
             config_module, "_get_user_config_path", return_value=yaml_file
         ):
             with patch.dict(os.environ, {}, clear=True):
-                os.environ["NEGENTROPY_PERCEIVES_HTTP_PORT"] = "9999"
-                cfg = build_settings(
-                    config_path=None
-                )  # 无 -c，走 _UserYamlConfigSource 路径
-                # env_settings > _UserYamlConfigSource（init_settings 为空时）
-                assert cfg.http_port == 9999  # 环境变量胜出
+                cfg = build_settings(config_path=None)
+                assert cfg.http_port == 9090  # 用户覆盖
+                assert cfg.log_level == "DEBUG"  # 用户覆盖
+                assert cfg.server_name == "negentropy-perceives"  # bundled 默认
+                assert cfg.concurrent_requests == 16  # bundled 默认
 
     def test_c_flag_overrides_env_var(self, tmp_path):
         """-c 显式配置优先级高于环境变量（最高优先级）。"""
