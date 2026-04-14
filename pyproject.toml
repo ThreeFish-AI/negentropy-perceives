@@ -86,6 +86,18 @@ cli = [
 negentropy-perceives = "negentropy.perceives.apps.app:main"
 perceives = "negentropy.perceives.cli.app:app"
 
+[tool.ruff.lint.per-file-ignores]
+# 向后兼容 shim 文件：warnings.warn() 必须在 import 之前执行，触发 E402 属于预期行为
+"src/negentropy/perceives/_logging.py" = ["E402"]
+"src/negentropy/perceives/ops/extraction.py" = ["E402"]
+"src/negentropy/perceives/pdf/device_config.py" = ["E402"]
+"src/negentropy/perceives/pdf/docling_engine.py" = ["E402"]
+"src/negentropy/perceives/pdf/llm_client.py" = ["E402"]
+"src/negentropy/perceives/pdf/llm_orchestrator.py" = ["E402"]
+"src/negentropy/perceives/pdf/marker_engine.py" = ["E402"]
+"src/negentropy/perceives/pdf/mineru_engine.py" = ["E402"]
+"src/negentropy/perceives/schemas.py" = ["E402"]
+
 [tool.pytest.ini_options]
 minversion = "9.0"
 python_files = ["test_*.py", "*_test.py"]
@@ -176,13 +188,13 @@ ignore_missing_imports = true
 
 [tool.uv]
 # Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
-override-dependencies = ["pillow>=12.0.0"]
+override-dependencies = ["pillow>=12.2.0"]
 
 [dependency-groups]
 dev = [
     # --- 测试框架 ---
     "coverage[toml]>=7.13.0",
-    "pytest>=9.0.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
     "pytest-html>=4.2.0",

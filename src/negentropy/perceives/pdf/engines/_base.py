@@ -237,9 +237,7 @@ def build_enhanced_assets(result: EngineConversionResult) -> Dict[str, Any]:
     if result.formulas:
         enhanced_assets["formulas"] = {
             "count": len(result.formulas),
-            "block_count": sum(
-                1 for f in result.formulas if f.formula_type == "block"
-            ),
+            "block_count": sum(1 for f in result.formulas if f.formula_type == "block"),
             "inline_count": sum(
                 1 for f in result.formulas if f.formula_type == "inline"
             ),

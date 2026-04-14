@@ -70,7 +70,7 @@ async def parse_webpage_to_markdown(
 
             pipeline_result = await try_pipeline(
                 run_webpage_pipeline,
-                success_check=lambda r: isinstance(r, dict) and r.get("success"),
+                success_check=lambda r: bool(isinstance(r, dict) and r.get("success")),
                 url=url,
                 method=method,
                 extract_main_content=extract_main_content,

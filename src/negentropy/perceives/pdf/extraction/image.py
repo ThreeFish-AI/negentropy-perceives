@@ -213,9 +213,9 @@ async def extract_images_from_pdf_page(
                         f.write(pix.tobytes(image_format.upper()))
 
                 width, height = pix.width, pix.height
-                b64_data = base64.b64encode(
-                    pix.tobytes(image_format.upper())
-                ).decode("ascii")
+                b64_data = base64.b64encode(pix.tobytes(image_format.upper())).decode(
+                    "ascii"
+                )
 
                 position = None
                 try:
@@ -334,9 +334,7 @@ async def extract_images_with_positions(
                 overlap_y1 = min(b_y1, rect.y1)
 
                 if overlap_x1 > overlap_x0 and overlap_y1 > overlap_y0:
-                    overlap_area = (overlap_x1 - overlap_x0) * (
-                        overlap_y1 - overlap_y0
-                    )
+                    overlap_area = (overlap_x1 - overlap_x0) * (overlap_y1 - overlap_y0)
                     if overlap_area > best_overlap:
                         best_overlap = overlap_area
                         best_xref = xref
@@ -403,9 +401,9 @@ async def extract_images_with_positions(
                     with open(local_path, "wb") as f:
                         f.write(pix.tobytes(image_format.upper()))
 
-                b64_data = base64.b64encode(
-                    pix.tobytes(image_format.upper())
-                ).decode("ascii")
+                b64_data = base64.b64encode(pix.tobytes(image_format.upper())).decode(
+                    "ascii"
+                )
 
                 extracted_image = ExtractedImage(
                     id=f"img_{page_num}_{img_index}",
@@ -481,9 +479,9 @@ async def extract_images_with_positions(
                     with open(local_path, "wb") as f:
                         f.write(pix.tobytes(image_format.upper()))
 
-                b64_data = base64.b64encode(
-                    pix.tobytes(image_format.upper())
-                ).decode("ascii")
+                b64_data = base64.b64encode(pix.tobytes(image_format.upper())).decode(
+                    "ascii"
+                )
 
                 extracted_image = ExtractedImage(
                     id=f"img_{page_num}_{img_index}",

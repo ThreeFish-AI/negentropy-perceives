@@ -40,9 +40,7 @@ class ExtractedFormula:
 # ---------------------------------------------------------------------------
 
 
-def extract_formulas_from_text(
-    text: str, page_num: int
-) -> List[ExtractedFormula]:
+def extract_formulas_from_text(text: str, page_num: int) -> List[ExtractedFormula]:
     """从文本中提取数学公式。
 
     支持两层检测：
@@ -80,9 +78,7 @@ def extract_formulas_from_text(
                 formula_content = match.group(1).strip()
 
                 if formula_content and len(formula_content) > 1:
-                    formula_id = generate_asset_id(
-                        "formula", page_num, formula_index
-                    )
+                    formula_id = generate_asset_id("formula", page_num, formula_index)
 
                     extracted_formula = ExtractedFormula(
                         id=formula_id,
@@ -112,9 +108,7 @@ def extract_formulas_from_text(
 
                 latex_converted = unicode_to_latex(line_stripped)
                 if latex_converted != line_stripped:
-                    formula_id = generate_asset_id(
-                        "formula", page_num, formula_index
-                    )
+                    formula_id = generate_asset_id("formula", page_num, formula_index)
                     extracted_formula = ExtractedFormula(
                         id=formula_id,
                         latex=latex_converted,
@@ -126,8 +120,6 @@ def extract_formulas_from_text(
                     formula_index += 1
 
     except Exception as e:
-        logger.error(
-            f"Error extracting formulas from page {page_num}: {str(e)}"
-        )
+        logger.error(f"Error extracting formulas from page {page_num}: {str(e)}")
 
     return formulas
