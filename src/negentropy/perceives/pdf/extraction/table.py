@@ -163,9 +163,7 @@ def extract_tables_with_geometry(
 
         if title_regions:
             # Extract each table using its clip region
-            for table_idx, (title, clip_rect, title_rect) in enumerate(
-                title_regions
-            ):
+            for table_idx, (title, clip_rect, title_rect) in enumerate(title_regions):
                 table = _extract_single_table(
                     page,
                     clip_rect,
@@ -194,13 +192,9 @@ def extract_tables_with_geometry(
                     all_tables.append(extracted)
 
     except ImportError:
-        logger.error(
-            "PyMuPDF (fitz) is required for geometric table extraction"
-        )
+        logger.error("PyMuPDF (fitz) is required for geometric table extraction")
     except Exception as e:
-        logger.error(
-            f"Error in geometric table extraction for page {page_num}: {e}"
-        )
+        logger.error(f"Error in geometric table extraction for page {page_num}: {e}")
 
     return bbox_to_table, all_tables
 
@@ -323,9 +317,7 @@ def _extract_single_table(
         )
 
     except Exception as e:
-        logger.warning(
-            f"Failed to extract table '{title}' on page {page_num}: {e}"
-        )
+        logger.warning(f"Failed to extract table '{title}' on page {page_num}: {e}")
         return None
 
 
@@ -393,9 +385,7 @@ def _process_found_table(
         )
 
     except Exception as e:
-        logger.warning(
-            f"Failed to process table {table_idx} on page {page_num}: {e}"
-        )
+        logger.warning(f"Failed to process table {table_idx} on page {page_num}: {e}")
         return None
 
 
@@ -490,9 +480,7 @@ def build_markdown_from_data(data: List[List[str]]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def extract_tables_from_text(
-    text: str, page_num: int
-) -> List[ExtractedTable]:
+def extract_tables_from_text(text: str, page_num: int) -> List[ExtractedTable]:
     """Extract tables from plain text using pattern recognition.
 
     Args:
@@ -524,9 +512,7 @@ def extract_tables_from_text(
 
                 # Convert to Markdown table
                 if len(table_lines) >= 2:  # At least header and one data row
-                    table_id = generate_asset_id(
-                        "table", page_num, len(tables)
-                    )
+                    table_id = generate_asset_id("table", page_num, len(tables))
                     markdown_table = convert_to_markdown_table(table_lines)
 
                     if markdown_table:
@@ -565,9 +551,7 @@ def extract_tables_from_text(
                         )
 
                         tables.append(extracted_table)
-                        logger.info(
-                            f"Extracted table {table_id} from page {page_num}"
-                        )
+                        logger.info(f"Extracted table {table_id} from page {page_num}")
 
             i += 1
 

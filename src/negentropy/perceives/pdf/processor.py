@@ -1471,7 +1471,8 @@ class PDFProcessor:
                         "mime_type": getattr(img, "mime_type", "image/png"),
                         **(
                             {"classification": img.classification}
-                            if hasattr(img, "classification") and img.classification is not None
+                            if hasattr(img, "classification")
+                            and img.classification is not None
                             else {}
                         ),
                     }
@@ -1504,21 +1505,15 @@ class PDFProcessor:
         if formulas:
             enhanced_assets["formulas"] = {
                 "count": len(formulas),
-                "block_count": sum(
-                    1 for f in formulas if f.formula_type == "block"
-                ),
-                "inline_count": sum(
-                    1 for f in formulas if f.formula_type == "inline"
-                ),
+                "block_count": sum(1 for f in formulas if f.formula_type == "block"),
+                "inline_count": sum(1 for f in formulas if f.formula_type == "inline"),
             }
 
         code_blocks = getattr(engine_result, "code_blocks", None)
         if code_blocks:
             enhanced_assets["code_blocks"] = {
                 "count": len(code_blocks),
-                "languages": list(
-                    {cb.language for cb in code_blocks if cb.language}
-                ),
+                "languages": list({cb.language for cb in code_blocks if cb.language}),
             }
 
         # 输出目录
