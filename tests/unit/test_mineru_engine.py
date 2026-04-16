@@ -205,7 +205,8 @@ class TestMinerUEngineConfigKey:
         "negentropy.perceives.pdf.engines.mineru.platform.system", return_value="Linux"
     )
     @patch(
-        "negentropy.perceives.pdf.engines.mineru.platform.machine", return_value="x86_64"
+        "negentropy.perceives.pdf.engines.mineru.platform.machine",
+        return_value="x86_64",
     )
     def test_not_apple_silicon(
         self, _mock_machine: object, _mock_system: object
