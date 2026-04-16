@@ -545,14 +545,23 @@ class TestYamlConfigLoading:
 class TestBuildSettings:
     """测试 build_settings 配置构建函数。"""
 
-    def test_build_with_defaults_only(self):
+    def test_build_with_defaults_only(self, tmp_path):
         """仅使用内置默认构建配置，所有字段有合理默认值。"""
-        cfg = build_settings()
-        assert cfg.server_name == "negentropy-perceives"
-        assert cfg.transport_mode == "http"
-        assert cfg.http_port == 8081
-        assert cfg.concurrent_requests == 16
-        assert cfg.log_level == "INFO"
+        import negentropy.perceives.config as config_module
+
+        # 隔离用户配置文件，确保仅 bundled 默认生效
+        with patch.object(
+            config_module,
+            "_get_user_config_path",
+            return_value=tmp_path / "nonexistent.yaml",
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = build_settings()
+                assert cfg.server_name == "negentropy-perceives"
+                assert cfg.transport_mode == "http"
+                assert cfg.http_port == 8092
+                assert cfg.concurrent_requests == 16
+                assert cfg.log_level == "INFO"
 
     def test_build_with_custom_yaml(self, tmp_path):
         """自定义 YAML 覆盖默认值（显式 -c 配置优先级高于环境变量）。"""
@@ -996,7 +1005,7 @@ class TestBundledDefaultAsSource:
                 # 验证 bundled YAML 中的默认值生效（而非 Pydantic Field 硬编码默认值）
                 assert cfg.server_name == "negentropy-perceives"
                 assert cfg.transport_mode == "http"
-                assert cfg.http_port == 8081
+                assert cfg.http_port == 8092
                 assert cfg.http_host == "localhost"
                 assert cfg.concurrent_requests == 16
                 assert cfg.log_level == "INFO"
@@ -1178,3 +1187,46 @@ class TestNestedYamlIntegration:
         assert cfg.http_port == 9999  # 扁平键胜出
         assert cfg.concurrent_requests == 32
         assert cfg.llm_model == "openai/gpt-4"
+
+
+# ============================================================
+# 防漂移守护测试：Field(default=...) 与 config.default.yaml 同步
+# ============================================================
+class TestFieldDefaultsMatchYaml:
+    """守护测试：确保 config.py Field(default=...) 与 config.default.yaml 保持同步。
+
+    当 config.default.yaml 中的默认值被修改后，如果忘记同步更新
+    对应的 Field(default=...)，此测试将立即报红，防止配置漂移。
+    """
+
+    # 允许 Field 默认值与 YAML 不同的字段白名单
+    _SKIP_FIELDS = frozenset({
+        "server_version",  # 版本号由 pyproject.toml 注入，非 YAML 配置
+        "pipeline",  # 复杂嵌套对象，展平后不可直接对比
+    })
+
+    def test_field_defaults_match_yaml_defaults(self):
+        """Field(default=...) 必须与 config.default.yaml 展平后的值完全一致。"""
+        yaml_data = _load_bundled_yaml()
+        flattened = _flatten_nested_yaml(yaml_data)
+        model_fields = NegentropyPerceivesSettings.model_fields
+
+        mismatches = []
+        for field_name, field_info in model_fields.items():
+            if field_name in self._SKIP_FIELDS:
+                continue
+            if field_name not in flattened:
+                continue
+            yaml_val = flattened[field_name]
+            field_default = field_info.default
+            if yaml_val != field_default:
+                mismatches.append(
+                    f"  {field_name}: Field(default={field_default!r})"
+                    f" != YAML({yaml_val!r})"
+                )
+
+        assert not mismatches, (
+            "Field(default=...) 与 config.default.yaml 值不同步！\n"
+            "请更新 config.py 中的 Field 默认值以匹配 YAML：\n"
+            + "\n".join(mismatches)
+        )

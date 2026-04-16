@@ -27,6 +27,7 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_connect_and_close(self):
         """connect/close 应委托给底层 FastMCP Client。"""
+        test_url = "http://localhost:8092/mcp"
         with (
             patch("fastmcp.client.transports.StreamableHttpTransport") as transport_cls,
             patch("fastmcp.Client") as client_cls,
@@ -34,12 +35,12 @@ class TestSDKMCPMode:
             mock_client = AsyncMock()
             client_cls.return_value = mock_client
 
-            client = NegentropyPerceivesClient("http://localhost:8081/mcp")
+            client = NegentropyPerceivesClient(test_url)
             await client.connect()
             await client.close()
 
             transport_cls.assert_called_once_with(
-                url="http://localhost:8081/mcp", headers=None, auth=None
+                url=test_url, headers=None, auth=None
             )
             mock_client.__aenter__.assert_awaited_once()
             mock_client.__aexit__.assert_awaited_once()
@@ -111,12 +112,16 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_discover_links_calls_tool(self):
         """discover_links 便捷方法应调用 call_tool。"""
-        with patch.object(
-            NegentropyPerceivesClient,
-            "call_tool",
-            new_callable=AsyncMock,
-            return_value={"success": True},
-        ) as mock_call:
+        with (
+            patch("fastmcp.client.transports.StreamableHttpTransport"),
+            patch("fastmcp.Client"),
+            patch.object(
+                NegentropyPerceivesClient,
+                "call_tool",
+                new_callable=AsyncMock,
+                return_value={"success": True},
+            ) as mock_call,
+        ):
             client = NegentropyPerceivesClient()
             result = await client.discover_links(url="https://example.com")
 

@@ -368,7 +368,7 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="http", description="MCP 传输协议模式：stdio / http / sse"
     )
     http_host: str = Field(default="localhost", description="HTTP 服务器绑定主机")
-    http_port: int = Field(default=8081, description="HTTP 服务器监听端口")
+    http_port: int = Field(default=8092, description="HTTP 服务器监听端口")
     http_path: str = Field(default="/mcp", description="HTTP 端点路径")
     http_cors_origins: Optional[str] = Field(
         default="*", description="CORS 来源白名单（null 禁用）"
@@ -443,8 +443,8 @@ class NegentropyPerceivesSettings(BaseSettings):
         default=None, description="LLM API Key（ZhipuAI）"
     )
     llm_model: str = Field(
-        default="zhipu/glm-5-plus-250414",
-        description="LiteLLM 模型标识（如 zhipu/glm-5-plus-250414）",
+        default="zhipu/glm-5.1",
+        description="LiteLLM 模型标识（如 zhipu/glm-5.1）",
     )
     llm_temperature: float = Field(
         default=0.1, ge=0.0, le=2.0, description="LLM 温度参数"
@@ -458,7 +458,7 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="auto",
         description="推理设备：auto / cpu / cuda (NVIDIA) / mps (Apple Silicon) / xpu (Intel)",
     )
-    accelerator_num_threads: int = Field(default=4, ge=1, description="CPU 推理线程数")
+    accelerator_num_threads: int = Field(default=8, ge=1, description="CPU 推理线程数")
     accelerator_ocr_batch_size: int = Field(
         default=0,
         ge=0,

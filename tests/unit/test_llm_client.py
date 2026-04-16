@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from negentropy.perceives.config import _flatten_nested_yaml, _load_bundled_yaml
 from negentropy.perceives.pdf.llm_client import LLMClient, LLMResponse
 
 
@@ -31,11 +32,11 @@ class TestLLMResponseDataClass:
     def test_full(self) -> None:
         r = LLMResponse(
             content='{"key": "value"}',
-            model="zhipu/glm-5-plus-250414",
+            model="zhipu/glm-5.1",
             usage={"prompt_tokens": 100, "completion_tokens": 50},
             raw_response={"id": "test"},
         )
-        assert r.model == "zhipu/glm-5-plus-250414"
+        assert r.model == "zhipu/glm-5.1"
         assert r.usage["prompt_tokens"] == 100
 
 
@@ -59,8 +60,15 @@ class TestLLMClientAvailability:
             assert mod.LLMClient.is_available() is False
 
     def test_default_model(self) -> None:
-        client = LLMClient()
-        assert client._model == "zhipu/glm-5-plus-250414"
+        """无参构造时，model 应从 config.settings 解析（与 YAML 默认值一致）。"""
+        yaml_data = _load_bundled_yaml()
+        flattened = _flatten_nested_yaml(yaml_data)
+        expected_model = flattened["llm_model"]
+
+        with patch("negentropy.perceives.config.settings") as mock_settings:
+            mock_settings.llm_model = expected_model
+            client = LLMClient()
+            assert client._model == expected_model
 
     def test_custom_params(self) -> None:
         client = LLMClient(
@@ -102,12 +110,12 @@ class TestLLMClientCompletion:
             patch.object(LLMClient, "is_available", return_value=True),
             patch.dict("sys.modules", {"litellm": mock_litellm}),
         ):
-            client = LLMClient(model="zhipu/glm-5-plus-250414")
+            client = LLMClient(model="zhipu/glm-5.1")
             result = await client.acomplete(
                 messages=[{"role": "user", "content": "test"}]
             )
             assert result.content == '{"result": "ok"}'
-            assert result.model == "zhipu/glm-5-plus-250414"
+            assert result.model == "zhipu/glm-5.1"
             assert result.usage["prompt_tokens"] == 100
             assert result.usage["completion_tokens"] == 50
 

@@ -44,7 +44,7 @@ uv add negentropy-perceives
 ### 2. Ignite the Engine
 
 ```bash
-uv run negentropy-perceives  # Defaults to listening on localhost:8081, HTTP mode
+uv run negentropy-perceives  # Defaults to listening on localhost:8092, HTTP mode
 ```
 
 > 💡 **Advanced Arsenal**: Upon first launch, Negentropy Perceives will auto-generate its configuration at `~/.negentropy/perceives.config.yaml`. Hidden inside are the switches for high-tier warfare.
@@ -76,7 +76,7 @@ Add the following to your `claude_desktop_config.json` in Claude Desktop:
   "mcpServers": {
     "negentropy-perceives": {
       "type": "http",
-      "url": "http://localhost:8081/mcp"
+      "url": "http://localhost:8092/mcp"
     }
   }
 }

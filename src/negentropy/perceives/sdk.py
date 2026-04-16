@@ -42,8 +42,15 @@ class NegentropyPerceivesToolError(NegentropyPerceivesError):
     """Raised when a tool invocation fails."""
 
 
-# 默认端点地址（与服务端配置默认值一致：http_host=localhost, http_port=8081, http_path=/mcp）
-DEFAULT_BASE_URL = "http://localhost:8081/mcp"
+# 向后兼容常量（Deprecated: 请使用 _default_base_url() 或直接从 config.settings 读取）
+DEFAULT_BASE_URL = "http://localhost:8092/mcp"
+
+
+def _default_base_url() -> str:
+    """从全局配置动态构建默认 base URL（惰性导入，避免循环依赖）。"""
+    from .config import settings
+
+    return f"http://{settings.http_host}:{settings.http_port}{settings.http_path}"
 
 
 class NegentropyPerceivesClient:
@@ -62,7 +69,7 @@ class NegentropyPerceivesClient:
 
     def __init__(
         self,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         *,
         mode: str = "mcp",
         headers: dict[str, str] | None = None,
@@ -73,7 +80,7 @@ class NegentropyPerceivesClient:
         if mode not in ("mcp", "direct"):
             raise ValueError(f"Invalid mode: {mode!r}. Use 'mcp' or 'direct'.")
 
-        self.base_url = base_url
+        self.base_url = base_url if base_url is not None else _default_base_url()
         self._mode = mode
         self._connected = False
 
