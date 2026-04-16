@@ -51,13 +51,17 @@ class LLMClient:
 
     def __init__(
         self,
-        model: str = "zhipu/glm-5-plus-250414",
+        model: Optional[str] = None,
         api_key: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
         timeout: float = 60.0,
         max_retries: int = 2,
     ) -> None:
+        if model is None:
+            from ...config import settings
+
+            model = settings.llm_model
         self._model = model
         self._api_key = api_key
         self._temperature = temperature
