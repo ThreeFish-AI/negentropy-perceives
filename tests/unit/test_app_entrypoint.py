@@ -74,7 +74,7 @@ class TestAppMain:
             use_random_user_agent=True,
             use_proxy=False,
             http_host="localhost",
-            http_port=8081,
+            http_port=8092,
             http_path="/mcp",
             http_cors_origins="*",
             log_level="INFO",

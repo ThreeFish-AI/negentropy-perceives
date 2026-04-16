@@ -451,7 +451,7 @@ graph TD
 - **`NegentropyPerceivesClient`**：高级异步客户端，基于 FastMCP `StreamableHttpTransport` 封装
 - **异常体系**：`NegentropyPerceivesError` → `NegentropyPerceivesConnectionError` / `NegentropyPerceivesToolError`
 - **连接管理**：自动维护客户端会话生命周期
-- **默认端点**：`http://localhost:8081/mcp`（与服务端 HTTP 默认配置一致）
+- **默认端点**：`http://localhost:8092/mcp`（与服务端 HTTP 默认配置一致）
 
 > SDK 层为可选使用方式——通过 MCP 协议直接调用工具时无需 SDK。
 
