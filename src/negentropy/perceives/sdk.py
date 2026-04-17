@@ -89,7 +89,7 @@ class NegentropyPerceivesClient:
             from fastmcp.client.transports import StreamableHttpTransport
 
             self._transport = StreamableHttpTransport(
-                url=base_url, headers=headers, auth=auth
+                url=self.base_url, headers=headers, auth=auth
             )
             self._client: Any = Client(
                 self._transport, name=client_name, timeout=timeout
