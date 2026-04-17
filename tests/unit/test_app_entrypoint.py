@@ -63,6 +63,7 @@ class TestAppMain:
         assert "uvicorn_config" in call_kwargs
         assert "log_config" in call_kwargs["uvicorn_config"]
         assert call_kwargs["uvicorn_config"]["timeout_graceful_shutdown"] == 5
+        assert call_kwargs.get("show_banner") is False
 
     def test_main_stdio_mode_no_uvicorn_config(self, caplog, monkeypatch):
         """STDIO 模式下不传入 uvicorn_config。"""
@@ -104,5 +105,5 @@ class TestAppMain:
 
         assert "Starting STDIO server" in caplog.text
         assert len(app_calls) == 1
-        # STDIO 模式下 app.run() 不传参数
-        assert app_calls[0] == {}
+        # STDIO 模式下 app.run() 仅传 show_banner=False
+        assert app_calls[0] == {"show_banner": False}
