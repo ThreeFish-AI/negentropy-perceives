@@ -116,7 +116,7 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests", 
+    "unit: marks tests as unit tests",
     "requires_network: marks tests that require network access",
     "requires_browser: marks tests that require browser setup",
     "requires_gpu: marks tests that require GPU acceleration (MPS/CUDA/XPU)",

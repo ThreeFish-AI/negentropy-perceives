@@ -331,7 +331,7 @@ class TestPostprocessMarkdown:
         def hello():
             print("Hello, World!")
         ```
-        
+
         ```
         function greet() {
             console.log("Hello!");

@@ -30,7 +30,7 @@ class ColoredFormatter(logging.Formatter):
     _NAME_COLOR = "\033[34m"  # 蓝（logger name）
 
     def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         # 进程启动时 isatty() 已稳定，不需运行时重算
         self._use_colors: bool = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
 
@@ -82,7 +82,7 @@ def _lockdown_fastmcp_logging() -> None:
     fmcp_logger = logging.getLogger("fastmcp")
     fmcp_logger.propagate = True
     fmcp_logger.handlers.clear()
-    fmcp_logger.addHandler = lambda _: None  # type: ignore[method-assign]
+    fmcp_logger.addHandler = lambda _: None  # type: ignore[assignment]
 
 
 # 高 verbosity 第三方 logger 的默认静音级别
