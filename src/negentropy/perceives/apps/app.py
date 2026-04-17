@@ -14,7 +14,7 @@ from ..config import (
     reload_settings,
     settings,
 )
-from ..core.logging import build_uvicorn_log_config, setup_logging
+from ..core.logging import _lockdown_fastmcp_logging, build_uvicorn_log_config, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +148,9 @@ def main(argv: list[str] | None = None) -> None:
     # ── 步骤 3：延迟导入 tools（触发 @app.tool 注册，此时 logger 已就绪） ──
     from ..tools import app  # noqa: E402
 
+    # ── 步骤 3.5：拦截 FastMCP RichHandler，统一日志格式 ──
+    _lockdown_fastmcp_logging()
+
     cli_name = _active_cli_name()
     logger.info("Starting %s v%s", settings.server_name, settings.server_version)
     logger.info("CLI entrypoint: %s", cli_name)
@@ -212,6 +215,7 @@ def main(argv: list[str] | None = None) -> None:
             host=binding_host,
             port=binding_port,
             path=binding_path,
+            show_banner=False,
             uvicorn_config={
                 "log_config": uvicorn_log_config,
                 "timeout_graceful_shutdown": 5,
@@ -219,7 +223,7 @@ def main(argv: list[str] | None = None) -> None:
         )
     else:
         logger.info("Starting STDIO server")
-        app.run()
+        app.run(show_banner=False)
 
 
 if __name__ == "__main__":

@@ -2,12 +2,87 @@
 
 import logging
 import logging.config
+import sys
 import warnings
 from typing import Any
 
 # 统一格式常量（与 pyproject.toml [tool.pytest.ini_options] log_cli_format 风格对齐）
 LOG_FORMAT = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+class ColoredFormatter(logging.Formatter):
+    """为 TTY 终端添加 ANSI 颜色标注；非 TTY 自动降级纯文本。
+
+    TTY 模式下同步对 logger 名称按包层级缩写，提升可读性。
+    """
+
+    RESET = "\033[0m"
+
+    _LEVEL_COLORS: dict[int, str] = {
+        logging.CRITICAL: "\033[1;31m",  # 粗体红
+        logging.ERROR:    "\033[31m",    # 红
+        logging.WARNING:  "\033[33m",    # 黄
+        logging.INFO:     "\033[32m",    # 绿
+        logging.DEBUG:    "\033[36m",    # 青
+    }
+    _TIME_COLOR = "\033[2;37m"  # 暗灰（timestamp）
+    _NAME_COLOR = "\033[34m"    # 蓝（logger name）
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        # 进程启动时 isatty() 已稳定，不需运行时重算
+        self._use_colors: bool = hasattr(sys.stderr, "isatty") and sys.stderr.isatty()
+
+    @staticmethod
+    def _abbreviate_name(name: str, keep_last: int = 2) -> str:
+        """按包层级缩短 logger 名称，保留末尾 keep_last 个组件完整。
+
+        示例：negentropy.perceives.apps.app → n.p.apps.app
+        """
+        parts = name.split(".")
+        if len(parts) <= keep_last:
+            return name
+        return ".".join([p[0] for p in parts[:-keep_last]] + parts[-keep_last:])
+
+    def format(self, record: logging.LogRecord) -> str:
+        if not self._use_colors:
+            return super().format(record)
+
+        level_color = self._LEVEL_COLORS.get(record.levelno, "")
+        asctime = self.formatTime(record, self.datefmt)
+        display_name = self._abbreviate_name(record.name)
+
+        message = record.getMessage()
+        if record.exc_info:
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            message = f"{message}\n{record.exc_text}"
+        if record.stack_info:
+            message = f"{message}\n{self.formatStack(record.stack_info)}"
+
+        return (
+            f"{self._TIME_COLOR}{asctime}{self.RESET} "
+            f"[{level_color}{record.levelname:<8}{self.RESET}] "
+            f"{self._NAME_COLOR}{display_name}{self.RESET}: "
+            f"{message}"
+        )
+
+
+def _lockdown_fastmcp_logging() -> None:
+    """拦截 FastMCP 日志 handler，统一格式为项目标准。
+
+    FastMCP 3.x 在 server.run() 内部向 'fastmcp' logger 追加 rich.RichHandler，
+    导致与项目日志格式割裂。通过在 run() 调用前将 addHandler 替换为 no-op，
+    确保所有 fastmcp.* 日志经由 root logger（已配置 ColoredFormatter）输出。
+
+    须在工具模块导入后、app.run() 调用前执行。
+    """
+    fmcp_logger = logging.getLogger("fastmcp")
+    fmcp_logger.propagate = True
+    fmcp_logger.handlers.clear()
+    fmcp_logger.addHandler = lambda _: None  # type: ignore[method-assign]
+
 
 # 高 verbosity 第三方 logger 的默认静音级别
 _THIRD_PARTY_OVERRIDES: dict[str, str] = {
@@ -71,15 +146,15 @@ def setup_logging(log_level: str = "INFO") -> None:
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
-            "standard": {
-                "format": LOG_FORMAT,
+            "colored": {
+                "()": "negentropy.perceives.core.logging.ColoredFormatter",
                 "datefmt": LOG_DATE_FORMAT,
             },
         },
         "handlers": {
             "console": {
                 "class": "logging.StreamHandler",
-                "formatter": "standard",
+                "formatter": "colored",
                 "stream": "ext://sys.stderr",
             },
         },
@@ -114,11 +189,11 @@ def build_uvicorn_log_config(log_level: str = "INFO") -> dict[str, Any]:
         "disable_existing_loggers": False,
         "formatters": {
             "default": {
-                "format": LOG_FORMAT,
+                "()": "negentropy.perceives.core.logging.ColoredFormatter",
                 "datefmt": LOG_DATE_FORMAT,
             },
             "access": {
-                "format": LOG_FORMAT,
+                "()": "negentropy.perceives.core.logging.ColoredFormatter",
                 "datefmt": LOG_DATE_FORMAT,
             },
         },
