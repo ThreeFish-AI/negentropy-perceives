@@ -10,6 +10,7 @@ from typing import Any
 LOG_FORMAT = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+
 class ColoredFormatter(logging.Formatter):
     """为 TTY 终端添加 ANSI 颜色标注；非 TTY 自动降级纯文本。
 
@@ -20,13 +21,13 @@ class ColoredFormatter(logging.Formatter):
 
     _LEVEL_COLORS: dict[int, str] = {
         logging.CRITICAL: "\033[1;31m",  # 粗体红
-        logging.ERROR:    "\033[31m",    # 红
-        logging.WARNING:  "\033[33m",    # 黄
-        logging.INFO:     "\033[32m",    # 绿
-        logging.DEBUG:    "\033[36m",    # 青
+        logging.ERROR: "\033[31m",  # 红
+        logging.WARNING: "\033[33m",  # 黄
+        logging.INFO: "\033[32m",  # 绿
+        logging.DEBUG: "\033[36m",  # 青
     }
     _TIME_COLOR = "\033[2;37m"  # 暗灰（timestamp）
-    _NAME_COLOR = "\033[34m"    # 蓝（logger name）
+    _NAME_COLOR = "\033[34m"  # 蓝（logger name）
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)
