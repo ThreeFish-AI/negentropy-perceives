@@ -4,7 +4,6 @@ import logging
 
 from negentropy.perceives.core.logging import (
     LOG_DATE_FORMAT,
-    LOG_FORMAT,
     build_uvicorn_log_config,
     setup_logging,
 )

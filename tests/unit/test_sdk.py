@@ -39,9 +39,7 @@ class TestSDKMCPMode:
             await client.connect()
             await client.close()
 
-            transport_cls.assert_called_once_with(
-                url=test_url, headers=None, auth=None
-            )
+            transport_cls.assert_called_once_with(url=test_url, headers=None, auth=None)
             mock_client.__aenter__.assert_awaited_once()
             mock_client.__aexit__.assert_awaited_once()
 

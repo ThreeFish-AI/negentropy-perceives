@@ -1200,10 +1200,12 @@ class TestFieldDefaultsMatchYaml:
     """
 
     # 允许 Field 默认值与 YAML 不同的字段白名单
-    _SKIP_FIELDS = frozenset({
-        "server_version",  # 版本号由 pyproject.toml 注入，非 YAML 配置
-        "pipeline",  # 复杂嵌套对象，展平后不可直接对比
-    })
+    _SKIP_FIELDS = frozenset(
+        {
+            "server_version",  # 版本号由 pyproject.toml 注入，非 YAML 配置
+            "pipeline",  # 复杂嵌套对象，展平后不可直接对比
+        }
+    )
 
     def test_field_defaults_match_yaml_defaults(self):
         """Field(default=...) 必须与 config.default.yaml 展平后的值完全一致。"""
@@ -1227,6 +1229,5 @@ class TestFieldDefaultsMatchYaml:
 
         assert not mismatches, (
             "Field(default=...) 与 config.default.yaml 值不同步！\n"
-            "请更新 config.py 中的 Field 默认值以匹配 YAML：\n"
-            + "\n".join(mismatches)
+            "请更新 config.py 中的 Field 默认值以匹配 YAML：\n" + "\n".join(mismatches)
         )
