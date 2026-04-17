@@ -1,0 +1,54 @@
+# Pre-commit Hooks 配置
+#
+# 镜像 CI 流水线（.github/workflows/ci.yml）的代码质量检查，
+# 在 git commit 前本地自动拦截格式与 Lint 问题，避免缺陷进入 CI/CD。
+#
+# 安装方式：uv run pre-commit install
+# 手动执行：uv run pre-commit run --all-files
+
+default_language_version:
+  python: python3.13
+
+repos:
+  # ── 通用文件检查 ─────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  # ── Ruff - 代码格式化（先于 lint 执行）──────────────────────────
+  # 复用项目已有的 ruff 配置（pyproject.toml），保证与 CI 行为一致
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff - 代码格式化
+        entry: uv run ruff format
+        language: system
+        types: [python]
+
+  # ── Ruff - 代码 Lint 检查 ────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: ruff-lint
+        name: ruff - 代码检查
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+
+  # ── MyPy - 静态类型检查 ──────────────────────────────────────────
+  # pass_filenames: false 确保 mypy 始终分析完整模块图，而非仅检查变更文件
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy - 类型检查
+        entry: uv run mypy src/negentropy/perceives/
+        language: system
+        types: [python]
+        pass_filenames: false

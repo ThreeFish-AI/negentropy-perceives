@@ -31,6 +31,11 @@ echo "✅ uv found"
 echo "📦 Installing dependencies (including dev group)..."
 uv sync --group dev
 
+# Install git pre-commit hooks
+echo "🪝 Installing pre-commit hooks..."
+uv run pre-commit install
+echo "✅ Pre-commit hooks installed"
+
 # Copy environment configuration if it doesn't exist
 if [ ! -f .env ]; then
     echo "📝 Creating environment configuration..."
@@ -59,3 +64,4 @@ echo "For development:"
 echo "- Format code: uv run ruff format src/negentropy/perceives/ tests/"
 echo "- Run tests: uv run pytest"
 echo "- Type check: uv run mypy src/negentropy/perceives/"
+echo "- Run all pre-commit checks: uv run pre-commit run --all-files"
