@@ -447,6 +447,7 @@ async with NegentropyPerceivesClient(
 | 环境变量                               | 类型    | 默认值 | 约束  | 说明                |
 | -------------------------------------- | ------- | ------ | ----- | ------------------- |
 | `NEGENTROPY_PERCEIVES_REQUEST_TIMEOUT` | `float` | `30.0` | `> 0` | HTTP 请求超时（秒） |
+| `NEGENTROPY_PERCEIVES_TASK_TIMEOUT_SECONDS` | `int` | `300` | `>= 1` | 单次解析任务（PDF/Webpage）默认超时（秒），可被 MCP 入参 `timeout` 覆盖 |
 
 #### LLM 编排（Smart 模式）
 

@@ -6,9 +6,59 @@ import sys
 import warnings
 from typing import Any
 
+from .task_context import (
+    method_var,
+    pipeline_var,
+    source_var,
+    stage_var,
+    task_id_var,
+)
+
 # 统一格式常量（与 pyproject.toml [tool.pytest.ini_options] log_cli_format 风格对齐）
 LOG_FORMAT = "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+class TaskContextFilter(logging.Filter):
+    """从 `contextvars` 读取任务上下文并写入 LogRecord。
+
+    Why Filter：复用 Python 标准日志扩展点，在不修改任何 `logger.info(...)` 调用
+    的前提下，给每条 LogRecord 附加 `task_id / source / pipeline / stage / method`
+    属性，供 `ColoredFormatter` 渲染前缀。Filter 对已抑制的第三方 logger 同样生效。
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.task_id = task_id_var.get()
+        record.source = source_var.get()
+        record.pipeline = pipeline_var.get()
+        record.stage = stage_var.get()
+        record.method = method_var.get()
+        return True
+
+
+def _render_task_prefix(record: logging.LogRecord) -> str:
+    """根据 LogRecord 上的任务上下文字段组装 `[k=v ...]` 前缀；全空则返回空串。
+
+    渲染顺序固定：task → pipeline → stage → method。source 不渲染在前缀中，
+    仅在中间件的入口/收尾行显式输出，避免日志冗长。
+    """
+
+    parts: list[str] = []
+    task_id = getattr(record, "task_id", None)
+    if task_id:
+        parts.append(f"task={task_id}")
+    pipeline = getattr(record, "pipeline", None)
+    if pipeline:
+        parts.append(f"pipeline={pipeline}")
+    stage = getattr(record, "stage", None)
+    if stage:
+        parts.append(f"stage={stage}")
+    method = getattr(record, "method", None)
+    if method:
+        parts.append(f"method={method}")
+    if not parts:
+        return ""
+    return "[" + " ".join(parts) + "] "
 
 
 class ColoredFormatter(logging.Formatter):
@@ -46,8 +96,15 @@ class ColoredFormatter(logging.Formatter):
         return ".".join([p[0] for p in parts[:-keep_last]] + parts[-keep_last:])
 
     def format(self, record: logging.LogRecord) -> str:
+        prefix = _render_task_prefix(record)
         if not self._use_colors:
-            return super().format(record)
+            base = super().format(record)
+            if prefix:
+                # 非 TTY 模式下前缀不着色，插在消息体前，保持可 grep
+                return base.replace(
+                    record.getMessage(), f"{prefix}{record.getMessage()}", 1
+                )
+            return base
 
         level_color = self._LEVEL_COLORS.get(record.levelno, "")
         asctime = self.formatTime(record, self.datefmt)
@@ -62,11 +119,12 @@ class ColoredFormatter(logging.Formatter):
         if record.stack_info:
             message = f"{message}\n{self.formatStack(record.stack_info)}"
 
+        colored_prefix = f"{self._NAME_COLOR}{prefix}{self.RESET}" if prefix else ""
         return (
             f"{self._TIME_COLOR}{asctime}{self.RESET} "
             f"[{level_color}{record.levelname:<8}{self.RESET}] "
             f"{self._NAME_COLOR}{display_name}{self.RESET}: "
-            f"{message}"
+            f"{colored_prefix}{message}"
         )
 
 
@@ -146,6 +204,11 @@ def setup_logging(log_level: str = "INFO") -> None:
     config: dict[str, Any] = {
         "version": 1,
         "disable_existing_loggers": False,
+        "filters": {
+            "task_context": {
+                "()": "negentropy.perceives.core.logging.TaskContextFilter",
+            },
+        },
         "formatters": {
             "colored": {
                 "()": "negentropy.perceives.core.logging.ColoredFormatter",
@@ -157,6 +220,7 @@ def setup_logging(log_level: str = "INFO") -> None:
                 "class": "logging.StreamHandler",
                 "formatter": "colored",
                 "stream": "ext://sys.stderr",
+                "filters": ["task_context"],
             },
         },
         "root": {
@@ -188,6 +252,11 @@ def build_uvicorn_log_config(log_level: str = "INFO") -> dict[str, Any]:
     return {
         "version": 1,
         "disable_existing_loggers": False,
+        "filters": {
+            "task_context": {
+                "()": "negentropy.perceives.core.logging.TaskContextFilter",
+            },
+        },
         "formatters": {
             "default": {
                 "()": "negentropy.perceives.core.logging.ColoredFormatter",
@@ -203,11 +272,13 @@ def build_uvicorn_log_config(log_level: str = "INFO") -> dict[str, Any]:
                 "class": "logging.StreamHandler",
                 "formatter": "default",
                 "stream": "ext://sys.stderr",
+                "filters": ["task_context"],
             },
             "access": {
                 "class": "logging.StreamHandler",
                 "formatter": "access",
                 "stream": "ext://sys.stderr",
+                "filters": ["task_context"],
             },
         },
         "loggers": {

@@ -41,3 +41,9 @@ __all__ = [
 
 # FastMCP application instance
 app = FastMCP(settings.server_name, version=settings.server_version)
+
+# 注册任务级上下文中间件：在每次工具调用入口绑定 task_id / source / timing，
+# 并在出口输出任务完成摘要。
+from ._middleware import TaskContextMiddleware  # noqa: E402
+
+app.add_middleware(TaskContextMiddleware())

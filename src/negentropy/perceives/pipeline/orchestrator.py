@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from ..core.task_context import method_var, stage_var, timing_var
 from .base import StageResult
 from .scheduler import StageScheduler
 
@@ -104,7 +105,12 @@ class PipelineOrchestrator:
         stage_config: Dict[str, Any],
         input_data: Any,
     ) -> StageResult:
-        """执行单个 Stage。"""
+        """执行单个 Stage。
+
+        为当前 Stage 绑定 `stage_var` 与 `method_var`（ContextVar），使日志前缀
+        自动携带 `stage=` / `method=` 字段，并在 TaskTiming 中追加一条 Stage 记录。
+        `asyncio.gather` 为并行 Stage 自动复制 Context，故并发任务间互不干扰。
+        """
         name = stage_config["name"]
         tool_configs = self._apply_engine_gates(stage_config.get("tools", []))
         competition_mode = stage_config.get("competition_mode", False)
@@ -113,23 +119,40 @@ class PipelineOrchestrator:
             self._defaults.get("competition", {}),
         )
 
+        stage_tok = stage_var.set(name)
+        method_tok = method_var.set(None)
         start = time.monotonic()
-        result = await self._scheduler.run_stage(
-            stage_name=name,
-            tool_configs=tool_configs,
-            input_data=input_data,
-            competition_mode=competition_mode,
-            competition_config=competition_config,
-        )
-        result.elapsed_ms = (time.monotonic() - start) * 1000
-        logger.info(
-            "Stage '%s' 完成: success=%s, engine=%s, elapsed=%.1fms",
-            name,
-            result.success,
-            result.engine_used,
-            result.elapsed_ms,
-        )
-        return result
+        logger.info("Stage 开始")
+        try:
+            result = await self._scheduler.run_stage(
+                stage_name=name,
+                tool_configs=tool_configs,
+                input_data=input_data,
+                competition_mode=competition_mode,
+                competition_config=competition_config,
+            )
+            result.elapsed_ms = (time.monotonic() - start) * 1000
+            if result.engine_used:
+                method_var.set(result.engine_used)
+            logger.info(
+                "Stage 完成 success=%s elapsed=%.1fms",
+                result.success,
+                result.elapsed_ms,
+            )
+            timing = timing_var.get()
+            if timing is not None:
+                timing.stage_records.append(
+                    (
+                        name,
+                        result.engine_used or "-",
+                        result.elapsed_ms,
+                        result.success,
+                    )
+                )
+            return result
+        finally:
+            method_var.reset(method_tok)
+            stage_var.reset(stage_tok)
 
     async def _execute_parallel(
         self,

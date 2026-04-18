@@ -438,6 +438,13 @@ class NegentropyPerceivesSettings(BaseSettings):
         default=30.0, gt=0.0, description="HTTP 请求超时（秒）"
     )
 
+    # ── 任务级超时（PDF / Webpage 解析任务兜底） ─────────────────
+    task_timeout_seconds: int = Field(
+        default=300,
+        ge=1,
+        description="单次解析任务（PDF/Webpage）默认超时秒数。可被 MCP 入参 timeout 覆盖。",
+    )
+
     # ── LLM 编排 ──────────────────────────────────────────────
     llm_api_key: Optional[str] = Field(
         default=None, description="LLM API Key（ZhipuAI）"

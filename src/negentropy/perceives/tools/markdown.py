@@ -78,6 +78,14 @@ async def parse_webpage_to_markdown(
                 示例：{"max_bytes_per_image": 100000, "allowed_types": ["png", "jpg"]}""",
         ),
     ],
+    timeout: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            ge=1,
+            description="任务级超时秒数。为空则使用配置 task_timeout_seconds（默认 300s / 5 min），超时后优雅返回错误并取消子任务。",
+        ),
+    ] = None,
 ) -> MarkdownResponse:
     """
     Parse a web page into structured Markdown.
@@ -91,6 +99,7 @@ async def parse_webpage_to_markdown(
     - Metadata extraction (title, description, word count, etc.)
     - Support for all scraping methods
     - Advanced formatting and image embedding
+    - Task-level timeout with graceful cancellation
 
     Returns:
         MarkdownResponse with Markdown content, metadata, and conversion stats.
@@ -107,6 +116,7 @@ async def parse_webpage_to_markdown(
         embed_options=embed_options,
         web_scraper=web_scraper,
         markdown_converter=markdown_converter,
+        timeout=timeout,
     )
 
 
@@ -167,6 +177,14 @@ async def parse_webpages_to_markdown(
                 示例：{"max_bytes_per_image": 100000}""",
         ),
     ],
+    timeout: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            ge=1,
+            description="整批任务级超时秒数（整批共用）。为空则使用配置 task_timeout_seconds（默认 300s / 5 min）。",
+        ),
+    ] = None,
 ) -> BatchMarkdownResponse:
     """
     Parse multiple web pages into Markdown format concurrently.
@@ -179,6 +197,7 @@ async def parse_webpages_to_markdown(
     - Consistent formatting across all converted pages
     - Detailed summary statistics
     - Error handling for individual failures
+    - Batch-level timeout with graceful cancellation
 
     Returns:
         BatchMarkdownResponse with batch results and summary statistics.
@@ -193,4 +212,5 @@ async def parse_webpages_to_markdown(
         embed_options=embed_options,
         web_scraper=web_scraper,
         markdown_converter=markdown_converter,
+        timeout=timeout,
     )
