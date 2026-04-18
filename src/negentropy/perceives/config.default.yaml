@@ -85,6 +85,9 @@ proxy_url: null # 代理服务器 URL（启用代理时必填）
 # ── 请求设置 ──────────────────────────────────────────────────────────────────
 request_timeout: 30.0 # HTTP 请求超时，单位秒（> 0）
 
+# ── 任务超时（PDF / Webpage 解析任务级兜底） ────────────────────────────────
+task_timeout_seconds: 300 # 单个解析任务默认最长耗时（秒），超过将中止并返回错误，可被 MCP 入参 timeout 覆盖
+
 # ── LLM 编排（Smart 模式，需安装 litellm 可选依赖）─────────────────────────
 llm:
   api_key: null # LLM API Key（ZhipuAI）

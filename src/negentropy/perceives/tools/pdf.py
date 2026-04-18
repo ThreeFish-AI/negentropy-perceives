@@ -84,6 +84,14 @@ async def parse_pdf_to_markdown(
                 示例：{"output_dir": "/path/to/output", "image_size": [800, 600]}""",
         ),
     ] = None,
+    timeout: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            ge=1,
+            description="任务级超时秒数。为空则使用配置 task_timeout_seconds（默认 300s / 5 min），超时后优雅返回错误并取消子任务。",
+        ),
+    ] = None,
 ) -> PDFResponse:
     """
     Parse a PDF document into structured Markdown.
@@ -96,6 +104,7 @@ async def parse_pdf_to_markdown(
     - Image, table, and formula extraction
     - Page range selection for partial extraction
     - LLM-orchestrated multi-engine fusion (smart mode)
+    - Task-level timeout with graceful cancellation
 
     Returns:
         PDFResponse with parsed content, metadata, and asset statistics.
@@ -111,6 +120,7 @@ async def parse_pdf_to_markdown(
         extract_formulas=extract_formulas,
         embed_images=embed_images,
         enhanced_options=enhanced_options,
+        timeout=timeout,
     )
 
 
@@ -193,6 +203,14 @@ async def parse_pdfs_to_markdown(
                 示例：{"image_size": [800, 600]}""",
         ),
     ] = None,
+    timeout: Annotated[
+        Optional[int],
+        Field(
+            default=None,
+            ge=1,
+            description="整批任务级超时秒数（整批共用）。为空则使用配置 task_timeout_seconds（默认 300s / 5 min）。",
+        ),
+    ] = None,
 ) -> BatchPDFResponse:
     """
     Parse multiple PDF documents into Markdown format concurrently.
@@ -205,6 +223,7 @@ async def parse_pdfs_to_markdown(
     - Support for both URLs and local file paths
     - Consistent extraction settings across all PDFs
     - Detailed summary statistics
+    - Batch-level timeout with graceful cancellation
 
     Returns:
         BatchPDFResponse with batch results and comprehensive statistics.
@@ -220,4 +239,5 @@ async def parse_pdfs_to_markdown(
         extract_formulas=extract_formulas,
         embed_images=embed_images,
         enhanced_options=enhanced_options,
+        timeout=timeout,
     )
