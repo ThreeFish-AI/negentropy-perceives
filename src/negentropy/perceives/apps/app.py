@@ -1,6 +1,8 @@
 """FastMCP application entry point for Negentropy Perceives."""
 
 import argparse
+import asyncio
+import atexit
 import logging
 import sys
 from pathlib import Path
@@ -19,6 +21,7 @@ from ..core.logging import (
     build_uvicorn_log_config,
     setup_logging,
 )
+from ..infra.engine_worker import shutdown_engine_pool
 
 logger = logging.getLogger(__name__)
 
@@ -177,57 +180,90 @@ def main(argv: list[str] | None = None) -> None:
     )
     logger.info("Config sources: %s", describe_config_sources())
 
-    if settings.transport_mode in ["http", "sse"]:
-        transport_type = "HTTP" if settings.transport_mode == "http" else "SSE"
-        binding_host = settings.http_host
-        binding_port = settings.http_port
-        binding_path = settings.http_path
+    # ── 步骤 3.6：注册 atexit 兜底清理（确保进程退出时子进程全部回收） ──
+    atexit.register(_shutdown_engine_pool_sync)
 
-        if binding_host == "0.0.0.0":  # nosec B104
-            logger.info(
-                "Starting %s server on %s:%s",
-                transport_type,
-                binding_host,
-                binding_port,
-            )
-            logger.info(
-                "Local endpoint: http://localhost:%s%s", binding_port, binding_path
-            )
-            logger.info(
-                "Network endpoint: http://%s:%s%s",
-                binding_host,
-                binding_port,
-                binding_path,
+    try:
+        if settings.transport_mode in ["http", "sse"]:
+            transport_type = "HTTP" if settings.transport_mode == "http" else "SSE"
+            binding_host = settings.http_host
+            binding_port = settings.http_port
+            binding_path = settings.http_path
+
+            if binding_host == "0.0.0.0":  # nosec B104
+                logger.info(
+                    "Starting %s server on %s:%s",
+                    transport_type,
+                    binding_host,
+                    binding_port,
+                )
+                logger.info(
+                    "Local endpoint: http://localhost:%s%s",
+                    binding_port,
+                    binding_path,
+                )
+                logger.info(
+                    "Network endpoint: http://%s:%s%s",
+                    binding_host,
+                    binding_port,
+                    binding_path,
+                )
+            else:
+                logger.info(
+                    "Starting %s server on %s:%s",
+                    transport_type,
+                    binding_host,
+                    binding_port,
+                )
+                endpoint_url = f"http://{binding_host}:{binding_port}{binding_path}"
+                logger.info("%s endpoint: %s", transport_type, endpoint_url)
+
+            logger.info("CORS origins: %s", settings.http_cors_origins)
+
+            # ── 步骤 4：构建 Uvicorn 日志配置并启动 ──
+            uvicorn_log_config = build_uvicorn_log_config(settings.log_level)
+
+            app.run(
+                transport=settings.transport_mode,
+                host=binding_host,
+                port=binding_port,
+                path=binding_path,
+                show_banner=False,
+                uvicorn_config={
+                    "log_config": uvicorn_log_config,
+                    "timeout_graceful_shutdown": 5,
+                },
             )
         else:
-            logger.info(
-                "Starting %s server on %s:%s",
-                transport_type,
-                binding_host,
-                binding_port,
-            )
-            endpoint_url = f"http://{binding_host}:{binding_port}{binding_path}"
-            logger.info("%s endpoint: %s", transport_type, endpoint_url)
+            logger.info("Starting STDIO server")
+            app.run(show_banner=False)
+    finally:
+        _shutdown_engine_pool_sync()
 
-        logger.info("CORS origins: %s", settings.http_cors_origins)
 
-        # ── 步骤 4：构建 Uvicorn 日志配置并启动 ──
-        uvicorn_log_config = build_uvicorn_log_config(settings.log_level)
+_shutdown_done = False
 
-        app.run(
-            transport=settings.transport_mode,
-            host=binding_host,
-            port=binding_port,
-            path=binding_path,
-            show_banner=False,
-            uvicorn_config={
-                "log_config": uvicorn_log_config,
-                "timeout_graceful_shutdown": 5,
-            },
-        )
-    else:
-        logger.info("Starting STDIO server")
-        app.run(show_banner=False)
+
+def _shutdown_engine_pool_sync() -> None:
+    """同步封装 shutdown_engine_pool，兼顾 finally 与 atexit 两条收尾路径。
+
+    atexit 路径下 stdio/日志流可能已被解释器关闭，异常需静默吞掉避免
+    次生 I/O 错误污染退出码；同时用模块级 flag 保证幂等，避免重复执行。
+    """
+    global _shutdown_done
+    if _shutdown_done:
+        return
+    _shutdown_done = True
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(shutdown_engine_pool())
+        finally:
+            loop.close()
+    except Exception:
+        # 退出阶段日志流可能已关闭；静默失败即可，worker 子进程已是 daemon
+        # 即便未及时回收也会随主进程退出而终止
+        pass
 
 
 if __name__ == "__main__":
