@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from ..config import settings
+from ..core.cancellation import bind_cancel_scope
 from ..core.pipeline_support import try_pipeline
 from ..core.services import create_pdf_processor
 from ..core.task_context import bind_pipeline, pipeline_var
@@ -54,7 +55,7 @@ async def parse_pdf_to_markdown(
     pipeline_tok = bind_pipeline("pdf")
     try:
         try:
-            async with asyncio.timeout(effective_timeout):
+            async with bind_cancel_scope(timeout=effective_timeout):
                 page_range_tuple, page_range_error = validate_page_range(page_range)
                 if page_range_error:
                     return PDFResponse(
@@ -175,6 +176,20 @@ async def parse_pdf_to_markdown(
                 error=f"任务超时：超过 {effective_timeout} 秒仍未完成，已中止",
                 conversion_time=float(effective_timeout),
             )
+        except asyncio.CancelledError:
+            logger.warning(
+                "任务已取消 source=%s elapsed=%.2fs",
+                pdf_source,
+                elapsed_ms(_start) / 1000.0,
+            )
+            return PDFResponse(
+                success=False,
+                pdf_source=pdf_source,
+                method=method,
+                output_format=output_format,
+                error="任务已取消：客户端主动取消或上游中断，已释放资源",
+                conversion_time=elapsed_ms(_start) / 1000.0,
+            )
         except Exception as e:
             logger.error("Error parsing PDF %s: %s", pdf_source, str(e))
             return PDFResponse(
@@ -225,7 +240,7 @@ async def parse_pdfs_to_markdown(
     start_time = time.time()
     try:
         try:
-            async with asyncio.timeout(effective_timeout):
+            async with bind_cancel_scope(timeout=effective_timeout):
                 if not pdf_sources:
                     return BatchPDFResponse(
                         success=False,
@@ -318,6 +333,23 @@ async def parse_pdfs_to_markdown(
                 total_pages=0,
                 total_word_count=0,
                 total_conversion_time=float(effective_timeout),
+            )
+        except asyncio.CancelledError:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.warning(
+                "批量任务已取消 count=%d elapsed=%.2fs",
+                len(pdf_sources) if pdf_sources else 0,
+                duration_ms / 1000.0,
+            )
+            return BatchPDFResponse(
+                success=False,
+                total_pdfs=len(pdf_sources) if pdf_sources else 0,
+                successful_count=0,
+                failed_count=len(pdf_sources) if pdf_sources else 0,
+                results=[],
+                total_pages=0,
+                total_word_count=0,
+                total_conversion_time=duration_ms / 1000.0,
             )
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)

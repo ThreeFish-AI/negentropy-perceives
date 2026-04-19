@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 from ..config import settings
+from ..core.cancellation import bind_cancel_scope
 from ..core.pipeline_support import try_pipeline
 from ..core.task_context import bind_pipeline, pipeline_var
 from ..core.types import ScrapeMethod, elapsed_ms
@@ -57,7 +58,7 @@ async def parse_webpage_to_markdown(
     pipeline_tok = bind_pipeline("webpage")
     try:
         try:
-            async with asyncio.timeout(effective_timeout):
+            async with bind_cancel_scope(timeout=effective_timeout):
                 url_error = validate_url(url)
                 if url_error:
                     return MarkdownResponse(
@@ -161,6 +162,19 @@ async def parse_webpage_to_markdown(
                 error=f"任务超时：超过 {effective_timeout} 秒仍未完成，已中止",
                 conversion_time=float(effective_timeout),
             )
+        except asyncio.CancelledError:
+            logger.warning(
+                "任务已取消 url=%s elapsed=%.2fs",
+                url,
+                elapsed_ms(_start) / 1000.0,
+            )
+            return MarkdownResponse(
+                success=False,
+                url=url,
+                method=method_key,
+                error="任务已取消：客户端主动取消或上游中断，已释放资源",
+                conversion_time=elapsed_ms(_start) / 1000.0,
+            )
         except Exception as e:
             logger.error("Error parsing webpage %s to Markdown: %s", url, str(e))
             return MarkdownResponse(
@@ -208,7 +222,7 @@ async def parse_webpages_to_markdown(
     start_time = time.time()
     try:
         try:
-            async with asyncio.timeout(effective_timeout):
+            async with bind_cancel_scope(timeout=effective_timeout):
                 if not urls:
                     return BatchMarkdownResponse(
                         success=False,
@@ -292,6 +306,22 @@ async def parse_webpages_to_markdown(
                 results=[],
                 total_word_count=0,
                 total_conversion_time=float(effective_timeout),
+            )
+        except asyncio.CancelledError:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.warning(
+                "批量任务已取消 count=%d elapsed=%.2fs",
+                len(urls) if urls else 0,
+                duration_ms / 1000.0,
+            )
+            return BatchMarkdownResponse(
+                success=False,
+                total_urls=len(urls) if urls else 0,
+                successful_count=0,
+                failed_count=len(urls) if urls else 0,
+                results=[],
+                total_word_count=0,
+                total_conversion_time=duration_ms / 1000.0,
             )
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)
