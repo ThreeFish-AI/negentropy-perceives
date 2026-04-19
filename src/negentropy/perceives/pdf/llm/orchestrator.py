@@ -560,9 +560,19 @@ class LLMOrchestrator:
             )
 
         try:
-            result = self._docling_engine.convert(
-                str(pdf_path),
-                page_range=page_range,
+            from ...core.cancellation import current_cancel_scope
+            from ...infra import get_engine_pool
+
+            _scope = current_cancel_scope()
+            # 复用 processor 侧同一组 init_kwargs；若未预置则最小化配置
+            _init_kwargs = getattr(self, "_docling_init_kwargs", None) or {
+                "output_dir": str(self._output_dir) if self._output_dir else None,
+            }
+            result = await get_engine_pool().run(
+                "docling",
+                kwargs={"pdf_path": str(pdf_path), "page_range": page_range},
+                init_kwargs=_init_kwargs,
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if not result or not result.markdown:
                 return EngineResult(
@@ -681,10 +691,18 @@ class LLMOrchestrator:
                     engine="mineru", success=False, error="MinerU 未安装"
                 )
 
-            engine = MinerUEngine(
-                output_dir=str(self._output_dir) if self._output_dir else None
+            from ...core.cancellation import current_cancel_scope
+            from ...infra import get_engine_pool
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "mineru",
+                kwargs={"pdf_path": str(pdf_path), "page_range": page_range},
+                init_kwargs={
+                    "output_dir": str(self._output_dir) if self._output_dir else None,
+                },
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
-            result = await asyncio.to_thread(engine.convert, str(pdf_path), page_range)
             if not result or not result.markdown:
                 return EngineResult(
                     engine="mineru", success=False, error="MinerU 返回空结果"
@@ -758,10 +776,16 @@ class LLMOrchestrator:
                     engine="marker", success=False, error="Marker 未安装"
                 )
 
+            from ...core.cancellation import current_cancel_scope
+            from ...infra import get_engine_pool
+
+            _scope = current_cancel_scope()
             output_dir_str = str(self._output_dir) if self._output_dir else None
-            engine = MarkerEngine(output_dir=output_dir_str)
-            result = await asyncio.to_thread(engine.convert)(  # type: ignore[call-arg, operator]
-                str(pdf_path), embed_images=False
+            result = await get_engine_pool().run(
+                "marker",
+                kwargs={"pdf_path": str(pdf_path), "embed_images": False},
+                init_kwargs={"output_dir": output_dir_str},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if not result or not result.markdown:
                 return EngineResult(

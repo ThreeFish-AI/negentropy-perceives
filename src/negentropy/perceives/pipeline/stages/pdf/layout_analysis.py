@@ -45,12 +45,18 @@ class DoclingLayoutAnalyzer(PDFToolBase):
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 Docling 执行版面分析。"""
         try:
-            from ....pdf.engines.docling import DoclingEngine
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
 
-            engine = DoclingEngine()
-            result = engine.convert(
-                str(input_data.local_path),
-                page_range=input_data.page_range,
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "docling",
+                kwargs={
+                    "pdf_path": str(input_data.local_path),
+                    "page_range": input_data.page_range,
+                },
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if result is None:
                 return StageResult(success=False, error="Docling 转换返回空结果")
@@ -152,15 +158,18 @@ class MinerULayoutAnalyzer(PDFToolBase):
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 MinerU 执行版面分析。"""
         try:
-            import asyncio
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
 
-            from ....pdf.engines.mineru import MinerUEngine
-
-            engine = MinerUEngine()
-            result = await asyncio.to_thread(
-                engine.convert,
-                str(input_data.local_path),
-                input_data.page_range,
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "mineru",
+                kwargs={
+                    "pdf_path": str(input_data.local_path),
+                    "page_range": input_data.page_range,
+                },
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if result is None:
                 return StageResult(success=False, error="MinerU 转换返回空结果")
@@ -236,12 +245,16 @@ class MarkerLayoutAnalyzer(PDFToolBase):
     ) -> StageResult[LayoutAnalysisOutput]:
         """使用 Marker 执行版面分析。"""
         try:
-            import asyncio
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
 
-            from ....pdf.engines.marker import MarkerEngine
-
-            engine = MarkerEngine()
-            result = await asyncio.to_thread(engine.convert, str(input_data.local_path))
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "marker",
+                kwargs={"pdf_path": str(input_data.local_path)},
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
             if result is None:
                 return StageResult(success=False, error="Marker 转换返回空结果")
 
