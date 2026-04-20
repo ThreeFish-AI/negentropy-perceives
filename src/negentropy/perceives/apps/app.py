@@ -260,7 +260,7 @@ def _shutdown_engine_pool_sync() -> None:
             loop.run_until_complete(shutdown_engine_pool())
         finally:
             loop.close()
-    except Exception:
+    except Exception:  # nosec B110
         # 退出阶段日志流可能已关闭；静默失败即可，worker 子进程已是 daemon
         # 即便未及时回收也会随主进程退出而终止
         pass
