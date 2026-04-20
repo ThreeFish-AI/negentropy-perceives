@@ -44,7 +44,7 @@ uv add negentropy-perceives
 ### 2. 轰鸣启动引擎
 
 ```bash
-uv run negentropy-perceives  # 默认监听 localhost:8092，HTTP 模式
+uv run negentropy-perceives  # 默认监听 localhost:2992，HTTP 模式
 ```
 
 > 💡 **进阶锦囊**: 首次启动时，Negentropy Percevies 会自动生成的配置至 `~/.negentropy/perceives.config.yaml`。里面潜藏着各类高阶玩法的解锁机关。
@@ -76,7 +76,7 @@ asyncio.run(perceive_world())
   "mcpServers": {
     "negentropy-perceives": {
       "type": "http",
-      "url": "http://localhost:8092/mcp"
+      "url": "http://localhost:2992/mcp"
     }
   }
 }

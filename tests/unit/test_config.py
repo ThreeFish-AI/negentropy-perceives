@@ -559,7 +559,7 @@ class TestBuildSettings:
                 cfg = build_settings()
                 assert cfg.server_name == "negentropy-perceives"
                 assert cfg.transport_mode == "http"
-                assert cfg.http_port == 8092
+                assert cfg.http_port == 2992
                 assert cfg.concurrent_requests == 16
                 assert cfg.log_level == "INFO"
 
@@ -1005,7 +1005,7 @@ class TestBundledDefaultAsSource:
                 # 验证 bundled YAML 中的默认值生效（而非 Pydantic Field 硬编码默认值）
                 assert cfg.server_name == "negentropy-perceives"
                 assert cfg.transport_mode == "http"
-                assert cfg.http_port == 8092
+                assert cfg.http_port == 2992
                 assert cfg.http_host == "localhost"
                 assert cfg.concurrent_requests == 16
                 assert cfg.log_level == "INFO"

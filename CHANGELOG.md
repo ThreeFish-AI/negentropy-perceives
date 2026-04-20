@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## Unreleased
 
+### 📦 变更
+
+- **默认 HTTP 端口迁移 `8092` → `2992`** — 同步更新 `src/negentropy/perceives/config.default.yaml`（`http.port`）与 `config.py` 中 `http_port` Pydantic `Field(default=...)`、SDK 向后兼容常量 `DEFAULT_BASE_URL`、`apps/app.py` 用户配置模板注释、`examples/sdk/python_sdk_usage.py` 示例 URL，以及单元测试断言（`tests/unit/test_config.py`、`test_app_entrypoint.py`、`test_sdk.py`）。文档同步刷新：`README.md`、`docs/zh-CN/README.md`、`docs/user-guide.md`（快速入门、SDK 示例、环境变量默认值表 ×2、YAML 示例、Claude MCP JSON 示例、SSE 启动命令、`netstat` 调试提示）、`docs/framework.md` SDK 默认端点。用户显式设置 `http.port` 或 `NEGENTROPY_PERCEIVES_HTTP_PORT` 不受影响；使用默认配置的本地 Claude MCP 客户端需将 `url` 中的端口同步更新为 `2992`。
+
 ### 🔧 修复
 
 - **Ruff 代码检查 (47 错)** — 清除全项目 ruff lint 错误至零：

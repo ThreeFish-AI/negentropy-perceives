@@ -9,7 +9,7 @@ from negentropy.perceives.sdk import NegentropyPerceivesClient
 
 async def main() -> None:
     """Demonstrate the project SDK against a local HTTP endpoint."""
-    async with NegentropyPerceivesClient("http://127.0.0.1:8092/mcp") as client:
+    async with NegentropyPerceivesClient("http://127.0.0.1:2992/mcp") as client:
         tools = await client.list_tools()
         print(f"Registered tools: {len(tools)}")
 
