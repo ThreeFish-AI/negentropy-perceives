@@ -111,6 +111,13 @@ async def run_pdf_pipeline(
     # 确保导入 PDF Stage 工具以触发注册
     from .stages import pdf as _  # noqa: F401
 
+    stage_names = [s.get("name", "?") for s in stages_config]
+    logger.info(
+        "PDF Pipeline 启动 stages=%s parallel=%s",
+        stage_names,
+        _PDF_PARALLEL_STAGES,
+    )
+
     orchestrator = PipelineOrchestrator(
         stages_config=stages_config,
         defaults_config=_get_defaults_config(),
@@ -133,6 +140,13 @@ async def run_pdf_pipeline(
         initial_input=input_data,
         parallel_stages=_PDF_PARALLEL_STAGES,
     )
+
+    # 结果摘要日志
+    summary = {
+        k: {"ok": v.success, "engine": getattr(v, "engine_used", None)}
+        for k, v in stage_results.items()
+    }
+    logger.info("PDF Pipeline 阶段结果: %s", summary)
 
     # 检查关键 Stage 是否成功
     preprocessing_result = stage_results.get("preprocessing")

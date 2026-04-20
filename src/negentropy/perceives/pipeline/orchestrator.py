@@ -122,7 +122,12 @@ class PipelineOrchestrator:
         stage_tok = stage_var.set(name)
         method_tok = method_var.set(None)
         start = time.monotonic()
-        logger.info("Stage 开始")
+        tool_names = [tc.get("name", "") for tc in tool_configs]
+        logger.info(
+            "Stage 开始 tools=%s competition=%s",
+            tool_names,
+            competition_mode,
+        )
         try:
             result = await self._scheduler.run_stage(
                 stage_name=name,

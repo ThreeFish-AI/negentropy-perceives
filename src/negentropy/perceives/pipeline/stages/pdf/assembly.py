@@ -23,6 +23,7 @@ from ...models import (
     ExtractedTable,
     TextBlock,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("assembly.builtin_assembler")
 class BuiltinAssembler(PDFToolBase):
     """内置 Markdown 组装器。
 

@@ -21,6 +21,7 @@ from ...models import (
     PreprocessingInput,
     PreprocessingOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("preprocessing.pymupdf")
 class FitzPreprocessor(PDFToolBase):
     """基于 PyMuPDF 的预处理工具。"""
 
@@ -134,6 +136,7 @@ class FitzPreprocessor(PDFToolBase):
             return StageResult(success=False, error=f"预处理失败: {e}")
 
 
+@register_tool("preprocessing.pypdf")
 class PyPDFPreprocessor(PDFToolBase):
     """基于 pypdf 的预处理工具（降级方案）。"""
 

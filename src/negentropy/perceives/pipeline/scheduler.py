@@ -53,7 +53,7 @@ class StageScheduler:
             Stage 执行结果
         """
         # 解析可用工具
-        tools = self._resolve_tools(tool_configs)
+        tools = self._resolve_tools(tool_configs, stage_name=stage_name)
         if not tools:
             return StageResult(
                 success=False,
@@ -175,11 +175,16 @@ class StageScheduler:
             return selector(successful)
         return successful[0]  # 默认取 rank 最高的
 
-    def _resolve_tools(self, tool_configs: List[Dict[str, Any]]) -> List[StageTool]:
+    def _resolve_tools(
+        self,
+        tool_configs: List[Dict[str, Any]],
+        stage_name: str = "",
+    ) -> List[StageTool]:
         """根据配置解析并排序工具实例。
 
         Args:
             tool_configs: ``[{name: str, rank: int, enabled: bool}, ...]``
+            stage_name: Stage 名称，用于限定名查找（如 ``preprocessing.pymupdf``）
 
         Returns:
             按 rank 排序的可用工具实例列表
@@ -191,14 +196,37 @@ class StageScheduler:
         tools = []
         for tc in sorted_configs:
             name = tc.get("name", "")
-            try:
-                tool = get_tool(name)
-                if tool.is_available():
-                    tools.append(tool)
-                else:
-                    logger.debug("工具 '%s' 未安装或不可用，跳过", name)
-            except ValueError:
-                logger.debug("工具 '%s' 未注册，跳过", name)
+            tool = None
+            # 先尝试 stage 限定名（如 "preprocessing.pymupdf"）
+            if stage_name:
+                try:
+                    tool = get_tool(f"{stage_name}.{name}")
+                except ValueError:
+                    pass
+            # 再尝试通用名（如 "aiohttp"，webpage 的注册方式）
+            if tool is None:
+                try:
+                    tool = get_tool(name)
+                except ValueError:
+                    logger.debug("工具 '%s' 未注册，跳过", name)
+                    continue
+            if tool.is_available():
+                tools.append(tool)
+            else:
+                logger.debug("工具 '%s' 未安装或不可用，跳过", name)
+        if not tools and sorted_configs:
+            names_tried = [tc.get("name", "") for tc in sorted_configs]
+            logger.warning(
+                "Stage '%s' 无可用工具，已尝试: %s",
+                stage_name,
+                names_tried,
+            )
+        elif tools:
+            logger.info(
+                "Stage '%s' 可用工具: %s",
+                stage_name,
+                [t.name for t in tools],
+            )
         return tools
 
 

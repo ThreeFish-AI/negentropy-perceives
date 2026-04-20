@@ -20,6 +20,7 @@ from ...models import (
     FormulaExtractionOutput,
     PreprocessingOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("formula_extraction.mineru")
 class MinerUFormulaExtractor(PDFToolBase):
     """基于 MinerU 的公式提取工具。"""
 
@@ -97,6 +99,7 @@ class MinerUFormulaExtractor(PDFToolBase):
             return StageResult(success=False, error=f"MinerU 公式提取失败: {e}")
 
 
+@register_tool("formula_extraction.docling")
 class DoclingFormulaExtractor(PDFToolBase):
     """基于 Docling 的公式提取工具。"""
 
@@ -164,6 +167,7 @@ class DoclingFormulaExtractor(PDFToolBase):
             return StageResult(success=False, error=f"Docling 公式提取失败: {e}")
 
 
+@register_tool("formula_extraction.pymupdf_heuristic")
 class FitzHeuristicFormulaExtractor(PDFToolBase):
     """基于 PyMuPDF 字体分析的启发式公式提取工具。
 

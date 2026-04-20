@@ -137,6 +137,22 @@ def worker_main(conn: Connection, engine_name: str) -> None:
     except Exception:
         return
 
+    # MPS 环境预初始化（仅限 torch 相关引擎，避免 fake/test worker 的导入开销）
+    if engine_name in ("docling", "mineru", "marker"):
+        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+        try:
+            import torch
+
+            mps_built = torch.backends.mps.is_built()
+            mps_avail = torch.backends.mps.is_available()
+            logger.info(
+                "子进程 MPS 状态: built=%s, available=%s",
+                mps_built,
+                mps_avail,
+            )
+        except Exception as e:
+            logger.info("子进程 PyTorch/MPS 检查异常: %s", e)
+
     cached_engine: Optional[Any] = None
     cached_hash: Optional[str] = None
 

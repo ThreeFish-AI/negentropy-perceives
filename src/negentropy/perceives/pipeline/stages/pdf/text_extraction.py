@@ -20,6 +20,7 @@ from ...models import (
     TextBlock,
     TextExtractionOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("text_extraction.pymupdf")
 class FitzTextExtractor(PDFToolBase):
     """基于 PyMuPDF 的文本提取工具。"""
 
@@ -124,6 +126,7 @@ class FitzTextExtractor(PDFToolBase):
             return StageResult(success=False, error=f"PyMuPDF 文本提取失败: {e}")
 
 
+@register_tool("text_extraction.docling")
 class DoclingTextExtractor(PDFToolBase):
     """基于 Docling 的文本提取工具。"""
 
@@ -214,6 +217,7 @@ class DoclingTextExtractor(PDFToolBase):
             return StageResult(success=False, error=f"Docling 文本提取失败: {e}")
 
 
+@register_tool("text_extraction.pypdf")
 class PyPDFTextExtractor(PDFToolBase):
     """基于 pypdf 的文本提取工具（降级方案）。"""
 
