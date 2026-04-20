@@ -46,7 +46,7 @@ def _safe_log(level: int, msg: str, *args: Any) -> None:
     """日志写入；在解释器退出阶段 stdio 可能已被关闭，此时静默失败即可。"""
     try:
         logger.log(level, msg, *args)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -109,7 +109,7 @@ class EngineWorker:
         # 父进程关闭子端句柄；子进程会保留自己的一份
         try:
             child_conn.close()
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
         self._proc = proc
@@ -203,7 +203,8 @@ class EngineWorker:
 
         try:
             await asyncio.to_thread(proc.join, self._kill_grace)
-        except Exception:
+        except Exception:  # nosec B110
+            # join 超时/异常不阻塞后续 SIGKILL 路径
             pass
 
         if proc.is_alive():
@@ -220,7 +221,7 @@ class EngineWorker:
                 _safe_log(logging.WARNING, "kill() 异常 pid=%s: %s", pid, e)
             try:
                 await asyncio.to_thread(proc.join, 1.0)
-            except Exception:
+            except Exception:  # nosec B110
                 pass
 
         self._cleanup()
@@ -234,11 +235,12 @@ class EngineWorker:
         try:
             if self._conn is not None:
                 self._conn.send({"type": "shutdown"})
-        except Exception:
+        except Exception:  # nosec B110
+            # 发送 shutdown 失败则直接走 terminate 兜底
             pass
         try:
             await asyncio.to_thread(proc.join, 1.0)
-        except Exception:
+        except Exception:  # nosec B110
             pass
         if proc is not None and proc.is_alive():
             await self.terminate()
@@ -249,7 +251,7 @@ class EngineWorker:
         try:
             if self._conn is not None:
                 self._conn.close()
-        except Exception:
+        except Exception:  # nosec B110
             pass
         self._conn = None
         self._proc = None

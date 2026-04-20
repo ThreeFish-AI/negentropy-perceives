@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import time
 
 import pytest
@@ -225,6 +226,10 @@ class TestBasicProtocol:
 
 
 class TestProcessActuallyKilled:
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX-only: 依赖 os.kill(pid,0) liveness 语义与 multiprocessing SIGTERM；Windows 下 TerminateProcess 路径异步取消会死锁",
+    )
     @pytest.mark.asyncio
     async def test_pid_no_longer_running_after_cancel(
         self, process_pool: EngineWorkerPool

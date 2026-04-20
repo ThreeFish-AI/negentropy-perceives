@@ -108,7 +108,7 @@ def _hash_init_kwargs(init_kwargs: Optional[Dict[str, Any]]) -> str:
         serialized = json.dumps(init_kwargs, sort_keys=True, default=str)
     except Exception:
         serialized = repr(sorted(init_kwargs.items()))
-    return hashlib.sha1(serialized.encode("utf-8")).hexdigest()
+    return hashlib.sha1(serialized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def worker_main(conn: Connection, engine_name: str) -> None:
@@ -242,5 +242,6 @@ def worker_main(conn: Connection, engine_name: str) -> None:
 
     try:
         conn.close()
-    except Exception:
+    except Exception:  # nosec B110
+        # 子进程退出阶段连接可能已在对端关闭；静默即可
         pass
