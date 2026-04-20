@@ -18,6 +18,7 @@ from ...models import (
     PreprocessingOutput,
     TableExtractionOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("table_extraction.docling")
 class DoclingTableExtractor(PDFToolBase):
     """基于 Docling TableFormer 的表格提取工具。"""
 
@@ -93,6 +95,7 @@ class DoclingTableExtractor(PDFToolBase):
             return StageResult(success=False, error=f"Docling 表格提取失败: {e}")
 
 
+@register_tool("table_extraction.pymupdf")
 class FitzTableExtractor(PDFToolBase):
     """基于 PyMuPDF 的启发式表格提取工具。
 
@@ -169,6 +172,7 @@ class FitzTableExtractor(PDFToolBase):
             return StageResult(success=False, error=f"PyMuPDF 表格提取失败: {e}")
 
 
+@register_tool("table_extraction.camelot")
 class CamelotTableExtractor(PDFToolBase):
     """基于 Camelot 的表格提取工具。"""
 
@@ -229,6 +233,7 @@ class CamelotTableExtractor(PDFToolBase):
             return StageResult(success=False, error=f"Camelot 表格提取失败: {e}")
 
 
+@register_tool("table_extraction.pdfplumber")
 class PDFPlumberTableExtractor(PDFToolBase):
     """基于 pdfplumber 的表格提取工具。"""
 

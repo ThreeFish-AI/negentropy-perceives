@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple
 
 from ...base import Stage, StageResult
 from ...models import LayoutAnalysisOutput, LayoutRegion, PreprocessingOutput
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("layout_analysis.docling")
 class DoclingLayoutAnalyzer(PDFToolBase):
     """基于 Docling 的版面分析工具。"""
 
@@ -140,6 +142,7 @@ class DoclingLayoutAnalyzer(PDFToolBase):
             return StageResult(success=False, error=f"Docling 版面分析失败: {e}")
 
 
+@register_tool("layout_analysis.mineru")
 class MinerULayoutAnalyzer(PDFToolBase):
     """基于 MinerU 的版面分析工具。"""
 
@@ -227,6 +230,7 @@ class MinerULayoutAnalyzer(PDFToolBase):
             return StageResult(success=False, error=f"MinerU 版面分析失败: {e}")
 
 
+@register_tool("layout_analysis.marker")
 class MarkerLayoutAnalyzer(PDFToolBase):
     """基于 Marker 的版面分析工具。"""
 
@@ -322,6 +326,7 @@ class MarkerLayoutAnalyzer(PDFToolBase):
             return StageResult(success=False, error=f"Marker 版面分析失败: {e}")
 
 
+@register_tool("layout_analysis.pymupdf")
 class FitzLayoutAnalyzer(PDFToolBase):
     """基于 PyMuPDF 的启发式版面分析工具。
 

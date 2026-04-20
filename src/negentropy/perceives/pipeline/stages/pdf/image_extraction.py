@@ -17,6 +17,7 @@ from ...models import (
     ImageExtractionOutput,
     PreprocessingOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("image_extraction.pymupdf")
 class FitzImageExtractor(PDFToolBase):
     """基于 PyMuPDF 的图片提取工具。
 

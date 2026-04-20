@@ -33,6 +33,7 @@ from ...models import (
     PipelineResult,
     PreprocessingOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ class _AssetBundlingInput:
 # ---------------------------------------------------------------------------
 
 
+@register_tool("asset_bundling.builtin_bundler")
 class BuiltinBundler(PDFToolBase):
     """内置资源打包工具。
 

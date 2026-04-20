@@ -19,6 +19,7 @@ from ...models import (
     ExtractedCodeBlock,
     PreprocessingOutput,
 )
+from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+@register_tool("code_detection.docling")
 class DoclingCodeDetector(PDFToolBase):
     """基于 Docling 的代码块检测工具。"""
 
@@ -92,6 +94,7 @@ class DoclingCodeDetector(PDFToolBase):
             return StageResult(success=False, error=f"Docling 代码块检测失败: {e}")
 
 
+@register_tool("code_detection.marker")
 class MarkerCodeDetector(PDFToolBase):
     """基于 Marker 的代码块检测工具。"""
 
@@ -152,6 +155,7 @@ class MarkerCodeDetector(PDFToolBase):
             return StageResult(success=False, error=f"Marker 代码块检测失败: {e}")
 
 
+@register_tool("code_detection.algorithm_detector")
 class AlgorithmCodeDetector(PDFToolBase):
     """基于启发式评分的算法/伪代码检测工具。
 
