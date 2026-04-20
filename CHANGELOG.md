@@ -15,6 +15,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - E402 导入位置（1 处）— `conftest.py` 中 `Path` 导入上移至文件顶部
 - **Ruff 格式化 (62 files)** — 统一全项目代码格式
 
+## v0.3.0-fix.2 — MCP 取消传导彻底修复
+
+> 修复 MCP Client 取消/超时后 PDF→Markdown 进程仍在后台持续吞噬 CPU/GPU/内存的资源泄漏问题。取消信号可从 MCP 传输层一路下钻至原生引擎，真正做到"叫得停"。
+
+### 🔧 修复
+
+- **取消信号传导链路缺失** — 此前 `docling/mineru/marker_engine.convert(...)` 同步阻塞事件循环，外层 `asyncio.timeout` / FastMCP anyio.CancelScope 无法在 await 检查点抛出 `CancelledError`；即便包入 `asyncio.to_thread`，Python 也无法强制终止线程，原生 C++/CUDA 推理继续吃满资源直至自然结束
+- **原生引擎进程隔离** — Docling/MinerU/Marker 全部下沉到独立子进程执行；取消时走 `SIGTERM → grace → SIGKILL` 真正释放 GPU/CPU/显存
+- **Pipeline Stage 迁移** — `pipeline/stages/pdf/{layout_analysis,table_extraction,code_detection,formula_extraction,text_extraction}.py` 七处 `engine.convert` 调用点统一改走 `EngineWorkerPool.run(...)`
+- **ops 层超时治理** — `ops/pdf.py`、`ops/markdown.py` 原先各自的 `asyncio.timeout(...)` 替换为 ContextVar 级 `bind_cancel_scope(...)`，保持 `PDFResponse.error="任务超时：..."` 既有语义的同时，新增 `"任务已取消：..."` 客户端主动取消路径
+- **Middleware 观测性** — `tools/_middleware.py` 在 `on_call_tool` 捕获 `CancelledError` 时登记 `scope.mark_cancelled("client_cancelled")` 并输出"任务取消 tool=... reason=... elapsed=..."日志
+
+### ✨ 新增
+
+- **`core/cancellation.py`** — `CancelScope` 数据类（`threading.Event` + `deadline_monotonic` + `reason`）+ `cancel_scope_var` ContextVar + `bind_cancel_scope(timeout=...)` 异步上下文管理器；同步/线程/子进程代码均可轮询 event 协作式退出
+- **`infra/engine_worker.py` + `_engine_worker_entry.py`** — `EngineWorker`（单子进程包装，支持 `SIGTERM/SIGKILL`）+ `EngineWorkerPool`（Supervisor 模式，按引擎维护常驻 worker，取消时 pop + 后台 terminate + 懒启动替身）；子进程侧按 `init_kwargs` 哈希缓存引擎实例，避免重复冷启动
+- **配置项** — `pdf_engine_isolation`（`process`/`thread`/`inline`，默认 `process`）、`pdf_worker_pool_size`（默认 `1`）、`pdf_worker_max_tasks`（默认 `50`，周期性回收防内存泄漏）、`pdf_worker_kill_grace_seconds`（默认 `2.0`）；同步暴露为 `NEGENTROPY_PERCEIVES_PDF_*` 环境变量
+- **应用生命周期** — `apps/app.py:main()` 退出路径 `finally + atexit.register` 双保险调用 `shutdown_engine_pool()`，确保进程退出时所有 worker 子进程被回收
+- **测试覆盖** — `tests/unit/test_cancellation.py`（21 用例，CancelScope 各维度）+ `tests/integration/test_cancellation_flow.py`（10 用例，覆盖超时杀进程、客户端取消、pool 复原、thread 降级、子进程 PID 已消失等场景）
+
+### 📚 参考设计模式
+
+- **Cancel Scope**（Trio/Anyio/Go `context.Context`）— 跨层隐式上下文传递取消信号
+- **Warm Worker Pool + Kill-on-Revoke**（Celery `terminate=True` / Gunicorn worker 重启）— 取消即杀，按需懒启动补齐
+- **Supervisor Pattern**（Erlang/OTP）— Pool 作为 supervisor，worker 崩溃/被 kill 后自动 respawn
+- **Process Isolation for Native Code**（Chromium 渲染进程 / CPython GIL 规避）— 把不可中断的 C++/CUDA 推理放独立进程
+
 ## v0.3.0-fix.1 — CI 流水线修复
 
 > 修复 GitHub Actions CI 全线失败问题，恢复 7/7 Job 全绿。

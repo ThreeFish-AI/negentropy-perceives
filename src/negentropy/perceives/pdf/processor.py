@@ -104,20 +104,27 @@ class PDFProcessor:
         self._mineru_engine: Optional[MinerUEngine] = None
         self._marker_engine: Optional[MarkerEngine] = None
 
+        # 传递给 Worker 的 init_kwargs：process 隔离模式下子进程据此实例化
+        # 对应引擎；与主进程侧 `_*_engine` 实例使用同一组 kwargs，保证行为一致。
+        self._docling_init_kwargs: Dict[str, Any] = {}
+        self._mineru_init_kwargs: Dict[str, Any] = {}
+        self._marker_init_kwargs: Dict[str, Any] = {}
+
         if prefer_docling and DoclingEngine.is_available():
             from ..config import settings
 
-            self._docling_engine = DoclingEngine(
-                output_dir=output_dir,
-                device=settings.accelerator_device,
-                num_threads=settings.accelerator_num_threads,
-                enable_formula_enrichment=settings.docling_formula_extraction_enabled,
-                enable_table_structure=settings.docling_table_extraction_enabled,
-                enable_ocr=settings.docling_ocr_enabled,
-                ocr_batch_size=settings.accelerator_ocr_batch_size,
-                layout_batch_size=settings.accelerator_layout_batch_size,
-                table_batch_size=settings.accelerator_table_batch_size,
-            )
+            self._docling_init_kwargs = {
+                "output_dir": output_dir,
+                "device": settings.accelerator_device,
+                "num_threads": settings.accelerator_num_threads,
+                "enable_formula_enrichment": settings.docling_formula_extraction_enabled,
+                "enable_table_structure": settings.docling_table_extraction_enabled,
+                "enable_ocr": settings.docling_ocr_enabled,
+                "ocr_batch_size": settings.accelerator_ocr_batch_size,
+                "layout_batch_size": settings.accelerator_layout_batch_size,
+                "table_batch_size": settings.accelerator_table_batch_size,
+            }
+            self._docling_engine = DoclingEngine(**self._docling_init_kwargs)
 
         # MinerU 引擎（延迟初始化，仅当配置启用且已安装时）
         self._init_mineru_engine()
@@ -153,11 +160,12 @@ class PDFProcessor:
             from ..config import settings
 
             if settings.mineru_enabled and MinerUEngine.is_available():
-                self._mineru_engine = MinerUEngine(
-                    output_dir=self._output_dir,
-                    device=settings.mineru_device,
-                    backend=settings.mineru_backend,
-                )
+                self._mineru_init_kwargs = {
+                    "output_dir": self._output_dir,
+                    "device": settings.mineru_device,
+                    "backend": settings.mineru_backend,
+                }
+                self._mineru_engine = MinerUEngine(**self._mineru_init_kwargs)
                 logger.info("MinerU 引擎已初始化")
         except Exception as e:
             logger.warning("MinerU 引擎初始化失败: %s", e)
@@ -176,10 +184,11 @@ class PDFProcessor:
                         "以启用 Marker 引擎。"
                     )
                     return
-                self._marker_engine = MarkerEngine(
-                    output_dir=self._output_dir,
-                    llm_enhanced=settings.marker_llm_enhanced,
-                )
+                self._marker_init_kwargs = {
+                    "output_dir": self._output_dir,
+                    "llm_enhanced": settings.marker_llm_enhanced,
+                }
+                self._marker_engine = MarkerEngine(**self._marker_init_kwargs)
                 logger.info("Marker 引擎已初始化")
         except Exception as e:
             logger.warning("Marker 引擎初始化失败: %s", e)
@@ -368,10 +377,21 @@ class PDFProcessor:
                 try:
                     logger.info("使用 Docling 引擎转换 PDF: %s", pdf_source)
                     page_range_tuple = page_range if page_range else None
-                    docling_result = self._docling_engine.convert(
-                        str(pdf_path),
-                        page_range=page_range_tuple,
-                        embed_images=embed_images,
+                    from ..core.cancellation import current_cancel_scope
+                    from ..infra import get_engine_pool
+
+                    _scope = current_cancel_scope()
+                    docling_result = await get_engine_pool().run(
+                        "docling",
+                        kwargs={
+                            "pdf_path": str(pdf_path),
+                            "page_range": page_range_tuple,
+                            "embed_images": embed_images,
+                        },
+                        init_kwargs=self._docling_init_kwargs,
+                        deadline_monotonic=_scope.deadline_monotonic
+                        if _scope
+                        else None,
                     )
                     if docling_result and docling_result.markdown:
                         return self._build_result_from_engine(
@@ -401,9 +421,20 @@ class PDFProcessor:
                 try:
                     logger.info("使用 MinerU 引擎转换 PDF: %s", pdf_source)
                     page_range_tuple = page_range if page_range else None
-                    mineru_result = self._mineru_engine.convert(
-                        str(pdf_path),
-                        page_range=page_range_tuple,
+                    from ..core.cancellation import current_cancel_scope
+                    from ..infra import get_engine_pool
+
+                    _scope = current_cancel_scope()
+                    mineru_result = await get_engine_pool().run(
+                        "mineru",
+                        kwargs={
+                            "pdf_path": str(pdf_path),
+                            "page_range": page_range_tuple,
+                        },
+                        init_kwargs=self._mineru_init_kwargs,
+                        deadline_monotonic=_scope.deadline_monotonic
+                        if _scope
+                        else None,
                     )
                     if mineru_result and mineru_result.markdown:
                         return self._build_result_from_engine(
@@ -432,9 +463,20 @@ class PDFProcessor:
             if self._marker_engine and method in ("auto", "marker"):
                 try:
                     logger.info("使用 Marker 引擎转换 PDF: %s", pdf_source)
-                    marker_result = self._marker_engine.convert(
-                        str(pdf_path),
-                        embed_images=embed_images,
+                    from ..core.cancellation import current_cancel_scope
+                    from ..infra import get_engine_pool
+
+                    _scope = current_cancel_scope()
+                    marker_result = await get_engine_pool().run(
+                        "marker",
+                        kwargs={
+                            "pdf_path": str(pdf_path),
+                            "embed_images": embed_images,
+                        },
+                        init_kwargs=self._marker_init_kwargs,
+                        deadline_monotonic=_scope.deadline_monotonic
+                        if _scope
+                        else None,
                     )
                     if marker_result and marker_result.markdown:
                         return self._build_result_from_engine(

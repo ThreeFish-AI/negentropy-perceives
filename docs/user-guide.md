@@ -449,6 +449,15 @@ async with NegentropyPerceivesClient(
 | `NEGENTROPY_PERCEIVES_REQUEST_TIMEOUT` | `float` | `30.0` | `> 0` | HTTP 请求超时（秒） |
 | `NEGENTROPY_PERCEIVES_TASK_TIMEOUT_SECONDS` | `int` | `300` | `>= 1` | 单次解析任务（PDF/Webpage）默认超时（秒），可被 MCP 入参 `timeout` 覆盖 |
 
+#### PDF 引擎进程池（取消传导 / 资源真释放）
+
+| 环境变量                                             | 类型    | 默认值    | 约束                            | 说明                                                                                                     |
+| ---------------------------------------------------- | ------- | --------- | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `NEGENTROPY_PERCEIVES_PDF_ENGINE_ISOLATION`          | `str`   | `process` | `process` / `thread` / `inline` | PDF 引擎（Docling/MinerU/Marker）隔离策略。`process`（默认）取消时 kill 子进程真正释放 GPU/CPU；`thread` 仅作兜底无法强制 kill；`inline` 仅调试用 |
+| `NEGENTROPY_PERCEIVES_PDF_WORKER_POOL_SIZE`          | `int`   | `1`       | `>= 1`                          | 每种 PDF 引擎的 warm worker 数量（1 足以覆盖 95% 单实例场景）                                           |
+| `NEGENTROPY_PERCEIVES_PDF_WORKER_MAX_TASKS`          | `int`   | `50`      | `>= 1`                          | 单个 worker 处理任务数上限；达到后自动回收以防内存泄漏                                                   |
+| `NEGENTROPY_PERCEIVES_PDF_WORKER_KILL_GRACE_SECONDS` | `float` | `2.0`     | `>= 0.0`                        | 取消时先 `terminate`，等待此秒数若仍存活再 `kill`                                                        |
+
 #### LLM 编排（Smart 模式）
 
 `method="smart"` 使用 LLM 编排多引擎并行处理 PDF。需安装可选依赖 `litellm`（`uv pip install litellm`）。

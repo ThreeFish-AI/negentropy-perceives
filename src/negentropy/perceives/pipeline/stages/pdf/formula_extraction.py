@@ -48,15 +48,18 @@ class MinerUFormulaExtractor(PDFToolBase):
     ) -> StageResult[FormulaExtractionOutput]:
         """使用 MinerU 提取数学公式。"""
         try:
-            import asyncio
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
 
-            from ....pdf.engines.mineru import MinerUEngine
-
-            engine = MinerUEngine()
-            result = await asyncio.to_thread(
-                engine.convert,
-                str(input_data.local_path),
-                input_data.page_range,
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "mineru",
+                kwargs={
+                    "pdf_path": str(input_data.local_path),
+                    "page_range": input_data.page_range,
+                },
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if result is None:
                 return StageResult(success=False, error="MinerU 转换返回空结果")
@@ -112,12 +115,18 @@ class DoclingFormulaExtractor(PDFToolBase):
     ) -> StageResult[FormulaExtractionOutput]:
         """使用 Docling 提取公式。"""
         try:
-            from ....pdf.engines.docling import DoclingEngine
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
 
-            engine = DoclingEngine(enable_formula_enrichment=True)
-            result = engine.convert(
-                str(input_data.local_path),
-                page_range=input_data.page_range,
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "docling",
+                kwargs={
+                    "pdf_path": str(input_data.local_path),
+                    "page_range": input_data.page_range,
+                },
+                init_kwargs={"enable_formula_enrichment": True},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if result is None:
                 return StageResult(success=False, error="Docling 转换返回空结果")

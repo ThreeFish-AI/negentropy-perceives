@@ -13,6 +13,7 @@ Why 中间件层：
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Set
@@ -20,6 +21,7 @@ from typing import Any, Set
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
+from ..core.cancellation import current_cancel_scope
 from ..core.task_context import (
     TaskTiming,
     new_task_id,
@@ -76,16 +78,35 @@ class TaskContextMiddleware(Middleware):
             source,
             f"{timeout_arg}s" if timeout_arg else "default",
         )
+        cancelled = False
         try:
             return await call_next(context)
-        finally:
+        except asyncio.CancelledError:
+            cancelled = True
+            # ops 层通常已将 CancelledError 转为带错误的响应；若仍抛出，
+            # 说明上游（MCP 传输/SDK）强行取消，我们在此仅登记信号与日志。
+            scope = current_cancel_scope()
+            if scope is not None and scope.reason is None:
+                scope.mark_cancelled("client_cancelled")
+            reason = scope.reason if scope is not None else "unknown"
             elapsed = time.monotonic() - timing.start_monotonic
-            stage_summary = _format_stage_summary(timing)
-            logger.info(
-                "任务完成 elapsed=%.2fs stages=%s",
+            logger.warning(
+                "任务取消 tool=%s source=%s reason=%s elapsed=%.2fs",
+                tool_name,
+                source,
+                reason,
                 elapsed,
-                stage_summary,
             )
+            raise
+        finally:
+            if not cancelled:
+                elapsed = time.monotonic() - timing.start_monotonic
+                stage_summary = _format_stage_summary(timing)
+                logger.info(
+                    "任务完成 elapsed=%.2fs stages=%s",
+                    elapsed,
+                    stage_summary,
+                )
             # 按 LIFO 顺序释放 ContextVar Token，避免嵌套场景下状态错乱
             timing_var.reset(timing_tok)
             source_var.reset(src_tok)

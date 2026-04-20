@@ -445,6 +445,32 @@ class NegentropyPerceivesSettings(BaseSettings):
         description="单次解析任务（PDF/Webpage）默认超时秒数。可被 MCP 入参 timeout 覆盖。",
     )
 
+    # ── PDF 引擎进程池（取消传导 + 资源释放） ─────────────────────
+    pdf_engine_isolation: Literal["process", "thread", "inline"] = Field(
+        default="process",
+        description=(
+            "PDF 引擎（Docling/MinerU/Marker）隔离策略："
+            "process=独立子进程（默认，取消时 kill 真正释放 GPU/CPU）；"
+            "thread=asyncio.to_thread（兜底，无法强制 kill）；"
+            "inline=同步调用（仅调试）。"
+        ),
+    )
+    pdf_worker_pool_size: int = Field(
+        default=1,
+        ge=1,
+        description="每种 PDF 引擎的 warm worker 数量。值 1 足以覆盖 95% 单实例场景。",
+    )
+    pdf_worker_max_tasks: int = Field(
+        default=50,
+        ge=1,
+        description="单个 worker 处理任务数上限；达到后自动回收以防内存泄漏。",
+    )
+    pdf_worker_kill_grace_seconds: float = Field(
+        default=2.0,
+        ge=0.0,
+        description="取消时先 terminate，等待此秒数后若仍存活再 kill。",
+    )
+
     # ── LLM 编排 ──────────────────────────────────────────────
     llm_api_key: Optional[str] = Field(
         default=None, description="LLM API Key（ZhipuAI）"

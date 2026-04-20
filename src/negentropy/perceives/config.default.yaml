@@ -88,6 +88,12 @@ request_timeout: 30.0 # HTTP 请求超时，单位秒（> 0）
 # ── 任务超时（PDF / Webpage 解析任务级兜底） ────────────────────────────────
 task_timeout_seconds: 300 # 单个解析任务默认最长耗时（秒），超过将中止并返回错误，可被 MCP 入参 timeout 覆盖
 
+# ── PDF 引擎进程池（取消传导 + 资源真释放） ────────────────────────────────
+pdf_engine_isolation: process # 引擎隔离策略：process（默认，kill 子进程释放 GPU/CPU）/ thread（兜底）/ inline（调试）
+pdf_worker_pool_size: 1 # 每种 PDF 引擎的 warm worker 数量（1 足以覆盖 95% 单实例场景）
+pdf_worker_max_tasks: 50 # 单个 worker 处理任务数上限；达到后自动回收以防内存泄漏
+pdf_worker_kill_grace_seconds: 2.0 # 取消时先 terminate，等待此秒数仍存活再 kill
+
 # ── LLM 编排（Smart 模式，需安装 litellm 可选依赖）─────────────────────────
 llm:
   api_key: null # LLM API Key（ZhipuAI）
