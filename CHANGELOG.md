@@ -1,3 +1,7 @@
+## Released 2026-04-20
+
+Published to PyPI: https://pypi.org/project/negentropy-perceives/0.2.0a3/
+
 ## Released 2026-04-11
 
 Published to PyPI: https://pypi.org/project/negentropy-perceives/0.2.0a1/
