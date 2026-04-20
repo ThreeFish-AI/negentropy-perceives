@@ -43,7 +43,7 @@ class NegentropyPerceivesToolError(NegentropyPerceivesError):
 
 
 # 向后兼容常量（Deprecated: 请使用 _default_base_url() 或直接从 config.settings 读取）
-DEFAULT_BASE_URL = "http://localhost:8092/mcp"
+DEFAULT_BASE_URL = "http://localhost:2992/mcp"
 
 
 def _default_base_url() -> str:

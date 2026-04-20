@@ -30,7 +30,7 @@ transport:
 
 http:
   host: localhost # HTTP 服务器绑定主机
-  port: 8092 # HTTP 服务器监听端口
+  port: 2992 # HTTP 服务器监听端口
   path: /mcp # HTTP 端点路径
   cors_origins: "*" # CORS 来源白名单（* 允许所有，null 禁用）
 

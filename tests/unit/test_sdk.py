@@ -27,7 +27,7 @@ class TestSDKMCPMode:
     @pytest.mark.asyncio
     async def test_connect_and_close(self):
         """connect/close 应委托给底层 FastMCP Client。"""
-        test_url = "http://localhost:8092/mcp"
+        test_url = "http://localhost:2992/mcp"
         with (
             patch("fastmcp.client.transports.StreamableHttpTransport") as transport_cls,
             patch("fastmcp.Client") as client_cls,

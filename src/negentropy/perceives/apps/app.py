@@ -90,7 +90,7 @@ _USER_CONFIG_TEMPLATE = """\
 #
 # http:
 #   host: 0.0.0.0
-#   port: 8092
+#   port: 2992
 #
 # log:
 #   level: DEBUG

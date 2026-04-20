@@ -368,7 +368,7 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="http", description="MCP 传输协议模式：stdio / http / sse"
     )
     http_host: str = Field(default="localhost", description="HTTP 服务器绑定主机")
-    http_port: int = Field(default=8092, description="HTTP 服务器监听端口")
+    http_port: int = Field(default=2992, description="HTTP 服务器监听端口")
     http_path: str = Field(default="/mcp", description="HTTP 端点路径")
     http_cors_origins: Optional[str] = Field(
         default="*", description="CORS 来源白名单（null 禁用）"
