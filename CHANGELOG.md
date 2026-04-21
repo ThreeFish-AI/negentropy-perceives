@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### 🔧 修复
 
+- **WebPage Pipeline `asset_bundling` Stage 工具注册冲突** — 全局工具注册表中 PDF Pipeline 的 `asset_bundling.builtin_bundler` 与 WebPage Pipeline 的限定名查找产生命名空间冲突，导致 WebPage Pipeline 执行 `asset_bundling` Stage 时错误加载了 PDF 的 `BuiltinBundler`（期望 `_AssetBundlingInput`，实际收到 `StageContext`），触发 `AttributeError: 'StageContext' object has no attribute 'output_dir'`。修复方式：为 `scheduler._resolve_tools` 增加 `pipeline_name` 参数，限定名查找优先使用 `f"{pipeline_name}.{stage_name}.{name}"`（如 `"pdf.asset_bundling.builtin_bundler"`），保留旧格式兼容回退；同步更新 `orchestrator` 和 `convenience` 入口透传 `pipeline_name`；将 PDF `asset_bundling` 工具注册名从 `"asset_bundling.builtin_bundler"` 改为 `"pdf.asset_bundling.builtin_bundler"`。涉及文件：`scheduler.py`、`orchestrator.py`、`convenience.py`、`stages/pdf/asset_bundling.py`
 - **Ruff 代码检查 (47 错)** — 清除全项目 ruff lint 错误至零：
   - F401 未使用导入（34 处）— 自动移除 `src/` 和 `tests/` 中 34 个未使用导入
   - F841 未使用变量（10 处）— 移除或加 `_` 前缀标记有意忽略的变量

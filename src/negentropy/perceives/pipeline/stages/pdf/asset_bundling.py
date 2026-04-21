@@ -68,7 +68,7 @@ class _AssetBundlingInput:
 # ---------------------------------------------------------------------------
 
 
-@register_tool("asset_bundling.builtin_bundler")
+@register_tool("pdf.asset_bundling.builtin_bundler")
 class BuiltinBundler(PDFToolBase):
     """内置资源打包工具。
 
