@@ -57,8 +57,23 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
                     element.decompose()
 
         # Remove elements with specific classes/ids commonly used for ads/navigation
+        # 使用词边界约束防止误匹配 CSS Module 哈希和复合词（如 reading 中的 ad）
         unwanted_patterns = [
-            re.compile(r".*(ad|advertisement|sidebar|nav|menu|footer|header).*", re.I)
+            re.compile(
+                r"(?<![a-zA-Z0-9])"
+                r"(?:ad(?:s)?|advertisement|sidebar|nav|menu)"
+                r"(?![a-zA-Z0-9])",
+                re.I,
+            ),
+            re.compile(
+                r".*(newsletter|subscribe|subscription|signup|sign-up|mailing-list).*",
+                re.I,
+            ),
+            re.compile(r".*(social|share|sharing-widget|share-buttons).*", re.I),
+            re.compile(r".*(cookie|consent|gdpr|cookie-banner).*", re.I),
+            re.compile(r".*(copy-button|copy-btn|clipboard|code-toolbar).*", re.I),
+            re.compile(r".*(carousel|slider|gallery|swiper|slick).*", re.I),
+            re.compile(r".*(tooltip|popover|modal|dialog|overlay|toast).*", re.I),
         ]
 
         for pattern in unwanted_patterns:
@@ -68,6 +83,22 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
             for element in soup.find_all(id=pattern):
                 if id(element) not in protected_ids:
                     element.decompose()
+
+        # 移除无内容价值的交互元素
+        for element in soup.find_all(["button", "noscript"]):
+            if id(element) not in protected_ids:
+                element.decompose()
+
+        # 移除不含 <text> 的内联 SVG 图标（保留含文字的 SVG 图表）
+        for svg in soup.find_all("svg"):
+            if id(svg) not in protected_ids and not svg.find("text"):
+                svg.decompose()
+
+        # 剥离所有剩余元素的 class 和 style 属性（对 Markdown 输出无语义价值）
+        for element in soup.find_all(True):
+            if id(element) not in protected_ids:
+                element.attrs.pop("class", None)
+                element.attrs.pop("style", None)
 
         # 确保块级元素之间有换行，以便 MarkItDown 正确识别段落边界。
         # MarkItDown 在无空白分隔的连续 <p> 标签间会将内容合并为同一行。
