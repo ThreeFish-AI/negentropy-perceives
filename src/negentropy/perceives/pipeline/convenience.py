@@ -122,6 +122,7 @@ async def run_pdf_pipeline(
         stages_config=stages_config,
         defaults_config=_get_defaults_config(),
         engine_gates=_get_engine_gates(),
+        pipeline_name="pdf",
     )
 
     input_data = PreprocessingInput(
@@ -275,6 +276,7 @@ async def run_webpage_pipeline(
     orchestrator = PipelineOrchestrator(
         stages_config=stages_config,
         defaults_config=_get_defaults_config(),
+        pipeline_name="webpage",
     )
 
     # 创建初始上下文

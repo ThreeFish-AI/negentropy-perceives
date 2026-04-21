@@ -30,6 +30,7 @@ class PipelineOrchestrator:
         stages_config: List[Dict[str, Any]],
         defaults_config: Optional[Dict[str, Any]] = None,
         engine_gates: Optional[Dict[str, bool]] = None,
+        pipeline_name: str = "",
     ):
         """
         Args:
@@ -37,10 +38,12 @@ class PipelineOrchestrator:
                 （来自 ``pipeline.pdf.stages`` 或 ``pipeline.webpage.stages``）
             defaults_config: 全局默认竞争配置（来自 ``pipeline.defaults``）
             engine_gates: 引擎级门控（如 ``{"docling": True, "mineru": False}``）
+            pipeline_name: Pipeline 名称，用于工具限定名查找隔离
         """
         self._stages_config = stages_config
         self._defaults = defaults_config or {}
         self._engine_gates = engine_gates or {}
+        self._pipeline_name = pipeline_name
         self._scheduler = StageScheduler()
 
     async def run(
@@ -135,6 +138,7 @@ class PipelineOrchestrator:
                 input_data=input_data,
                 competition_mode=competition_mode,
                 competition_config=competition_config,
+                pipeline_name=self._pipeline_name,
             )
             result.elapsed_ms = (time.monotonic() - start) * 1000
             if result.engine_used:

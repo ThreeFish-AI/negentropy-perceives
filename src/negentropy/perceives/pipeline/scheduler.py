@@ -38,6 +38,7 @@ class StageScheduler:
         competition_mode: bool = False,
         competition_config: Optional[Dict[str, Any]] = None,
         selector: Optional[Callable] = None,
+        pipeline_name: str = "",
     ) -> StageResult:
         """执行单个 Stage。
 
@@ -48,12 +49,15 @@ class StageScheduler:
             competition_mode: 是否启用竞争模式
             competition_config: 竞争模式配置（max_concurrent, timeout 等）
             selector: 自定义结果选择器
+            pipeline_name: Pipeline 名称，用于限定名查找
 
         Returns:
             Stage 执行结果
         """
         # 解析可用工具
-        tools = self._resolve_tools(tool_configs, stage_name=stage_name)
+        tools = self._resolve_tools(
+            tool_configs, stage_name=stage_name, pipeline_name=pipeline_name
+        )
         if not tools:
             return StageResult(
                 success=False,
@@ -179,12 +183,14 @@ class StageScheduler:
         self,
         tool_configs: List[Dict[str, Any]],
         stage_name: str = "",
+        pipeline_name: str = "",
     ) -> List[StageTool]:
         """根据配置解析并排序工具实例。
 
         Args:
             tool_configs: ``[{name: str, rank: int, enabled: bool}, ...]``
             stage_name: Stage 名称，用于限定名查找（如 ``preprocessing.pymupdf``）
+            pipeline_name: Pipeline 名称，用于跨 Pipeline 隔离
 
         Returns:
             按 rank 排序的可用工具实例列表
@@ -197,13 +203,19 @@ class StageScheduler:
         for tc in sorted_configs:
             name = tc.get("name", "")
             tool = None
-            # 先尝试 stage 限定名（如 "preprocessing.pymupdf"）
-            if stage_name:
+            # 1. 尝试 pipeline 感知限定名（如 "pdf.preprocessing.pymupdf"）
+            if pipeline_name and stage_name:
+                try:
+                    tool = get_tool(f"{pipeline_name}.{stage_name}.{name}")
+                except ValueError:
+                    pass
+            # 2. 兼容旧格式 stage 限定名（如 "preprocessing.pymupdf"）
+            if tool is None and stage_name:
                 try:
                     tool = get_tool(f"{stage_name}.{name}")
                 except ValueError:
                     pass
-            # 再尝试通用名（如 "aiohttp"，webpage 的注册方式）
+            # 3. 通用名回退（如 "aiohttp"）
             if tool is None:
                 try:
                     tool = get_tool(name)
