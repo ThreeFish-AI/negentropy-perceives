@@ -471,7 +471,9 @@ class MarkdownFormatter:
                 r"</?(table|tbody|thead|tfoot|tr|td|th)\b[^>]*>", "", markdown_content
             )
             markdown_content = re.sub(
-                r"</?(div|span|svg|path|use|g)\b[^>]*>", "", markdown_content
+                r"</?(div|span|svg|path|use|g|video|audio|picture|source|iframe|embed|object)\b[^>]*>",
+                "",
+                markdown_content,
             )
             # 清除孤立的 HTML 属性
             markdown_content = re.sub(r'\s+class="[^"]*"', "", markdown_content)
