@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Dict
 
 from ...base import StageResult
@@ -19,6 +20,33 @@ from ...registry import register_tool
 from .._base import WebToolBase
 
 logger = logging.getLogger(__name__)
+
+
+_IMG_TAG_RE = re.compile(r"<img\b", re.IGNORECASE)
+
+# 触发“图片丢失”兜底的阈值：原始 HTML 至少有这么多 <img>，
+# 但主内容区的 <img> 为 0 时，视为 trafilatura 提取失败。
+_MIN_RAW_IMAGES_FOR_LOSS_GUARD = 3
+
+
+def _rehydrate_trafilatura_graphics(html: str) -> str:
+    """将 trafilatura 输出的 ``<graphic>`` (TEI) 还原为标准 ``<img>``。
+
+    trafilatura 以 ``output_format='html'`` 输出时，图片会被降级为 TEI 的
+    ``<graphic>``，导致下游的 MarkItDown / html2text / Next.js 代理 URL
+    解析全部失效。这里用 BS4 将其标签名改回 ``img``，保留全部属性。
+    """
+    if not html or "<graphic" not in html:
+        return html
+    try:
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, "html.parser")
+        for g in soup.find_all("graphic"):
+            g.name = "img"
+        return str(soup)
+    except Exception:
+        return html
 
 
 @register_tool("trafilatura")
@@ -77,13 +105,41 @@ class TrafilaturaTool(WebToolBase):
                     engine_used=self.tool_name,
                 )
 
+            # trafilatura HTML 输出会将 <img> 降级为 TEI <graphic>，
+            # 在此还原为标准 <img>，让下游 S5/S9/S10 能正常识别图片。
+            main_html = _rehydrate_trafilatura_graphics(main_html)
+
+            # 图片丢失兜底：若原始 HTML 中存在多张图片但 trafilatura
+            # 输出为 0，说明本页结构使 trafilatura 整体丢弃了图片
+            # （常见于 Next.js 图像代理 / 复杂 figure 嵌套）。此时主动
+            # 标记失败，交由 S4 竞争模式降级到 readability 或启发式兜底。
+            raw_img_count = len(_IMG_TAG_RE.findall(raw_html))
+            main_img_count = len(_IMG_TAG_RE.findall(main_html))
+            if raw_img_count >= _MIN_RAW_IMAGES_FOR_LOSS_GUARD and main_img_count == 0:
+                logger.warning(
+                    "trafilatura 丢弃了全部图片 (raw=%d, main=0)，触发图片丢失兜底",
+                    raw_img_count,
+                )
+                return StageResult(
+                    success=False,
+                    error=(
+                        f"trafilatura 丢弃了全部图片 (raw_html 含 {raw_img_count} "
+                        "张)，触发兜底以让其他工具接管"
+                    ),
+                    engine_used=self.tool_name,
+                )
+
             ctx.metadata["main_content_html"] = main_html
 
             return StageResult(
                 success=True,
                 output=ctx,
                 engine_used=self.tool_name,
-                metadata={"content_length": len(main_html)},
+                metadata={
+                    "content_length": len(main_html),
+                    "img_count": main_img_count,
+                    "raw_img_count": raw_img_count,
+                },
             )
         except Exception as e:
             logger.warning("trafilatura 提取失败: %s", e)

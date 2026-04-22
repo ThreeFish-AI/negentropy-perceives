@@ -80,13 +80,27 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
             re.compile(r".*(tooltip|popover|modal|dialog|overlay|toast).*", re.I),
         ]
 
+        # 含正文媒体的容器（carousel/gallery 等常被文章用作媒体展示）需
+        # 被保护，不能整个移除——否则会丢失图片/视频等内容元素。
+        def _has_content_media(el) -> bool:
+            try:
+                return bool(el.find(["img", "figure", "picture", "video", "audio"]))
+            except Exception:
+                return False
+
         for pattern in unwanted_patterns:
             for element in soup.find_all(class_=pattern):
-                if id(element) not in protected_ids:
-                    element.decompose()
+                if id(element) in protected_ids:
+                    continue
+                if _has_content_media(element):
+                    continue
+                element.decompose()
             for element in soup.find_all(id=pattern):
-                if id(element) not in protected_ids:
-                    element.decompose()
+                if id(element) in protected_ids:
+                    continue
+                if _has_content_media(element):
+                    continue
+                element.decompose()
 
         # 移除无内容价值的交互元素
         for element in soup.find_all(["button", "noscript"]):
@@ -591,6 +605,27 @@ _IFRAME_VIDEO_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 # Next.js 图片优化代理 URL 匹配
 _NEXTJS_IMAGE_RE = re.compile(r"/_next/image\b")
 
+# 常见占位符 src（透明 gif / 占位 svg / about:blank）
+_PLACEHOLDER_SRC_RE = re.compile(
+    r"^(data:image/(?:gif|svg\+xml);base64,|data:image/svg\+xml,|about:blank)",
+    re.IGNORECASE,
+)
+
+
+def _is_placeholder_src(src: object) -> bool:
+    """判断 img src 是否为占位符/缺失（触发懒加载属性兜底）。
+
+    未设置（``None``）与空字符串均视为占位，以覆盖 ``srcset-only`` 写法。
+    """
+    if src is None:
+        return True
+    if not isinstance(src, str):
+        return False
+    s = src.strip()
+    if not s:
+        return True
+    return bool(_PLACEHOLDER_SRC_RE.match(s))
+
 
 def _resolve_iframe_video_url(src: str) -> Optional[str]:
     """识别 iframe 嵌入的视频平台 URL，返回可访问的播放页链接。"""
@@ -773,16 +808,48 @@ def _convert_media_elements(
             obj.replace_with(link)
         # 非视频 object 保留原样
 
-    # ── 6. Next.js 图片代理 URL 解析 ───────────────────────────────
+    # ── 6. <img> 归一化：懒加载 + srcset + Next.js 代理解析 ───────
+    _LAZY_SRC_ATTRS = (
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-url",
+        "data-srcset",
+    )
     for img in soup.find_all("img"):
+        # 6a. 懒加载兜底：src 为空/占位符时迁移 data-* 真实 URL
+        if _is_placeholder_src(img.get("src")):
+            for attr in _LAZY_SRC_ATTRS:
+                lazy = img.get(attr)
+                if isinstance(lazy, str) and lazy.strip():
+                    if attr == "data-srcset":
+                        best_lazy = _pick_best_srcset_url(lazy)
+                        if best_lazy:
+                            img["src"] = best_lazy
+                            break
+                    else:
+                        img["src"] = lazy.strip()
+                        break
+
+        # 6b. 仍无 src 但有 srcset：从 srcset 选最佳回填
+        if _is_placeholder_src(img.get("src")):
+            srcset_val = img.get("srcset", "")
+            if isinstance(srcset_val, str) and srcset_val:
+                best = _pick_best_srcset_url(srcset_val)
+                if best:
+                    img["src"] = best
+
+        # 6c. src 中的 Next.js 代理 → 真实 CDN URL
         src = img.get("src", "")  # type: ignore[assignment]
         if src and isinstance(src, str) and _NEXTJS_IMAGE_RE.search(src):
             img["src"] = _resolve_nextjs_image_url(src, base_url)
 
+        # 6d. srcset 中的 Next.js 代理：选最佳 URL 解析后回写到 src
         srcset = img.get("srcset", "")  # type: ignore[assignment]
         if srcset and isinstance(srcset, str) and _NEXTJS_IMAGE_RE.search(srcset):
-            resolved = _resolve_nextjs_image_url(srcset, base_url)
-            img["srcset"] = resolved
+            best = _pick_best_srcset_url(srcset)
+            if best:
+                img["src"] = _resolve_nextjs_image_url(best, base_url)
 
     # ── 7. <picture> 元素展平 ─────────────────────────────────────
     for picture in soup.find_all("picture"):
