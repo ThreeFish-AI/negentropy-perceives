@@ -42,3 +42,48 @@
 - 其他依赖 `beautifulsoup_heuristic` 启发式路径的 Stage（如后续新增的抽取工具）若做类似“整体删除”，也需套用“内容元素保护”逻辑。
 - 所有走 `output_format='html'` 的外部抽取库（如 readability 未来版本、article-extractor 等）都应假定可能存在非标准标签，建议在 S4/S5 出口统一做一次 BS4 归一化。
 - 懒加载兜底也适用于 `<picture>` 内的 `<source>`；需注意某些站点（如 Medium）会把真实 URL 放在 `data-*` 外的自定义属性，必要时扩展兜底属性集合。
+
+## [2026-04-22] parse_pdf_to_markdown 四工具全报 AttributeError 并触发 300s 兜底超时
+
+### 问题描述
+`parse_pdf_to_markdown` 在 `assets/2603.05344v3.pdf` / `assets/Context Engineering 2.0 - The Context of Context Engineering.pdf` 等 PDF 上失败，MCP 日志出现三连反应：
+- `layout_analysis` 四工具（Docling / MinerU / Marker / PyMuPDF）同时报 `'DocumentCharacteristics' object has no attribute 'local_path'`；
+- Stage 全败后触发旧版 Docling 全文档兜底路径，卡死在 300 秒超时；
+- 会话最终以 `anyio.ClosedResourceError` 抛出，MCP 通道被阻塞。
+
+用户进一步要求 **Docling/MinerU/Marker/PyMuPDF 四工具在 `layout_analysis` 中必须“全部可用且被充分利用”**。
+
+### 表因
+`layout_analysis` 各工具从入参读 `local_path` 时拿到的是 `DocumentCharacteristics` 实例而非 `PreprocessingOutput`，直接抛属性不存在；旧版兜底路径本就慢（300s），Stage 失败又触发它，最终 MCP 超时断链。
+
+### 根因（三层叠加）
+1. **L1 输入路由错配**：`PipelineOrchestrator.run()` 采用“上一 Stage 的 output 即下一 Stage 的 input”的隐式链式语义。S1 `quick_scan` 的 output 是 `DocumentCharacteristics`，会覆盖 `current_input` 里 S0 的 `PreprocessingOutput`，于是 S2 `layout_analysis` 及其后所有需要 `local_path` 的 Stage 全部拿错输入；同时 `assembly`/`asset_bundling` 这种需要**汇聚多个前序 Stage 结果**的复合输入，也根本无法用单一链式语义构造。
+2. **L2 竞争并发上限硬截断**：`StageScheduler._run_competition()` 第 133 行 `candidates = tools[:max_concurrent]`；`layout_analysis` 配了 4 个工具但 `max_concurrent: 2`，rank=3 的 Marker 与 rank=4 的 PyMuPDF **完全不进入竞争调度**，用户观感是“只有两个工具在跑”。
+3. **L3 引擎门控 + 依赖不可达**：`settings.docling_enabled / mineru_enabled / marker_enabled` 默认均为 `False`，被 `_apply_engine_gates()` 提前过滤；mineru / marker 又属于 `pyproject.toml [all-engines]` 可选依赖组，默认 `uv sync` 装不上，双重过滤导致三引擎在开箱即用下根本进不了场。
+
+### 处理方式
+- **Phase 1 · 数据路由（YAML 声明式）**：
+  - `pipeline_config.StageConfig` 新增 Optional 字段 `input_from` / `input_builder`；
+  - `PipelineOrchestrator.__init__` 新增 `input_builders: Dict[str, Callable]` 参数；
+  - 新增 `_resolve_input(stage_cfg, results, initial_input, chain_input) -> (resolved, error)`，按「`input_builder` 优先 → `input_from` → `chain_input`」顺序解析每个 Stage 的输入；缺失/失败返回结构化错误而非抛 `AttributeError`；
+  - `run()` 顺序组对每个 Stage 先 resolve 再 execute；并行组对组内每个 Stage 各自 resolve 后再 `asyncio.gather`，杜绝同一 `current_input` 污染不同并行 Stage；
+  - `convenience._PDF_INPUT_BUILDERS` 注册 `assembly` / `asset_bundling` 两个复合构造器，分别汇聚 preprocessing/layout/text/tables/formulas/images/code 与 assembly/image_extraction/preprocessing；
+  - `config.default.yaml` 的 `pipeline.pdf.stages` 各 Stage 显式声明 `input_from: preprocessing` 或 `input_builder: <key>`；webpage 分支不改（保持链式语义）。
+- **Phase 2 · 四工具充分利用**：
+  - `config.default.yaml` 放开 `layout_analysis.max_concurrent` 2→4、`table_extraction.max_concurrent` 2→4、`formula_extraction.max_concurrent` 2→3，让“声明工具数 == 参与竞争数”；
+  - `config.py` 将 `docling_enabled / mineru_enabled / marker_enabled` 默认值从 `False` 翻转为 `True`，语义下沉为“允许参与调度；真实是否运行由 `is_available()` 能力检测决定”，未装依赖仍自动跳过；
+  - `scheduler._resolve_tools()` 将工具 `is_available()=False` 跳过日志从 `debug` 提升为 `info`，并打印 `Stage 'X' 参与竞争 tools=[...]（声明=[...]，已过滤不可用）`；
+  - `convenience._log_pdf_engines_summary_once()` 在首次调用 PDF 管线时 INFO 级打印 `[PDF engines] docling=ok(...), mineru=..., marker=..., pymupdf=ok(...)` 摘要，缺失引擎给出 `uv sync --extra all-engines` 指引。
+- **Phase 3 · 文档闭环**：`docs/user-guide.md` 新增「启用四大 PDF 引擎」章节，给出 extras 安装命令与启动日志样例；同步更新 CHANGELOG 与本档。
+
+### 后续防范
+- Stage 间输入来源必须由 YAML 显式声明，严禁再依赖“上一 Stage 的 output 作为下一 Stage 的 input”的隐式约定——隐式链式语义遇到复合输入或多分支时必然断链。
+- `competition.max_concurrent` 原则上等于声明工具数；若出于资源考虑要收紧，必须在注释中写明原因并确保 rank 靠后的工具在业务上确实是“备胎”。
+- 引擎能力检测只允许有**一个事实源**：优先 `is_available()`（运行时可导入）；`*_enabled` 配置项退化为“显式关闭开关”，不承担能力判定。
+- 新加 Stage 时，若输入需要来自非紧邻的前序 Stage 或多个前序 Stage，先在 `convenience` 注册构造器并在 YAML 用 `input_builder: <key>` 声明；单一前序用 `input_from: <name>`。
+
+### 同类问题影响与注意事项
+- webpage 管线当前通过 `StageContext` 这个**可变聚合对象**在 Stage 间共享状态，与 PDF 的 dataclass 纯值传递是两套机制；`input_from` 对 webpage 不产生影响，但未来若 webpage 也要切到纯值传递，应复用同一路由机制。
+- `EngineWorkerPool` 已对每个 PDF 引擎做进程级串行化锁，`max_concurrent=4` 即便四个子进程同时启动，实际仍会串行执行昂贵模型推理，不会 OOM；但若未来引入无锁引擎需重新评估。
+- 任何“竞争模式 Stage 声明 N 个工具”的改动都要同步检查 `max_concurrent ≥ N`，否则 rank 靠后的候选将无声丢失——这是 pipeline 层长期隐性缺陷，新增 Stage 时需自查。
+- 引擎门控默认值翻转为 `True` 后，CI 环境若原先依赖 `*_enabled=False` 隐式禁用某引擎，应改用环境变量 `NEGENTROPY_PERCEIVES_DOCLING_ENABLED=false` 或 YAML 显式覆盖。
