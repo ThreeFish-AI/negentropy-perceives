@@ -127,7 +127,8 @@ class MinerUEngine:
         Args:
             output_dir: 输出目录路径，为 None 时自动创建临时目录。
             device: 设备偏好（'auto', 'cpu', 'cuda', 'mps'），为 None 时自动检测。
-            backend: MinerU 后端引擎（'pipeline', 'vlm-mlx-engine' 等），
+            backend: MinerU 后端引擎（合法值 'pipeline' / 'vlm-http-client' /
+                     'hybrid-http-client' / 'vlm-auto-engine' / 'hybrid-auto-engine'），
                      为 None 时根据设备自动选择。
         """
         self._output_dir = Path(output_dir) if output_dir else None
@@ -158,8 +159,8 @@ class MinerUEngine:
 
         策略：
             1. 若用户显式指定 ``backend``，直接使用。
-            2. 若用户指定 ``device``，映射到对应后端。
-            3. 自动检测：Apple Silicon → MLX 后端，否则 → CPU pipeline。
+            2. 若用户指定 ``device``，映射到对应后端（``mps`` → ``vlm-auto-engine``）。
+            3. 自动检测：Apple Silicon → ``vlm-auto-engine``，否则 → ``pipeline``。
 
         Returns:
             MinerU 后端标识字符串。
@@ -177,7 +178,10 @@ class MinerUEngine:
         if self._device and self._device.lower() != "auto":
             device_lower = self._device.lower()
             if device_lower == "mps":
-                self._resolved_backend = "vlm-mlx-engine"
+                # MinerU CLI 合法 backend：pipeline / vlm-http-client /
+                # hybrid-http-client / vlm-auto-engine / hybrid-auto-engine。
+                # Apple Silicon 上交由 MinerU 自动挑选最佳 VLM 后端（MLX/CPU）。
+                self._resolved_backend = "vlm-auto-engine"
             elif device_lower == "cuda":
                 # CUDA 暂无专用后端，使用 pipeline（GPU 自动利用）
                 self._resolved_backend = "pipeline"
@@ -190,10 +194,10 @@ class MinerUEngine:
             )
             return self._resolved_backend
 
-        # 自动检测：Apple Silicon → MLX 后端
+        # 自动检测：Apple Silicon → 交由 MinerU VLM auto-engine 内部挑 MLX
         if self._is_apple_silicon():
-            self._resolved_backend = "vlm-mlx-engine"
-            logger.info("MinerU 后端: vlm-mlx-engine（Apple Silicon 自动检测）")
+            self._resolved_backend = "vlm-auto-engine"
+            logger.info("MinerU 后端: vlm-auto-engine（Apple Silicon 自动检测）")
         else:
             self._resolved_backend = "pipeline"
             logger.info("MinerU 后端: pipeline（CPU 降级）")

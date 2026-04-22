@@ -87,3 +87,54 @@
 - `EngineWorkerPool` 已对每个 PDF 引擎做进程级串行化锁，`max_concurrent=4` 即便四个子进程同时启动，实际仍会串行执行昂贵模型推理，不会 OOM；但若未来引入无锁引擎需重新评估。
 - 任何“竞争模式 Stage 声明 N 个工具”的改动都要同步检查 `max_concurrent ≥ N`，否则 rank 靠后的候选将无声丢失——这是 pipeline 层长期隐性缺陷，新增 Stage 时需自查。
 - 引擎门控默认值翻转为 `True` 后，CI 环境若原先依赖 `*_enabled=False` 隐式禁用某引擎，应改用环境变量 `NEGENTROPY_PERCEIVES_DOCLING_ENABLED=false` 或 YAML 显式覆盖。
+
+## [2026-04-22] PDF 管线二次修复：MinerU backend / PyMuPDF 表格 caller / 模型预热缺位
+
+### 问题描述
+前一次（Phase 1~3）修复落地后，再次跑 `parse_pdf_to_markdown`，日志暴露三处独立缺陷：
+
+1. MinerU 子进程秒级报错 `Invalid value for '-b' / '--backend': 'vlm-mlx-engine'`，`exit_code=2`；
+2. Marker 在用户请求中现场下载 `layout/2025_09_23` 模型（总量 ~1.35GB），下载到 131M/1.35G 时被 `layout_analysis` 120s 工具超时取消，最终 Stage 以 `Stage 'layout_analysis' 工具 'marker' 超时` 结束；
+3. `table_extraction` 的 PyMuPDF 分支 100% 报 `EnhancedPDFProcessor.extract_tables_with_geometry() missing 1 required positional argument: 'text_blocks'`。
+
+用户明确要求：在修复以上三项的同时，**将引擎模型通过“预触发”方式在请求外下载**，避免首请求 1.35GB 下载必超时。
+
+### 表因
+- `layout_analysis` / `formula_extraction` 中 MinerU 工具即时失败（CLI 拒绝 backend 值）；
+- `layout_analysis` 中 Marker 工具在 ~120s 处超时取消（正在下载模型）；
+- `table_extraction` 中 PyMuPDF 工具每次立即抛 `TypeError: missing positional argument: 'text_blocks'`。
+
+### 根因
+1. **D1 · MinerU backend 字符串错误**：`pdf/engines/mineru.py` 在 `device=mps` 与 Apple Silicon 自动检测分支把 `_resolved_backend` 硬编码为 `vlm-mlx-engine`。MinerU CLI `--backend` 的合法值只有 `pipeline / vlm-http-client / hybrid-http-client / vlm-auto-engine / hybrid-auto-engine`；`vlm-mlx-engine` 并不存在，触发 Click 的参数校验失败。
+2. **D2 · 模型下载延后到首请求**：三个引擎（docling/mineru/marker）的 `is_available()` 只检查 import，`create_model_dict()` / `DocumentConverter(...)` 的模型拉取延后到第一次 `convert()` 调用。Marker layout 模型 ~1.35GB，常规家宽下载远超 120s 工具超时上限，且超时后 HuggingFace Hub 缓存可能处于半下载状态；此外，仓里没有任何预热入口可供运维在部署阶段离线拉取。
+3. **D3 · PyMuPDF 表格 caller 多重错误**：`pipeline/stages/pdf/table_extraction.py` 中 `FitzTableExtractor._run()` 循环体同时犯三个错——（a）传 `page`（页对象）而不是 `doc`（文档对象）；（b）漏掉必需位置参数 `text_blocks`；（c）把 `(bbox_map, all_tables)` 返回元组当 `List[ExtractedTable]` 迭代。历史 `# type: ignore[call-arg] / [union-attr]` 注释还压住了 mypy 告警。
+
+### 处理方式
+- **D1 · backend 字符串替换**：`mineru.py` 两处 `vlm-mlx-engine` → `vlm-auto-engine`（语义：由 MinerU 自动挑选最佳 VLM 后端，MLX 可用时走 MLX，否则 fallback）；`settings.mineru_device="mlx"` / `settings.mineru_backend="auto"` 对外 API 不变；同步修正 `tests/unit/test_mineru_engine.py` 三处断言，并将 `test_mps_device_maps_to_mlx` 重命名为 `test_mps_device_maps_to_vlm_auto` 使测试意图与断言一致。
+- **D3 · PyMuPDF 表格 caller 改写**：`table_extraction.py` 按仓内已通过的 `pdf/processor.py:1321-1325` 调用范式重写循环体：
+  ```python
+  text_blocks = page.get_text("blocks")
+  _, page_tables = processor.extract_tables_with_geometry(doc, page_idx, text_blocks)
+  ```
+  同时移除该函数中所有 `# type: ignore[call-arg] / [union-attr]` 注释，让 mypy 重新校验。
+- **D2 · `perceives prefetch-models` CLI**：
+  - 新增 `src/negentropy/perceives/cli/commands/prefetch_models.py`，暴露 `run()` 作为 Typer 子命令；
+  - `src/negentropy/perceives/cli/app.py` 注册 `app.command("prefetch-models")(prefetch_models.run)`；
+  - 每个引擎独立 try/except + `_SkipEngine` 信号异常：docling → `DocumentConverter(format_options={...})`；marker → `from marker.models import create_model_dict; create_model_dict()`；mineru → `subprocess.run([shutil.which("mineru-models-download"), "-s", "huggingface", "-m", "all"])`；未安装引擎返回 `skipped` 并提示 `uv sync --extra <engine>`；
+  - 支持 `--engines docling,marker,mineru|all` 过滤与 `--hf-home <path>` 设置 `os.environ["HF_HOME"]`；
+  - 任一引擎 error → 退出码 1，全部 ok/skipped → 退出码 0；
+  - `pipeline/convenience.py` 的 `[PDF engines]` 汇总日志尾追加一句 `首次使用前建议预热模型... uv run perceives prefetch-models` 提示；
+  - 新增 `tests/unit/test_prefetch_models_cli.py`（11 条单测，覆盖引擎选择、未安装跳过、subprocess 失败、HF_HOME 传导、非法引擎名拒绝）。
+- **文档**：`docs/development.md` 在“详细环境配置”后追加“模型预热（推荐）”小节；`docs/user-guide.md` 在 PDF 章节引用该小节；`CHANGELOG.md` Unreleased 追加 🔧 修复（D1/D3）与 ✨ 新增（prefetch-models）。
+
+### 后续防范
+- 任何调用签名形如 `f(doc, page_idx, text_blocks)` 的辅助函数，在 Stage 适配器中务必配齐位置参数并正确解包返回值；禁止用 `# type: ignore[call-arg]` 压制签名错误告警——应让 mypy 在 CI 就把错误拦下。
+- 外部 CLI 的 `choices` 类参数值不要硬编码在多处（如 `vlm-mlx-engine`），应在 engine 层集中维护可选值常量，并尽量以 `auto` 类自适配值作为默认，把具体后端的选择权交回外部工具；重大版本升级需把合法值对照 Release Notes 过一遍。
+- 任何涉及“首请求下载大模型”的引擎，必须提供独立的“预热 / warm-up”入口，**把下载与服务路径解耦**。CI / 部署流水线应在部署阶段执行预热，而不是把它暴露在用户请求路径上。
+- 引入新引擎时需在 `is_available()`（import 级）之外补充一个可选的“模型是否已缓存”探测，或直接在部署文档写明预热命令。
+
+### 同类问题影响与注意事项
+- 虽然 `settings.mineru_backend` 允许显式覆盖（例如 `pipeline`），但在默认路径上 macOS 用户最常见；这类“平台自适配默认值”在 PR 里一定要加集成测试或至少让 `mineru --help` 的合法列表在单测中显式断言，防止再被字符串 typo 击穿。
+- `extract_tables_with_geometry` 之外，仓里还有若干工具类函数被多个 Stage 适配器复用；同类 Stage 适配器在迁入新版 pipeline 时，**必须**以 `pdf/processor.py` 中的成熟调用为蓝本，不要凭直觉简化参数。
+- Prefetch CLI 对未安装引擎走 `skipped` 分支，对 CI 轻量环境友好；但在镜像构建脚本里应**显式**检查 `exit_code == 0` 且 `skipped` 集合为空，否则会出现“镜像里缺 marker 依赖却没人发现”的情况。
+- 首次请求预热模型会在本地缓存 HuggingFace 目录产生 GB 级数据，Docker 镜像/共享开发机请用 `--hf-home` 指向持久化卷避免重复下载。

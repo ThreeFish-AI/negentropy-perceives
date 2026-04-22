@@ -72,6 +72,26 @@ uv run playwright install chromium
 > 实际是否参与调度由运行时 `is_available()` 检测（包是否可 import）决定——未安装的引擎
 > 会被自动跳过，PDF 管线首次调用时会打印 `[PDF engines]` 汇总一次，方便确认生效状态。
 
+#### 模型预热（推荐）
+
+安装完 PDF 引擎后，**强烈建议**在首次使用前执行一次模型预热，避免用户首个
+MCP 请求被 ~1.35GB Marker Layout 模型下载阻塞而触发 `Stage 'layout_analysis'
+工具 'marker' 超时 (120s)`：
+
+```bash
+# 预下载 Docling + Marker + MinerU 所需的全部模型到本地缓存（幂等）
+uv run perceives prefetch-models
+
+# 仅预热部分引擎
+uv run perceives prefetch-models --engines docling,marker
+
+# 指定 HuggingFace 缓存目录（CI / 共享缓存场景）
+uv run perceives prefetch-models --hf-home /shared/hf-cache
+```
+
+命令会对未安装的引擎输出 `skipped` 并给出 extras 安装提示，不会中断其它引擎；
+任一引擎 error 退出码为 1，全部 ok/skipped 退出码为 0。
+
 ## 项目结构
 
 ```
