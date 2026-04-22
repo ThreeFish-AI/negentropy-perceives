@@ -225,7 +225,11 @@ class StageScheduler:
             if tool.is_available():
                 tools.append(tool)
             else:
-                logger.debug("工具 '%s' 未安装或不可用，跳过", name)
+                logger.info(
+                    "Stage '%s' 工具 '%s' 不可用（未安装或环境探测失败），自动跳过",
+                    stage_name,
+                    name,
+                )
         if not tools and sorted_configs:
             names_tried = [tc.get("name", "") for tc in sorted_configs]
             logger.warning(
@@ -234,10 +238,12 @@ class StageScheduler:
                 names_tried,
             )
         elif tools:
+            declared = [tc.get("name", "") for tc in sorted_configs]
             logger.info(
-                "Stage '%s' 可用工具: %s",
+                "Stage '%s' 参与竞争 tools=%s（声明=%s，已过滤不可用）",
                 stage_name,
                 [t.name for t in tools],
+                declared,
             )
         return tools
 

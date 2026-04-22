@@ -112,21 +112,27 @@ accelerator:
   table_batch_size: 0 # Table 推理 batch size（0 = 自动推断）
 
 # ── Docling PDF 引擎（需安装 docling 可选依赖）────────────────────────────────
+# 默认 enabled=true：是否真实参与调度由运行时 is_available() 能力检测决定
+# （包未安装会在 Stage 初始化时被自动过滤跳过，不会破坏默认可用性）。
+# 如需在已安装环境中显式禁用，可设 enabled=false 或环境变量
+# NEGENTROPY_PERCEIVES_DOCLING_ENABLED=false。
 docling:
-  enabled: false # 启用 Docling 作为 PDF 提取引擎
+  enabled: true # 启用 Docling 作为 PDF 提取引擎
   ocr_enabled: true # 为扫描版 PDF 启用 OCR
   table_extraction_enabled: true # 启用 Docling 高级表格提取
   formula_extraction_enabled: true # 启用 Docling 数学公式提取
 
 # ── MinerU PDF 引擎（需安装 mineru 可选依赖）─────────────────────────────────
+# 默认 enabled=true；运行时 is_available() 过滤未安装情形。
 mineru:
-  enabled: false # 启用 MinerU 作为 PDF 提取引擎
+  enabled: true # 启用 MinerU 作为 PDF 提取引擎
   device: auto # MinerU 推理设备：auto / cpu / mlx / cuda
   backend: auto # MinerU 后端：auto / pipeline / vlm
 
 # ── Marker PDF 引擎（需安装 marker-pdf 可选依赖）──────────────────────────────
+# 默认 enabled=true；运行时 is_available() 过滤未安装情形。
 marker:
-  enabled: false # 启用 Marker 作为 PDF 提取引擎
+  enabled: true # 启用 Marker 作为 PDF 提取引擎
   llm_enhanced: false # 启用 Marker LLM 增强模式
   license_acknowledged: false # 确认 Marker GPL-3.0 许可证条款
 
@@ -154,6 +160,7 @@ pipeline:
       # S1: 文档特征快速扫描（为后续 Stage 提供路由决策依据）
       - name: quick_scan
         description: "轻量级文档特征分析（页数、表格、公式、图片、布局复杂度）"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -163,6 +170,7 @@ pipeline:
       # S2: 版面分析与阅读顺序（不稳定，建议竞争模式）
       - name: layout_analysis
         description: "检测文档物理布局结构，确定正确阅读顺序"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -178,12 +186,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 4 个，放开至与候选数一致，避免 rank 靠后工具（marker/pymupdf）被硬截断
+          max_concurrent: 4
           timeout: 120
 
       # S3: 文本内容提取（稳定，降级模式即可）
       - name: text_extraction
         description: "从各文本区域中提取纯文本，保留段落结构与标题层级"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -199,6 +209,7 @@ pipeline:
       # S4: 表格识别与提取（不稳定，建议竞争模式）
       - name: table_extraction
         description: "结构化表格识别与 Markdown 表格生成"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -214,12 +225,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 4 个，放开至与候选数一致
+          max_concurrent: 4
           timeout: 60
 
       # S5: 数学公式提取（不稳定，建议竞争模式）
       - name: formula_extraction
         description: "数学公式检测与 LaTeX 转换"
+        input_from: preprocessing
         tools:
           - name: mineru
             rank: 1
@@ -232,12 +245,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 3 个，放开至与候选数一致
+          max_concurrent: 3
           timeout: 60
 
       # S6: 图片/图形提取（稳定）
       - name: image_extraction
         description: "图片提取、分类与 caption 生成"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -247,6 +262,7 @@ pipeline:
       # S7: 代码块识别（不稳定，建议竞争模式）
       - name: code_detection
         description: "代码块识别与编程语言推断"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -259,18 +275,20 @@ pipeline:
           max_concurrent: 2
           timeout: 30
 
-      # S8: Markdown 组装与排版
+      # S8: Markdown 组装与排版（复合输入：汇聚各前序 Stage 结果）
       - name: assembly
         description: "将各 Stage 产出按阅读顺序组装为最终 Markdown 文档"
+        input_builder: assembly
         tools:
           - name: builtin_assembler
             rank: 1
             enabled: true
         competition_mode: false
 
-      # S9: 资源打包
+      # S9: 资源打包（复合输入：assembly + image_extraction + preprocessing）
       - name: asset_bundling
         description: "整理提取的资源文件，生成最终输出包"
+        input_builder: asset_bundling
         tools:
           - name: builtin_bundler
             rank: 1

@@ -510,8 +510,13 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── Docling PDF 引擎 ──────────────────────────────────────
     docling_enabled: bool = Field(
-        default=False,
-        description="启用 Docling 作为可选 PDF 提取引擎（需安装 docling 可选依赖）",
+        default=True,
+        description=(
+            "允许 Docling 参与 PDF Pipeline 调度（默认 True）。"
+            "实际是否运行仍取决于 `is_available()` 运行时能力检测——"
+            "未安装 docling 可选依赖时会自动跳过，不会影响其它工具。"
+            "如需在已安装环境下显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     docling_ocr_enabled: bool = Field(default=True, description="为扫描版 PDF 启用 OCR")
     docling_table_extraction_enabled: bool = Field(
@@ -523,8 +528,12 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── MinerU PDF 引擎 ──────────────────────────────────────
     mineru_enabled: bool = Field(
-        default=False,
-        description="启用 MinerU 作为 PDF 提取引擎（Apache 2.0，最佳 LaTeX 公式提取，CDM 90.85）",
+        default=True,
+        description=(
+            "允许 MinerU 参与 PDF Pipeline 调度（Apache 2.0，最佳 LaTeX 公式提取，CDM 90.85）。"
+            "默认 True，实际是否运行取决于 `is_available()`：未安装 mineru 可选依赖时会自动跳过。"
+            "如需显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     mineru_device: str = Field(
         default="auto",
@@ -537,8 +546,12 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── Marker PDF 引擎 ──────────────────────────────────────
     marker_enabled: bool = Field(
-        default=False,
-        description="启用 Marker 作为 PDF 提取引擎（GPL-3.0，最佳整体准确率 95.67）",
+        default=True,
+        description=(
+            "允许 Marker 参与 PDF Pipeline 调度（GPL-3.0，最佳整体准确率 95.67）。"
+            "默认 True，实际是否运行取决于 `is_available()`：未安装 marker 可选依赖时会自动跳过。"
+            "注意 GPL-3.0 许可证，商业使用需评估；如需显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     marker_llm_enhanced: bool = Field(
         default=False,

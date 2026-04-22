@@ -45,6 +45,17 @@ class StageConfig(BaseModel):
     tools: List[StageToolConfig] = []
     competition_mode: bool = False
     competition: Optional[CompetitionConfig] = None
+    input_from: Optional[str] = None
+    """可选：引用前序 Stage 名称，取其 ``StageResult.output`` 作为本 Stage 输入。
+
+    未设置时保留 "上一 Stage 输出即下一 Stage 输入" 的链式语义（向后兼容）。
+    """
+    input_builder: Optional[str] = None
+    """可选：引用 Pipeline 注册的复合输入构造器 key。
+
+    构造器签名 ``(results: Dict[str, StageResult], initial_input) -> Any``，
+    用于由多个前序 Stage 结果聚合出非链式输入（如 ``AssemblyInput``）。
+    """
 
 
 class PipelineBranchConfig(BaseModel):

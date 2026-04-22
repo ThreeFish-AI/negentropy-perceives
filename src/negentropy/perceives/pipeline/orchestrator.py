@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from ..core.task_context import method_var, stage_var, timing_var
 from .base import StageResult
@@ -18,11 +18,19 @@ from .scheduler import StageScheduler
 logger = logging.getLogger(__name__)
 
 
+InputBuilder = Callable[[Dict[str, StageResult], Any], Any]
+
+
 class PipelineOrchestrator:
     """Pipeline 编排器。
 
     根据 ``config.default.yaml`` 中的 pipeline 配置，
     串联执行多个 Stage，支持并行组和竞争模式。
+
+    输入路由（YAML 声明式）：
+        - Stage 配置中的 ``input_builder`` 优先，在 ``input_builders`` 中查注册的构造器；
+        - 否则 ``input_from`` 取指定前序 Stage 的 ``StageResult.output``；
+        - 否则沿用链式语义（上一 Stage 输出即下一 Stage 输入）。
     """
 
     def __init__(
@@ -31,6 +39,7 @@ class PipelineOrchestrator:
         defaults_config: Optional[Dict[str, Any]] = None,
         engine_gates: Optional[Dict[str, bool]] = None,
         pipeline_name: str = "",
+        input_builders: Optional[Mapping[str, InputBuilder]] = None,
     ):
         """
         Args:
@@ -39,11 +48,14 @@ class PipelineOrchestrator:
             defaults_config: 全局默认竞争配置（来自 ``pipeline.defaults``）
             engine_gates: 引擎级门控（如 ``{"docling": True, "mineru": False}``）
             pipeline_name: Pipeline 名称，用于工具限定名查找隔离
+            input_builders: 复合输入构造器字典（``{key: builder}``），
+                ``builder(stage_results, initial_input) -> Any``。
         """
         self._stages_config = stages_config
         self._defaults = defaults_config or {}
         self._engine_gates = engine_gates or {}
         self._pipeline_name = pipeline_name
+        self._input_builders: Mapping[str, InputBuilder] = input_builders or {}
         self._scheduler = StageScheduler()
 
     async def run(
@@ -73,7 +85,14 @@ class PipelineOrchestrator:
             if group["type"] == "sequential":
                 for stage_cfg in group["stages"]:
                     name = stage_cfg["name"]
-                    result = await self._execute_stage(stage_cfg, current_input)
+                    resolved, err = self._resolve_input(
+                        stage_cfg, results, initial_input, current_input
+                    )
+                    if err is not None:
+                        logger.error("Stage '%s' 输入解析失败，管线终止: %s", name, err)
+                        results[name] = StageResult(success=False, error=err)
+                        return results
+                    result = await self._execute_stage(stage_cfg, resolved)
                     results[name] = result
                     if not result.success:
                         logger.error(
@@ -82,13 +101,27 @@ class PipelineOrchestrator:
                             result.error,
                         )
                         return results
-                    # 更新 current_input（Stage 间传递数据）
+                    # 更新 current_input（保留链式语义，供未声明 input_from 的后续 Stage 使用）
                     if result.output is not None:
                         current_input = result.output
             elif group["type"] == "parallel":
-                parallel_results = await self._execute_parallel(
-                    group["stages"], current_input
-                )
+                resolved_pairs: List[Tuple[Dict[str, Any], Any]] = []
+                parallel_results: Dict[str, StageResult] = {}
+                for cfg in group["stages"]:
+                    name = cfg["name"]
+                    resolved, err = self._resolve_input(
+                        cfg, results, initial_input, current_input
+                    )
+                    if err is not None:
+                        logger.error("Stage '%s' 输入解析失败: %s", name, err)
+                        parallel_results[name] = StageResult(success=False, error=err)
+                    else:
+                        resolved_pairs.append((cfg, resolved))
+
+                if resolved_pairs:
+                    exec_results = await self._execute_parallel(resolved_pairs)
+                    parallel_results.update(exec_results)
+
                 results.update(parallel_results)
                 # 检查是否有失败
                 failed = {k: v for k, v in parallel_results.items() if not v.success}
@@ -165,14 +198,19 @@ class PipelineOrchestrator:
 
     async def _execute_parallel(
         self,
-        stage_configs: List[Dict[str, Any]],
-        input_data: Any,
+        stage_pairs: List[Tuple[Dict[str, Any], Any]],
     ) -> Dict[str, StageResult]:
-        """并行执行一组 Stage。"""
-        names = [cfg["name"] for cfg in stage_configs]
+        """并行执行一组已解析好输入的 Stage。
+
+        Args:
+            stage_pairs: ``[(stage_config, resolved_input), ...]``，
+                由 ``run()`` 按各 Stage 的 ``input_from`` / ``input_builder``
+                预先解析得到，避免多 Stage 共用同一 ``current_input`` 产生污染。
+        """
+        names = [cfg["name"] for cfg, _ in stage_pairs]
         logger.info("并行执行 Stage 组: %s", names)
 
-        tasks = [self._execute_stage(cfg, input_data) for cfg in stage_configs]
+        tasks = [self._execute_stage(cfg, data) for cfg, data in stage_pairs]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: Dict[str, StageResult] = {}
@@ -186,6 +224,54 @@ class PipelineOrchestrator:
                     error=f"Stage '{name}' 并行执行异常: {raw}",
                 )
         return results
+
+    def _resolve_input(
+        self,
+        stage_cfg: Dict[str, Any],
+        results: Dict[str, StageResult],
+        initial_input: Any,
+        chain_input: Any,
+    ) -> Tuple[Any, Optional[str]]:
+        """解析 Stage 的输入来源。
+
+        优先级：
+            1. ``input_builder``：查注册的复合输入构造器（用于 ``AssemblyInput``
+               等需要汇聚多个前序 Stage 结果的场景）。
+            2. ``input_from``：取指定前序 Stage 的 ``StageResult.output``。
+            3. 否则使用 ``chain_input``（链式语义，向后兼容）。
+
+        Returns:
+            ``(resolved_input, error_message)``。错误信息非空时，
+            调用方应生成 ``StageResult(success=False, error=...)`` 而非抛异常，
+            以便并行组内其它 Stage 继续执行。
+        """
+        builder_key = stage_cfg.get("input_builder")
+        if builder_key:
+            builder = self._input_builders.get(builder_key)
+            if builder is None:
+                return None, (
+                    f"未注册的 input_builder: '{builder_key}'（"
+                    f"可用: {sorted(self._input_builders.keys())}）"
+                )
+            try:
+                return builder(results, initial_input), None
+            except Exception as exc:  # noqa: BLE001 — 转为结构化错误上报
+                return None, f"input_builder '{builder_key}' 执行异常: {exc}"
+
+        from_name = stage_cfg.get("input_from")
+        if from_name:
+            prev = results.get(from_name)
+            if prev is None:
+                return None, (f"input_from 引用的 Stage '{from_name}' 不存在或尚未执行")
+            if not prev.success:
+                return None, (
+                    f"input_from 依赖的 Stage '{from_name}' 已失败: {prev.error}"
+                )
+            if prev.output is None:
+                return None, (f"input_from 依赖的 Stage '{from_name}' 未产出 output")
+            return prev.output, None
+
+        return chain_input, None
 
     def _apply_engine_gates(
         self,

@@ -6,11 +6,14 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
 from typing import Any, Dict, Optional
 
 from ..config import settings
+from .base import StageResult
 from .models import (
+    AssemblyInput,
     AssemblyOutput,
     CodeDetectionOutput,
     FormulaExtractionOutput,
@@ -78,6 +81,114 @@ _WEBPAGE_PARALLEL_STAGES = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# PDF Pipeline 复合输入构造器
+# ---------------------------------------------------------------------------
+
+
+def _build_assembly_input(
+    results: Dict[str, StageResult], initial_input: Any
+) -> AssemblyInput:
+    """为 ``assembly`` Stage 汇聚各前序 Stage 结果。"""
+    preprocessing = _unwrap(results.get("preprocessing"))
+    if not isinstance(preprocessing, PreprocessingOutput):
+        raise ValueError(
+            "assembly 输入缺失或类型不符：preprocessing Stage 未产出 PreprocessingOutput"
+        )
+    return AssemblyInput(
+        preprocessing=preprocessing,
+        layout=_unwrap(results.get("layout_analysis")),
+        text=_unwrap(results.get("text_extraction")),
+        tables=_unwrap(results.get("table_extraction")),
+        formulas=_unwrap(results.get("formula_extraction")),
+        images=_unwrap(results.get("image_extraction")),
+        code=_unwrap(results.get("code_detection")),
+    )
+
+
+def _build_asset_bundling_input(
+    results: Dict[str, StageResult], initial_input: Any
+) -> Any:
+    """为 ``asset_bundling`` Stage 汇聚 assembly / image / preprocessing 结果。"""
+    from .stages.pdf.asset_bundling import _AssetBundlingInput
+
+    assembly_output = _unwrap(results.get("assembly"))
+    if not isinstance(assembly_output, AssemblyOutput):
+        raise ValueError(
+            "asset_bundling 输入缺失或类型不符：assembly Stage 未产出 AssemblyOutput"
+        )
+    cfg = getattr(initial_input, "config", {}) or {}
+    images = _unwrap(results.get("image_extraction"))
+    preprocessing = _unwrap(results.get("preprocessing"))
+    return _AssetBundlingInput(
+        assembly_output=assembly_output,
+        images=images if isinstance(images, ImageExtractionOutput) else None,
+        preprocessing=preprocessing
+        if isinstance(preprocessing, PreprocessingOutput)
+        else None,
+        output_dir=cfg.get("output_dir") if isinstance(cfg, dict) else None,
+    )
+
+
+_PDF_INPUT_BUILDERS = {
+    "assembly": _build_assembly_input,
+    "asset_bundling": _build_asset_bundling_input,
+}
+
+
+# ---------------------------------------------------------------------------
+# PDF 引擎可用性启动汇总
+# ---------------------------------------------------------------------------
+
+_pdf_engines_summary_logged = False
+
+
+def _probe_module(names: tuple[str, ...]) -> Optional[str]:
+    """按顺序尝试导入模块，返回首个成功的模块名；全部失败返回 ``None``。"""
+    for name in names:
+        try:
+            importlib.import_module(name)
+            return name
+        except ImportError:
+            continue
+    return None
+
+
+def _log_pdf_engines_summary_once() -> None:
+    """首次调用 ``run_pdf_pipeline`` 时，INFO 级打印四大 PDF 引擎可用性摘要。
+
+    通过模块级标志位保证进程内仅打印一次，避免污染日志。
+    """
+    global _pdf_engines_summary_logged
+    if _pdf_engines_summary_logged:
+        return
+    _pdf_engines_summary_logged = True
+
+    probes: Dict[str, tuple[str, ...]] = {
+        "docling": ("docling",),
+        "mineru": ("mineru",),
+        "marker": ("marker_pdf", "marker"),
+        "pymupdf": ("fitz",),
+    }
+    statuses: list[str] = []
+    missing: list[str] = []
+    for engine, candidates in probes.items():
+        hit = _probe_module(candidates)
+        if hit:
+            statuses.append(f"{engine}=ok({hit})")
+        else:
+            statuses.append(f"{engine}=missing")
+            missing.append(engine)
+
+    logger.info("[PDF engines] %s", ", ".join(statuses))
+    if missing:
+        logger.info(
+            "[PDF engines] 部分引擎未安装：%s。"
+            "安装可选依赖以获得完整能力：uv sync --extra all-engines",
+            ", ".join(missing),
+        )
+
+
 async def run_pdf_pipeline(
     source: str,
     page_range: Optional[tuple[int, int]] = None,
@@ -111,6 +222,9 @@ async def run_pdf_pipeline(
     # 确保导入 PDF Stage 工具以触发注册
     from .stages import pdf as _  # noqa: F401
 
+    # 首次调用时打印四大 PDF 引擎可用性摘要
+    _log_pdf_engines_summary_once()
+
     stage_names = [s.get("name", "?") for s in stages_config]
     logger.info(
         "PDF Pipeline 启动 stages=%s parallel=%s",
@@ -123,6 +237,7 @@ async def run_pdf_pipeline(
         defaults_config=_get_defaults_config(),
         engine_gates=_get_engine_gates(),
         pipeline_name="pdf",
+        input_builders=_PDF_INPUT_BUILDERS,
     )
 
     input_data = PreprocessingInput(
