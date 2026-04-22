@@ -745,9 +745,9 @@ class TestMinerUConfigFields:
     """测试 MinerU 引擎相关配置字段。"""
 
     def test_mineru_enabled_default(self):
-        """MinerU 引擎默认禁用。"""
+        """MinerU 引擎默认启用（运行时 is_available() 真实决定是否参与调度）。"""
         config = NegentropyPerceivesSettings()
-        assert config.mineru_enabled is False
+        assert config.mineru_enabled is True
 
     def test_mineru_enabled_env_override(self):
         """环境变量 NEGENTROPY_PERCEIVES_MINERU_ENABLED=true 应启用 MinerU。"""
@@ -799,9 +799,9 @@ class TestMarkerConfigFields:
     """测试 Marker 引擎相关配置字段。"""
 
     def test_marker_enabled_default(self):
-        """Marker 引擎默认禁用。"""
+        """Marker 引擎默认启用（运行时 is_available() 决定是否真实参与调度）。"""
         config = NegentropyPerceivesSettings()
-        assert config.marker_enabled is False
+        assert config.marker_enabled is True
 
     def test_marker_enabled_env_override(self):
         """环境变量覆盖 Marker 启用状态。"""
@@ -860,10 +860,10 @@ class TestMultiEngineConfigIntegration:
     def test_all_engine_configs_default(self):
         """Docling、MinerU、Marker 默认值验证。"""
         config = NegentropyPerceivesSettings()
-        # 各引擎默认禁用
-        assert config.docling_enabled is False
-        assert config.mineru_enabled is False
-        assert config.marker_enabled is False
+        # 各引擎默认启用（运行时 is_available() 为单一事实源，未装依赖会自动跳过）
+        assert config.docling_enabled is True
+        assert config.mineru_enabled is True
+        assert config.marker_enabled is True
 
     def test_all_engine_configs_enabled(self):
         """各引擎可独立启用。"""
@@ -1012,9 +1012,9 @@ class TestBundledDefaultAsSource:
                 assert cfg.enable_caching is True
                 assert cfg.max_retries == 3
                 assert cfg.browser_headless is True
-                assert cfg.docling_enabled is False
-                assert cfg.mineru_enabled is False
-                assert cfg.marker_enabled is False
+                assert cfg.docling_enabled is True
+                assert cfg.mineru_enabled is True
+                assert cfg.marker_enabled is True
 
     def test_user_yaml_overrides_bundled_without_c_flag(self, tmp_path):
         """无 -c 时，用户 YAML 差异项覆盖 bundled 默认（通过 _UserYamlConfigSource）。"""

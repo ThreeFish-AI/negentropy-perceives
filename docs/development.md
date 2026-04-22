@@ -53,12 +53,24 @@ uv sync
 # 安装开发依赖
 uv sync --group dev
 
+# 启用全部四大 PDF 引擎（Docling / MinerU / Marker / PyMuPDF）参与 layout/table/formula 竞争
+uv sync --extra all-engines
+
+# 或按需单独启用
+uv sync --extra docling
+uv sync --extra mineru
+uv sync --extra marker
+
 # 初始化用户配置（首次运行时自动生成，也可手动执行）
 uv run negentropy-perceives --init-config
 
 # 安装 Playwright 浏览器依赖
 uv run playwright install chromium
 ```
+
+> **引擎可用性**：`docling_enabled` / `mineru_enabled` / `marker_enabled` 默认均为 `true`，
+> 实际是否参与调度由运行时 `is_available()` 检测（包是否可 import）决定——未安装的引擎
+> 会被自动跳过，PDF 管线首次调用时会打印 `[PDF engines]` 汇总一次，方便确认生效状态。
 
 ## 项目结构
 
