@@ -187,6 +187,10 @@ def _log_pdf_engines_summary_once() -> None:
             "安装可选依赖以获得完整能力：uv sync --extra all-engines",
             ", ".join(missing),
         )
+    logger.info(
+        "[PDF engines] 首次使用前建议预热模型（避免首请求 ~1.35GB 下载超时）："
+        "uv run perceives prefetch-models"
+    )
 
 
 async def run_pdf_pipeline(

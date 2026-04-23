@@ -154,16 +154,16 @@ class TestMinerUEngineConfigKey:
         assert "device=" in key
 
     def test_explicit_backend_overrides(self) -> None:
-        """用户显式指定 backend 应覆盖自动检测。"""
-        engine = MinerUEngine(backend="vlm-mlx-engine")
+        """用户显式指定 backend 应覆盖自动检测（合法值透传）。"""
+        engine = MinerUEngine(backend="hybrid-auto-engine")
         backend = engine._resolve_device()
-        assert backend == "vlm-mlx-engine"
+        assert backend == "hybrid-auto-engine"
 
-    def test_mps_device_maps_to_mlx(self) -> None:
-        """MPS 设备应映射到 vlm-mlx-engine 后端。"""
+    def test_mps_device_maps_to_vlm_auto(self) -> None:
+        """MPS 设备应映射到 vlm-auto-engine 后端（MinerU CLI 合法值）。"""
         engine = MinerUEngine(device="mps")
         backend = engine._resolve_device()
-        assert backend == "vlm-mlx-engine"
+        assert backend == "vlm-auto-engine"
 
     def test_cuda_device_maps_to_pipeline(self) -> None:
         """CUDA 设备应映射到 pipeline 后端。"""
@@ -182,7 +182,7 @@ class TestMinerUEngineConfigKey:
         engine = MinerUEngine(device="auto")
         backend = engine._resolve_device()
         if MinerUEngine._is_apple_silicon():
-            assert backend == "vlm-mlx-engine"
+            assert backend == "vlm-auto-engine"
         else:
             assert backend == "pipeline"
 

@@ -22,6 +22,7 @@ from .commands import (  # noqa: E402
     parse_pdfs,
     parse_webpage,
     parse_webpages,
+    prefetch_models,
     server,
 )
 
@@ -31,4 +32,5 @@ app.command("parse-webpage")(parse_webpage.run)
 app.command("parse-webpages")(parse_webpages.run)
 app.command("parse-pdf")(parse_pdf.run)
 app.command("parse-pdfs")(parse_pdfs.run)
+app.command("prefetch-models")(prefetch_models.run)
 app.command("server")(server.run)

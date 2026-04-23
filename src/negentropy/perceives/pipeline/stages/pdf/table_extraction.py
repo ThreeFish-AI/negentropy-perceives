@@ -136,19 +136,25 @@ class FitzTableExtractor(PDFToolBase):
 
             for page_idx in range(start_page, end_page):
                 page = doc[page_idx]
-                # 使用 EnhancedPDFProcessor 的表格提取能力
-                page_tables = processor.extract_tables_with_geometry(page, page_idx)  # type: ignore[call-arg]
-                for extracted_table in page_tables:  # type: ignore[union-attr]
+                # extract_tables_with_geometry(pdf_document, page_num, text_blocks)
+                # 返回 (bbox_map, all_tables)；遵循 pdf/processor.py 调用范式。
+                text_blocks = page.get_text("blocks")
+                _, page_tables = processor.extract_tables_with_geometry(
+                    doc,
+                    page_idx,
+                    text_blocks,
+                )
+                for extracted_table in page_tables:
                     tables.append(
                         ExtractedTable(
                             table_id=f"tbl_{table_idx}",
-                            markdown=extracted_table.markdown,  # type: ignore[union-attr]
-                            rows=extracted_table.rows,  # type: ignore[union-attr]
-                            columns=extracted_table.columns,  # type: ignore[union-attr]
+                            markdown=extracted_table.markdown,
+                            rows=extracted_table.rows,
+                            columns=extracted_table.columns,
                             page_number=page_idx,
-                            bbox=extracted_table.bbox,  # type: ignore[union-attr]
-                            caption=extracted_table.caption,  # type: ignore[union-attr]
-                            headers=extracted_table.headers,  # type: ignore[union-attr]
+                            bbox=extracted_table.bbox,
+                            caption=extracted_table.caption,
+                            headers=extracted_table.headers,
                         )
                     )
                     table_idx += 1
