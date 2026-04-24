@@ -136,6 +136,14 @@ marker:
   llm_enhanced: false # 启用 Marker LLM 增强模式
   license_acknowledged: false # 确认 Marker GPL-3.0 许可证条款
 
+# ── PDF 图片资产打包（MCP 响应体）─────────────────────────────────────────────
+# 控制是否将提取的图片以 base64 内嵌到 MCP 响应中。
+# 关闭不影响磁盘侧 output_dir/images/ 产出。
+pdf:
+  bundle_images_in_response: true # 将图片 base64 放入 MCP 响应的 image_assets 字段
+  image_max_base64_kb: 2048 # 单张图片 base64 上限（KB）；超限先 JPEG q=75 重压缩，仍超则跳过
+  bundle_total_base64_mb: 32 # 响应体图片总量上限（MB）；超阈值停止追加
+
 # ── Pipeline 编排配置 ────────────────────────────────────────────────────────
 # 定义 PDF 和 WebPage 两条处理管线的 Stage 列表、工具排名和竞争模式。
 # 每个 Stage 按 rank 顺序选择首个可用工具（降级模式），

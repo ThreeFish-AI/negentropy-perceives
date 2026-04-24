@@ -312,3 +312,46 @@ doc.close()
 - 并发化后 `logger.info("Extracted image ... from page N")` 的打印顺序不再与页号递增对齐。线上排查若依赖顺序关系，请以 `page_number` 字段为准，不要以日志顺序推断页号。
 
 <a id="ref-pymupdf-thread"></a>[1] Artifex Software, "PyMuPDF FAQ: Is PyMuPDF thread-safe?," *PyMuPDF Documentation*, 2025. [Online]. Available: https://pymupdf.readthedocs.io/en/latest/faq.html#is-pymupdf-thread-safe
+
+## [2026-04-24] parse_pdf_to_markdown MCP 响应体缺失图片 base64 载荷
+
+### 问题描述
+同一份带图片的 PDF 在经过 `parse_pdf_to_markdown` 后，MCP 响应体仅包含 `enhanced_assets.images_count` 的计数，**不含**任何像素数据；下游（多模态 LLM、可视化展示等）消费者必须回退到服务器本地 `local_path`，违反 MCP 协议“远程友好、零本地共享”的语义。
+
+### 表因
+- `pipeline/convenience.py::run_pdf_pipeline` 在装配（assembly）阶段**重建** `PipelineResult`，只读取 `assembly_output.markdown` 等字段，**丢弃** `BuiltinBundler` 产出的 `StageResult`；
+- `pipeline/models/_pdf.py::PipelineResult` 原本没有 `image_assets` 字段，即使 Stage 层构造也没地方装；
+- `ops/pdf.py` 的 auto-method 分支在把 dataclass `PipelineResult` 映射为 Pydantic `PDFResponse` 时，自然也就没有 `image_assets` 出参。
+
+### 根因
+- 在流水线早期设计中，`asset_bundling` 被定位为“本地落盘 + 元数据汇总”，产物（`images/`, `tables/`, `formulas/`）被假设由客户端按 URL 回取；
+- 但 MCP 的真实语境是“客户端运行在异机 / 沙箱内”，本地文件路径不可及。规范上 MCP content block 支持 `type=image` + base64 载荷<sup>[[1]](#ref-mcp-image)</sup>，因此响应体内嵌 base64 才是符合协议的正交做法；
+- 直接在 `asset_bundling.py` 添字段收效甚微（会被 `convenience.py` 丢弃），需要在**真正组装** `PipelineResult` 的 `run_pdf_pipeline` 里集中处理，才能让内部数据模型与对外 Pydantic 模型端到端贯通。
+
+### 处理方式
+- **内部模型**（`pipeline/models/_pdf.py`）：新增 `ImageAsset` dataclass 与 `PipelineResult.image_assets: List[ImageAsset]` 字段；在 `pipeline/models/__init__.py` 中导出。
+- **聚合器**（`pipeline/convenience.py`）：新增三道函数：
+  1. `_read_image_bytes(img)`：优先读 `base64_data`；否则回退 `local_path`；两者都缺则返回 `None`（跳过）；
+  2. `_downscale_to_jpeg(raw, quality=75)`：PIL 缺失或抛异常时返回 `None`，不破坏主链路；采用 JPEG q=75 实现“感知质量/体积”平衡<sup>[[2]](#ref-pillow-jpeg)</sup>；
+  3. `_build_image_assets(image_output)`：三道护栏——
+     - 开关：`pdf_bundle_images_in_response=False` → 返回 `[]`；
+     - 单图上限：超过 `pdf_image_max_base64_kb*1024` → 走 JPEG q=75 重压缩，若仍超限则 `logger.warning` 后跳过；压缩成功则 `filename` 改写为 `*.jpg` 且 `mime_type="image/jpeg"`，避免“扩展名 vs 实际字节”的不一致；
+     - 累计上限：`pdf_bundle_total_base64_mb*1024*1024` → 保序丢弃尾部（“drop-tail”）。
+  并在 `run_pdf_pipeline` 的 assembly 分支把结果写入新 `PipelineResult`。
+- **配置**（`config.py` + `config.default.yaml`）：新增三项 pydantic 字段：`pdf_bundle_images_in_response`（默认 `True`）、`pdf_image_max_base64_kb`（默认 `2048`）、`pdf_bundle_total_base64_mb`（默认 `32`）；YAML 配置 block 为 `pdf: {bundle_images_in_response, image_max_base64_kb, bundle_total_base64_mb}`。`_NO_FLATTEN_KEYS` 不含 `pdf`，经扁平化后正好命中以上字段。
+- **对外响应**（`models.py` + `ops/pdf.py`）：新增 `ImageAssetModel(BaseModel)` 与 `PDFResponse.image_assets: Optional[List[ImageAssetModel]]`；`ops/pdf.py` 的 auto-method 分支在构造 `PDFResponse` 时把 dataclass 列表映射为 Pydantic 列表，**空列表映射为 `None`** —— 客户端据此区分“未传输”与“确实无图”。
+- **单元测试**（`tests/unit/test_asset_bundling_base64.py`）：12 条用例覆盖开关关闭、empty output、base64 优先、`local_path` 回退、两源全缺跳过、单图超限重压缩/重压缩仍超限/PIL 不可用、累计上限 drop-tail、非法 base64 跳过、真实 PIL 集成校验 JPEG SOI `\xff\xd8\xff`。全部通过。
+
+### 后续防范
+- **配置默认保守**：`pdf_image_max_base64_kb=2048` 与 `pdf_bundle_total_base64_mb=32` 是基于“MCP 响应体 ≤64MB 软上限”的经验值，既能容纳常见扫描页，又为元数据和 Markdown 文本留出余量；客户端受限（如手机端）可下调，离线批处理可上调。
+- **优先 base64，其次 local_path**：这种 fallback 让 `convenience` 层对“图像是否已被 asset_bundling 落盘”保持解耦；未来若引入 S3/OSS 直传，新分支放在 `_read_image_bytes` 即可，**调用点不变**。
+- **整函数无异常外传**：`_read_image_bytes` / `_downscale_to_jpeg` / `_build_image_assets` 的任何失败都用 `logger.warning` 记录并跳过该图，确保“图片 bundling 失败”**不会**反向污染主 Markdown 产物。
+
+### 同类问题影响与注意事项
+- `enhanced_assets` 其他子字段（`tables/`, `formulas/`）若未来也要 base64 化嵌入 MCP 响应，可复用本次三道护栏（开关 + 单项上限 + 总量 drop-tail）；切勿为了“完整性”在响应体里夹带 MB 级纯文本 HTML 表格。
+- 客户端代码升级时必须同步更新对 `image_assets` 的 `is None` vs `[]` 判定逻辑：`None` 表示“服务器未开启或未生成”，`[]` 表示“已生成但空”；二者不等价。
+- PIL `Image.save(..., format="JPEG", quality=75)` 对 RGBA/P 模式图片需要先 `.convert("RGB")`，否则直接抛 `OSError`；`_downscale_to_jpeg` 已统一 `convert("RGB")` 兜底。
+
+<a id="ref-mcp-image"></a>[1] Anthropic, "Model Context Protocol Specification: Content Types," *MCP Documentation*, 2024. [Online]. Available: https://modelcontextprotocol.io/specification/server/tools#image-content
+
+<a id="ref-pillow-jpeg"></a>[2] A. Clark and Contributors, "Pillow Handbook: JPEG — Image File Format," *Pillow Documentation*, 2025. [Online]. Available: https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#jpeg

@@ -460,6 +460,51 @@ class AssemblyOutput:
 
 
 # ---------------------------------------------------------------------------
+# MCP 响应资产：图片 base64 载荷
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ImageAsset:
+    """随 MCP 响应返回的图片资产（含 base64 载荷）。
+
+    与 :class:`ExtractedImage` 的差别在于：``ExtractedImage`` 是 Stage 间流
+    转的富数据对象（含本地磁盘路径、分类、阅读顺序等），而 ``ImageAsset``
+    是面向 MCP 客户端的轻量序列化视图，只保留跨进程/跨网络传输必要的字段，
+    以控制响应体体积。
+
+    设计动机：原 ``PipelineResult`` 仅暴露 ``images_count`` 计数而无像素数据
+    透出到上层 MCP ``PDFResponse``，导致下游客户端无法直接获取图片。本类
+    补齐这一空缺，并在构造点加上体积/压缩护栏（见 ``convenience.py`` 内的
+    ``_build_image_assets``）。
+    """
+
+    filename: str
+    """文件名（如 ``img_p1_0.png``）。"""
+
+    mime_type: str = "image/png"
+    """MIME 类型（压缩降级为 JPEG 时会被改写为 ``image/jpeg``）。"""
+
+    base64_data: str = ""
+    """Base64 编码后的图片字节。"""
+
+    width: Optional[int] = None
+    """图片宽度（像素）。"""
+
+    height: Optional[int] = None
+    """图片高度（像素）。"""
+
+    caption: Optional[str] = None
+    """图片说明文字（若 Stage 上游提取到）。"""
+
+    page_number: Optional[int] = None
+    """所在页码（从 0 开始）。"""
+
+    downscaled: bool = False
+    """是否因超过 ``pdf_image_max_base64_kb`` 阈值而走 JPEG q=75 重压缩。"""
+
+
+# ---------------------------------------------------------------------------
 # Pipeline 最终结果
 # ---------------------------------------------------------------------------
 
@@ -509,3 +554,7 @@ class PipelineResult:
 
     metadata: Dict[str, Any] = field(default_factory=dict)
     """额外元数据。"""
+
+    image_assets: List[ImageAsset] = field(default_factory=list)
+    """图片资产列表（含 base64 载荷），随 MCP 响应透出。受配置项
+    ``pdf_bundle_images_in_response`` 门控；超阈值走 JPEG q=75 重压缩。"""
