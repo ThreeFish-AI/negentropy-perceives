@@ -188,7 +188,8 @@ ignore_missing_imports = true
 
 [tool.uv]
 # Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
-override-dependencies = ["pillow>=12.2.0"]
+# lxml>=6.1.0：修复 CVE-2026-41066（间接依赖）
+override-dependencies = ["pillow>=12.2.0", "lxml>=6.1.0"]
 
 [dependency-groups]
 dev = [

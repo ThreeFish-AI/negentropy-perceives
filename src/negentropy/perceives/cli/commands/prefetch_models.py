@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import time
 from typing import List, Optional, Tuple
 
@@ -195,7 +195,7 @@ def _prefetch_marker() -> str:
         from ...pdf.engines.marker import MarkerEngine
 
         MarkerEngine._ensure_cpu_device()
-    except Exception:  # noqa: BLE001 — 预热阶段此步失败不致命
+    except Exception:  # noqa: BLE001  # nosec B110 — 预热阶段此步失败不致命
         pass
 
     try:
@@ -244,7 +244,7 @@ def _prefetch_mineru(
         f"[dim]执行：{' '.join(cmd)}（超时 {timeout}s；进度条由子进程直接打印）[/dim]"
     )
     try:
-        proc = subprocess.run(  # noqa: S603 — binary 已由 shutil.which 校验
+        proc = subprocess.run(  # nosec B603  # noqa: S603 — binary 已由 shutil.which 校验
             cmd,
             check=False,
             timeout=timeout,
