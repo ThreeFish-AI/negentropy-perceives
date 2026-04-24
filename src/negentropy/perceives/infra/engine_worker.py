@@ -30,8 +30,11 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import multiprocessing as mp
+import os
+import signal
 import uuid
 from multiprocessing.connection import Connection
 from multiprocessing.context import SpawnProcess
@@ -99,11 +102,15 @@ class EngineWorker:
         """拉起子进程并等待 ``ready`` 握手。"""
         ctx = mp.get_context("spawn")
         parent_conn, child_conn = ctx.Pipe(duplex=True)
+        # daemon=False：Marker 等引擎内部使用 torch DataLoader / Surya OCR
+        # 的子进程池，Python 禁止 daemon 进程再派生子进程（"daemonic processes
+        # are not allowed to have children"）。为避免父进程异常退出留下孤儿，
+        # 在模块级 atexit 与 shutdown_engine_pool 路径中兜底强杀。
         proc = ctx.Process(
             target=_engine_worker_entry.worker_main,
             args=(child_conn, self.engine),
             name=f"engine-worker-{self.engine}",
-            daemon=True,
+            daemon=False,
         )
         proc.start()
         # 父进程关闭子端句柄；子进程会保留自己的一份
@@ -461,3 +468,56 @@ async def shutdown_engine_pool() -> None:
             await pool.shutdown()
         except Exception as e:
             logger.warning("shutdown_engine_pool 异常: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# atexit 兜底：daemon=False 后若父进程异常退出（未走 shutdown_engine_pool），
+# 需显式 SIGKILL 所有仍存活的 worker，否则子进程会阻塞父进程真正退出或变成
+# 孤儿。此 hook 仅做同步强杀，不依赖事件循环，也不抛异常。
+# ---------------------------------------------------------------------------
+
+
+def _cleanup_on_exit() -> None:
+    """atexit 钩子：同步 SIGKILL 所有仍存活的 worker 子进程。"""
+    pool = _pool_singleton
+    if pool is None:
+        return
+    workers = list(pool._workers.values())
+    for w in workers:
+        proc = w._proc
+        if proc is None or not proc.is_alive():
+            continue
+        pid = proc.pid
+        _safe_log(
+            logging.WARNING,
+            "atexit 强杀未清理的 engine worker engine=%s pid=%s",
+            w.engine,
+            pid,
+        )
+        # 优先 SIGTERM，短 grace 后 SIGKILL（解释器退出阶段不能 await）
+        try:
+            proc.terminate()
+        except Exception:  # nosec B110
+            pass
+        try:
+            proc.join(0.5)
+        except Exception:  # nosec B110
+            pass
+        if proc.is_alive():
+            try:
+                proc.kill()
+            except Exception:  # nosec B110
+                pass
+            try:
+                proc.join(0.5)
+            except Exception:  # nosec B110
+                pass
+        # 兜底：若父进程已无权 kill（例如 PID 复用），尝试直接 SIGKILL
+        if proc.is_alive() and pid is not None:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:  # nosec B110
+                pass
+
+
+atexit.register(_cleanup_on_exit)

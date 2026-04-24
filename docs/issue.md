@@ -180,3 +180,28 @@
 - modelscope 与 huggingface 在 `~/.cache` 下落点不同、不互通：切源会让已下载的 HF 副本变成沉默成本，但这是一次性代价；切源后通常十几分钟可补回。如海外环境下默认 modelscope 反而更慢，用户可显式 `--mineru-source huggingface` 或设环境变量回退。
 - CI 环境是非 TTY，tqdm 在非 TTY 下会自动改为“按行输出”（每个 epoch/file 一行），不会刷屏；当前“零输出”反而更可疑——本次 stdout 直通的改动对 CI 友好。
 - `--mineru-timeout` 默认 1800s 对家宽下载 ~9GB 偏紧（按 5MB/s 需 ~30 min 整）；modelscope 国内通常 ≫ 5MB/s 故已足够，但若部署在偏远节点请显式调大。
+
+## [2026-04-24] parse_pdf_to_markdown Marker 引擎始终报 "daemonic processes are not allowed to have children"
+
+### 问题描述
+真实 PDF 处理日志中 Marker 工具每次都以 `daemonic processes are not allowed to have children` 失败退出；`layout_analysis / table_extraction / formula_extraction / code_detection` 四 Stage 的 Marker 竞争者全部失效，竞争模式不再具备对 Marker 的覆盖。
+
+### 表因
+`WARNING negentropy.perceives.pdf.engines.marker: Marker 转换失败: daemonic processes are not allowed to have children` 在 MCP server 每次处理 PDF 时都会出现。
+
+### 根因
+`EngineWorkerPool` 在 `EngineWorker.start()` 中用 `ctx.Process(..., daemon=True)` 启动子进程（`infra/engine_worker.py:106`）。Python 的硬性限制：**daemon 进程不能再派生自己的子进程**。而 Marker 内部依赖 torch `DataLoader` 的 `num_workers>0` 与 Surya OCR 的进程池，一旦需要派生子进程即抛 `AssertionError`。Docling / MinerU 目前走纯 Python 推理（或自带独立进程管理），因而表现正常。
+
+### 处理方式
+1. `infra/engine_worker.py:106` 将 `daemon=True` 改为 `daemon=False`，并在上方加 WHY 注释。
+2. 在模块末尾新增 `_cleanup_on_exit()` + `atexit.register(_cleanup_on_exit)`：遍历 `_pool_singleton._workers`，对仍存活的 worker 依次 `terminate → join(0.5s) → kill → join(0.5s) → os.kill(SIGKILL)` 兜底强杀（解释器退出路径不可 `await`，全程同步且吞异常）。
+3. 与 `apps/app.py:main()` 中既有的 `finally + atexit` 双路径互为防御，`_shutdown_engine_pool_sync()` 已有幂等 flag，无冲突。
+
+### 后续防范
+- 任何计划派生子进程的引擎（Marker 风格）都**必须**跑在 `daemon=False` 的 worker 上；如未来新增引擎，遵循本规约，不要回退到 daemon=True。
+- `daemon=False` 后父进程异常退出会阻塞在子进程回收；`atexit` 兜底 + `apps/app.py` 生命周期 hook 必须同时存在，否则裸脚本/测试场景会出现孤儿进程。
+- 单测 `tests/unit/test_engine_worker_daemon.py` 固化 `daemon=False` 与 `_cleanup_on_exit` 行为契约，防止回归。
+
+### 同类问题影响与注意事项
+- 子进程改为 non-daemon 后，若 `EngineWorker.terminate()` 路径异常早退，可能遗留 `proc` 存活；`_cleanup_on_exit` 是最后一道防线。若未来新增 worker 管理路径，复用 `_cleanup_on_exit` 模式即可。
+- `pytest` 环境下使用 `_fake_fast` 引擎做 Pool 存活断言，避免真实 PDF 依赖；真实 Marker 可用性由集成测试或人工冒烟验证。
