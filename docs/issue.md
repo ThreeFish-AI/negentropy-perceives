@@ -205,3 +205,38 @@
 ### 同类问题影响与注意事项
 - 子进程改为 non-daemon 后，若 `EngineWorker.terminate()` 路径异常早退，可能遗留 `proc` 存活；`_cleanup_on_exit` 是最后一道防线。若未来新增 worker 管理路径，复用 `_cleanup_on_exit` 模式即可。
 - `pytest` 环境下使用 `_fake_fast` 引擎做 Pool 存活断言，避免真实 PDF 依赖；真实 Marker 可用性由集成测试或人工冒烟验证。
+
+## [2026-04-24] parse_pdf_to_markdown 在 Apple Silicon 上 MPS 被误判不可用，Docling 回退 CPU
+
+### 问题描述
+`parse_pdf_to_markdown` 日志高频出现：
+```
+WARNING engine_worker.docling.utils.accelerator_utils:
+  MPS is not available in the system. Fall back to 'CPU'.
+```
+Mac M 系列芯片虽然硬件与 PyTorch 均支持 MPS（`torch.backends.mps.is_built() == True`），但 Docling 的 `accelerator_utils` 检测依旧 `False`，整条推理管线降级 CPU，单次 37 页 PDF 的 Docling 推理从预期 <30s 膨胀到 >120s（layout/tables/formulas/code 四阶段各占满超时）。
+
+### 表因
+子进程内 `torch.backends.mps.is_available()` 首次调用返回 `False`；Docling 据此选择 CPU。
+
+### 根因
+**`multiprocessing` spawn 子进程内的 MPS 懒初始化缺口。** MPS 的统一内存 allocator 依赖 first-touch（首次真实分配一个 MPS tensor）才会就绪；而 `torch.backends.mps.is_available()` **自身不触发** first-touch。父进程虽已 `set_start_method('spawn')`，但 spawn 子进程是一个全新解释器，torch 在子进程里重新 `import` 后就必须再做一次 first-touch，否则 `is_available()` 会稳定返回 False。Docling 的内部设备探测跑在 worker 子进程中，恰好踩进这个缺口。
+
+### 处理方式
+1. **`infra/_engine_worker_entry.py` 新增 `_preinit_torch_device(logger)`**，`worker_main` 在子进程启动、`conn.send(ready)` 之后、首次 `call` 之前调用，仅对 `docling/mineru/marker` 三类真实 torch 引擎执行：
+   - `os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")`：算子 fallback 兜底，不禁用 MPS；
+   - 采集 `torch_version / start_method / mps_built / mps_available_raw`，darwin + mps_built 时执行 `torch.zeros(1, device="mps")` 作为 first-touch smoke_test；
+   - 结果写入 `NEGENTROPY_MPS_READY=1/0` 环境变量，供下游 `hardware.detection._check_mps_available` 免再探测直接信任；
+   - `logger.warning("子进程 torch 诊断 %s", diag)` 以 WARNING 级输出单行诊断（包含 smoke_test 结果、版本、`is_available_raw` 的首次返回值），无论成功失败都可在线上日志一眼排查。
+2. **`pdf/hardware/detection.py::_check_mps_available` 防御性兜底**：`is_available()=False` 时先读 `NEGENTROPY_MPS_READY==1`，有则直接走“可用”分支；否则尝试一次 first-touch 再复查，彻底堵住“worker 内已 ok 但 Docling 子模块二次探测再次失败”的回归可能。
+3. **单元测试 `tests/unit/test_mps_subprocess.py`** 8 条：torch 缺失、smoke_test ok / fail / skip（未 built）、非 darwin 跳过、默认 `PYTORCH_ENABLE_MPS_FALLBACK=1`、以及 darwin-only 真实环境断言 `READY ∈ {0,1}`，全部通过。
+
+### 后续防范
+- 任何在 spawn 子进程内依赖 torch 硬件的引擎都**必须**在 `worker_main` 的早期窗口显式 first-touch 一次设备，不能信任 `is_available()` 的首次返回。
+- `_preinit_torch_device` 必须保持“永不抛异常”的契约：任何路径失败都静默降级到 `NEGENTROPY_MPS_READY=0`，避免连 worker 本身都起不来；失败原因写进诊断日志即可。
+- Docling / MinerU / Marker 之外如新增真实 torch 引擎，`worker_main` 的 `engine_name in (...)` 白名单必须同步更新。
+
+### 同类问题影响与注意事项
+- CUDA 子进程无类似缺口（CUDA 初始化走 cudaInit 常规路径，不依赖 first-touch），但 XPU（Intel oneAPI）未来接入时建议同样跑一次 `torch.zeros(1, device="xpu")` first-touch 兜底。
+- `PYTORCH_ENABLE_MPS_FALLBACK=1` 仅作为“少数算子不支持 MPS 时回 CPU”的兜底，**不会**整体禁用 MPS；若后续出现算子回 CPU 但整体仍过慢，需对 Docling 个别算子做 profile，而不是误以为 fallback 本身是问题。
+- 若在 Intel Mac 上运行（`mps_built=False`），`smoke_test=skip:mps_not_built`、`NEGENTROPY_MPS_READY=0`，Docling 正确降级 CPU，无任何回归。

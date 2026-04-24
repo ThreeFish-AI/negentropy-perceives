@@ -111,6 +111,78 @@ def _hash_init_kwargs(init_kwargs: Optional[Dict[str, Any]]) -> str:
     return hashlib.sha1(serialized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
+def _preinit_torch_device(logger: logging.Logger) -> None:
+    """spawn 子进程内完成 torch 设备预热 + MPS first-touch + 诊断日志。
+
+    **永不抛异常**：任何失败都被吞掉并降级到 CPU 路径，确保 worker 能稳定启动。
+    副作用：
+    - `PYTORCH_ENABLE_MPS_FALLBACK=1`：仅作算子 fallback 兜底，不禁用 MPS；
+    - `NEGENTROPY_MPS_READY=1/0`：把 smoke_test 结果暴露给下游引擎（Docling
+      `device_config` 可据此决定是否把 `AcceleratorDevice` 设为 MPS）；
+    - 打印一行 `子进程 torch 诊断 {...}` 含版本、start_method、built、
+      available、smoke_test（ok / skip:... / fail:ExcName:msg）。
+    """
+    # 默认 MPS 算子 fallback 兜底；真正禁用 MPS 的开关另行设计
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+    diag: Dict[str, Any] = {
+        "start_method": None,
+        "torch_version": None,
+        "mps_built": None,
+        "mps_available_raw": None,
+        "mps_smoke_test": "skip:not_darwin",
+    }
+
+    try:
+        import multiprocessing as mp
+
+        diag["start_method"] = mp.get_start_method(allow_none=True)
+    except Exception:  # nosec B110
+        pass
+
+    try:
+        import torch
+    except Exception as e:  # torch 缺失或导入失败，直接回退 CPU
+        diag["mps_smoke_test"] = f"fail:torch_import:{type(e).__name__}"
+        os.environ["NEGENTROPY_MPS_READY"] = "0"
+        # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
+        logger.warning("子进程 torch 诊断 %s", diag)
+        return
+
+    diag["torch_version"] = getattr(torch, "__version__", "unknown")
+
+    try:
+        diag["mps_built"] = bool(torch.backends.mps.is_built())
+    except Exception as e:
+        diag["mps_built"] = f"err:{type(e).__name__}:{e}"
+    try:
+        diag["mps_available_raw"] = bool(torch.backends.mps.is_available())
+    except Exception as e:
+        diag["mps_available_raw"] = f"err:{type(e).__name__}:{e}"
+
+    # 仅在 darwin 上尝试 first-touch（其他平台无 MPS）
+    mps_ready = False
+    if sys.platform == "darwin" and diag["mps_built"] is True:
+        try:
+            _ = torch.zeros(1, device="mps")
+            # first-touch 成功后 is_available 可能会从 False 变为 True
+            try:
+                if torch.backends.mps.is_available():
+                    diag["mps_available_raw"] = True
+            except Exception:  # nosec B110
+                pass
+            diag["mps_smoke_test"] = "ok"
+            mps_ready = True
+        except Exception as e:
+            diag["mps_smoke_test"] = f"fail:{type(e).__name__}:{str(e)[:120]}"
+    elif sys.platform == "darwin":
+        diag["mps_smoke_test"] = "skip:mps_not_built"
+
+    os.environ["NEGENTROPY_MPS_READY"] = "1" if mps_ready else "0"
+    # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
+    logger.warning("子进程 torch 诊断 %s", diag)
+
+
 def worker_main(conn: Connection, engine_name: str) -> None:
     """子进程主循环：ready → 等请求 → 懒加载/执行 → 回写。
 
@@ -138,20 +210,17 @@ def worker_main(conn: Connection, engine_name: str) -> None:
         return
 
     # MPS 环境预初始化（仅限 torch 相关引擎，避免 fake/test worker 的导入开销）
+    #
+    # 动机：spawn 子进程首次 `import torch` 后，`torch.backends.mps.is_available()`
+    # 在 Apple Silicon 某些组合下会稳定返回 False；根因是 MPS 的统一内存
+    # allocator 依赖懒初始化，`is_available()` 自身并不触发 first-touch。
+    # 解决：在子进程启动时显式分配一次 MPS tensor（first-touch），之后 allocator
+    # 就绪，`is_available()` 与 `AcceleratorDevice.MPS` 均可正常使用。
+    #
+    # 同时把诊断信息（torch 版本、start_method、built/available/smoke_test 结果）
+    # 打到日志，便于远端 MPS 故障的线上排查。
     if engine_name in ("docling", "mineru", "marker"):
-        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-        try:
-            import torch
-
-            mps_built = torch.backends.mps.is_built()
-            mps_avail = torch.backends.mps.is_available()
-            logger.info(
-                "子进程 MPS 状态: built=%s, available=%s",
-                mps_built,
-                mps_avail,
-            )
-        except Exception as e:
-            logger.info("子进程 PyTorch/MPS 检查异常: %s", e)
+        _preinit_torch_device(logger)
 
     cached_engine: Optional[Any] = None
     cached_hash: Optional[str] = None
