@@ -271,3 +271,44 @@ Mac M 系列芯片虽然硬件与 PyTorch 均支持 MPS（`torch.backends.mps.is
 - 缓存键**不可漏掉** `init_kwargs_hash`：否则同一 PDF 用不同 `DoclingEngine(...)` 配置会错误复用旧结果；已在 `_make_cache_key` 中显式纳入键。
 - Pipeline 未来若引入“编辑/标注后重算”场景，务必通过 `mtime_ns` 自动失效（`os.utime` 或覆盖写）；切勿人为旁路缓存键，否则引入 stale 风险。
 - 读前 64KB 指纹对“在 64KB 之后篡改内容但保留头部 + 同 size + 同 mtime_ns”的攻击向量是**不设防**的；本项目语境下 PDF 来源可信，但如未来引入不可信 PDF 来源，应改为全文件 blake2b。
+
+## [2026-04-24] parse_pdf_to_markdown 图片提取阶段逐页串行、37 页耗时 ~15s
+
+### 问题描述
+同一份 37 页 PDF 在 `image_extraction` Stage 中提取 18 张图片耗时约 **15 秒**，日志每秒打印一条 `Extracted image img_*_...`，明显是“逐页 → 逐图”的串行流。
+
+### 表因
+`pipeline/stages/pdf/image_extraction.py` 的 `FitzImageExtractor._run` 原本：
+```python
+doc = fitz.open(pdf_path)
+for page_idx in range(start_page, end_page):
+    page_images = await processor.extract_images_from_pdf_page(doc, page_idx)
+    ...
+doc.close()
+```
+所有页共享同一个 `fitz.Document`，且没有任何并发包装，等同于 `O(pages)` 串行。
+
+### 根因
+- PyMuPDF 官方 FAQ 明确指出 `Document` 对象**非线程/非重入安全**（同一 Document 并行访问会触发 SIGSEGV 或数据损坏）<sup>[[1]](#ref-pymupdf-thread)</sup>，因此不能用 `asyncio.to_thread` 把同一 Document 丢进线程池；
+- 但 `fitz.open()` 本身是 <10ms 的轻量操作，完全可以“每页一个独立 Document”，再通过 `asyncio.gather + Semaphore(4)` 限制同时打开的文件句柄。
+
+### 处理方式
+- **`image_extraction.py` 重写 `_run`**：
+  1. 先一次性 `with fitz.open(pdf_path) as probe_doc:` 读取 `page_count`，保证“探测”与“抽取”阶段隔离；
+  2. 为每一页协程 `_extract_one_page(page_idx)` 内部独立 `fitz.open()` + `EnhancedPDFProcessor()`，抽取完立即 `doc.close()`；
+  3. `asyncio.Semaphore(4)` 限制同时在跑的页数，避免 37 页 PDF 打开 37 个 fitz 句柄；
+  4. `asyncio.gather(*(_extract_one_page(p) for p in range(start, end)))` 并行触发；
+  5. `metadata` 追加 `concurrency` 与 `page_count`，便于线上排查；
+  6. `page_range=(5, 5)` 等空区间返回空列表，不再触发 gather 空参数。
+- **`tests/unit/test_image_extraction_concurrency.py` 新增 7 条**：全量页抽取、Semaphore 限流峰值 ≤4、墙钟优于串行基线 60%、`page_range` 尊重、空区间、异常透传、`bbox` 缺省。全部通过。
+
+### 后续防范
+- 任何基于 PyMuPDF 的并发路径都必须遵循“**每协程独立 Document**”约束，不要试图在 `asyncio.to_thread` / `ThreadPoolExecutor` 中共享 `fitz.Document`；否则测试环境可能偶发通过，生产 workload 下 SIGSEGV 概率线性上升。
+- `_IMAGE_EXTRACT_CONCURRENCY = 4` 与 `docling/mineru` 竞争的 Pool 并发度对齐；若未来出现“CPU 打满但 I/O 闲置”现象，再单独调参。
+- 上一版本依赖全局 `doc` 在 `extract_images_from_pdf_page` 中回看 cross-page 信息（例如 caption 在相邻页）的代码**必须**走独立通道（例如把 `text_blocks` 预先计算好作为参数传入），否则并发路径无法感知跨页上下文。
+
+### 同类问题影响与注意事项
+- 其他 `PyMuPDF` 绑定 Stage（如 `text_extraction`、`extract_tables_with_geometry`）若也观察到单页耗时线性 × 页数、且 workload profile 显示 CPU 闲置，可沿用同一“每页 open + Semaphore 限流 + gather”方案；注意 Semaphore 上限要与全局 `engine_pool` 并发度协调，避免压爆系统句柄。
+- 并发化后 `logger.info("Extracted image ... from page N")` 的打印顺序不再与页号递增对齐。线上排查若依赖顺序关系，请以 `page_number` 字段为准，不要以日志顺序推断页号。
+
+<a id="ref-pymupdf-thread"></a>[1] Artifex Software, "PyMuPDF FAQ: Is PyMuPDF thread-safe?," *PyMuPDF Documentation*, 2025. [Online]. Available: https://pymupdf.readthedocs.io/en/latest/faq.html#is-pymupdf-thread-safe
