@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
 from .base import Stage, StageResult, StageTool
 from .registry import get_tool
@@ -133,7 +133,11 @@ class StageScheduler:
         selector: Optional[Callable] = None,
         judge: Optional[Any] = None,
     ) -> StageResult:
-        """竞争模式：并行执行多个工具，择优。"""
+        """竞争模式：并行执行多个工具，择优。
+
+        使用 ``asyncio.as_completed`` 按完成顺序收集结果，
+        避免被慢引擎超时拖住整个 Stage。
+        """
         candidates = tools[:max_concurrent]
         logger.info(
             "Stage '%s' 竞争模式：并行运行 %d 个工具 [%s]",
@@ -142,32 +146,37 @@ class StageScheduler:
             ", ".join(t.name for t in candidates),
         )
 
-        tasks = [
-            asyncio.wait_for(tool.execute(input_data), timeout=timeout)
-            for tool in candidates
-        ]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        successful: List[StageResult] = []
-        for i, raw in enumerate(raw_results):
-            tool_name = candidates[i].name
-            if isinstance(raw, StageResult) and raw.success:
-                raw.engine_used = tool_name
-                successful.append(raw)
-            elif isinstance(raw, asyncio.TimeoutError):
+        async def _safe_execute(tool: StageTool) -> Tuple[str, Any]:
+            try:
+                result = await asyncio.wait_for(
+                    tool.execute(input_data), timeout=timeout
+                )
+                return tool.name, result
+            except asyncio.TimeoutError:
                 logger.warning(
                     "Stage '%s' 工具 '%s' 超时 (%.0fs)",
                     stage_name,
-                    tool_name,
+                    tool.name,
                     timeout,
                 )
-            elif isinstance(raw, Exception):
+                return tool.name, None
+            except Exception as exc:
                 logger.warning(
                     "Stage '%s' 工具 '%s' 异常: %s",
                     stage_name,
-                    tool_name,
-                    raw,
+                    tool.name,
+                    exc,
                 )
+                return tool.name, None
+
+        aws = [asyncio.create_task(_safe_execute(t)) for t in candidates]
+
+        successful: List[StageResult] = []
+        for coro in asyncio.as_completed(aws):
+            tool_name, result = await coro
+            if isinstance(result, StageResult) and result.success:
+                result.engine_used = tool_name
+                successful.append(result)
 
         if not successful:
             return StageResult(

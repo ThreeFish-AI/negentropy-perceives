@@ -11,8 +11,7 @@
 from __future__ import annotations
 
 import logging
-import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ...base import Stage, StageResult
 from ...models import (
@@ -111,17 +110,10 @@ class BuiltinAssembler(PDFToolBase):
                         )
                     )
 
-            # 图片：按阅读顺序插入，跳过已有 <!-- image --> 占位符的图片避免重复
+            # 图片：全部加入元素列表，由统一排序决定位置。
+            # normalize_image_references 会处理 <!-- image --> 占位符替换。
             if input_data.images and input_data.images.images:
-                existing_text = "\n".join(
-                    e.content for e in elements if e.element_type == "text"
-                )
-                placeholder_count = len(
-                    re.findall(r"<!--\s*image\s*-->", existing_text)
-                )
-                for idx, image in enumerate(input_data.images.images):
-                    if idx < placeholder_count:
-                        continue
+                for image in input_data.images.images:
                     elements.append(
                         _ContentElement(
                             reading_order=image.reading_order,
@@ -132,8 +124,25 @@ class BuiltinAssembler(PDFToolBase):
                         )
                     )
 
-            # 2. 按阅读顺序排序
-            elements.sort(key=lambda e: (e.page_number, e.reading_order))
+            # 2. 按 page_number + y 位置排序（bbox y0 优先，回退到 reading_order）
+            def _sort_key(elem: _ContentElement) -> Tuple[int, float]:
+                page = elem.page_number
+                y_pos: Optional[float] = None
+                if elem.image and elem.image.bbox:
+                    y_pos = elem.image.bbox[1]
+                elif elem.block and elem.block.bbox:
+                    y_pos = elem.block.bbox[1]
+                elif elem.table and elem.table.bbox:
+                    y_pos = elem.table.bbox[1]
+                elif elem.formula and elem.formula.bbox:
+                    y_pos = elem.formula.bbox[1]
+                elif elem.code_block and elem.code_block.bbox:
+                    y_pos = elem.code_block.bbox[1]
+                if y_pos is None:
+                    y_pos = elem.reading_order * 100.0
+                return (page, y_pos)
+
+            elements.sort(key=_sort_key)
 
             # 3. 拼接 Markdown
             markdown_parts: List[str] = []

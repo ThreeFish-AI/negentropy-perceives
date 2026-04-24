@@ -273,7 +273,7 @@ def _table_quality_score(
 
     * ``occupancy``：非空单元格占比，低于
       ``pdf_table_quality_min_occupancy`` 视为空白率过高；
-    * ``weak_cols``：每列非空率 < 40% 的列视为“弱列”，弱列数超过
+    * ``weak_cols``：每列非空率 < 40% 的列视为"弱列"，弱列数超过
       ``total_cols × pdf_table_quality_max_weak_cols_ratio`` 视为伪表格；
     * ``unique_cells``：去重后单元格种类数，≤
       ``pdf_table_quality_min_unique_cells`` 视为页眉/重复行。
@@ -335,8 +335,38 @@ def _table_quality_score(
         return False, diag
     if unique_cells <= _QF_MIN_UNIQUE_CELLS - 1:
         # 注意：默认 _QF_MIN_UNIQUE_CELLS=3 时命中条件是 unique_cells<=2，
-        # 即“全表只有 ≤ 2 种不同字符串”，典型为页眉复制 / 同值填充伪表。
+        # 即"全表只有 ≤ 2 种不同字符串"，典型为页眉复制 / 同值填充伪表。
         diag["reason"] = "low_uniqueness"
+        return False, diag
+
+    # 散文检测：判断表格是否为两端对齐段落被几何启发式误识别的产物。
+    # 综合两个信号：(a) 高行列表比 + 少列 → 多行文本行；
+    # (b) 相邻单元格间存在单词断裂（如 "Scaffoldi" | "ng"）。
+    is_prose = False
+    # 信号 a：行数远大于列数且行数超过 20（整页文本行误识别）。
+    # 正常单页表格极少超过 20 行；整页对齐文本通常产生 30-50 行。
+    if rows > 20 and cols >= 2 and cols <= 5:
+        is_prose = True
+
+    if not is_prose and cols >= 2:
+        # 信号 b：相邻单元格对中单词断裂的比例。
+        # 正常表格中单元格边界通常在词边界；误识别段落的边界在词中间。
+        adj_pairs = 0
+        frag_pairs = 0
+        for r in data:
+            clean = [str(c).strip() for c in r if c is not None]
+            for ci in range(len(clean) - 1):
+                left, right = clean[ci], clean[ci + 1]
+                if not left or not right:
+                    continue
+                adj_pairs += 1
+                if left[-1].isalpha() and right[0].islower():
+                    frag_pairs += 1
+        if adj_pairs > 0 and frag_pairs / adj_pairs > 0.3:
+            is_prose = True
+
+    if is_prose:
+        diag["reason"] = "prose_like_cells"
         return False, diag
 
     diag["reason"] = "pass"
