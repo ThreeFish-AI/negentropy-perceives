@@ -138,3 +138,45 @@
 - `extract_tables_with_geometry` 之外，仓里还有若干工具类函数被多个 Stage 适配器复用；同类 Stage 适配器在迁入新版 pipeline 时，**必须**以 `pdf/processor.py` 中的成熟调用为蓝本，不要凭直觉简化参数。
 - Prefetch CLI 对未安装引擎走 `skipped` 分支，对 CI 轻量环境友好；但在镜像构建脚本里应**显式**检查 `exit_code == 0` 且 `skipped` 集合为空，否则会出现“镜像里缺 marker 依赖却没人发现”的情况。
 - 首次请求预热模型会在本地缓存 HuggingFace 目录产生 GB 级数据，Docker 镜像/共享开发机请用 `--hf-home` 指向持久化卷避免重复下载。
+
+## [2026-04-24] perceives prefetch-models 在 mineru 步骤“看似卡死”
+
+### 问题描述
+执行 `uv run perceives prefetch-models`，docling / marker 顺利完成后停在：
+
+```
+执行：…/.venv/bin/mineru-models-download -s huggingface -m all
+```
+
+长时间无任何回显——既看不到 tqdm 进度条，也无错误抛出，无法判断是“真的卡死”还是“在下只是没回声”。最终用户被迫盲等，或 `Ctrl-C` 后重试时担心丢失已下载的分片。
+
+### 表因
+- 终端无任何输出（无进度条、无 ETA、无 `Fetching ...` 日志）；
+- `~/.cache/huggingface/hub/models--opendatalab--*` 目录的 mtime 仍在更新、`.locks/` 在写——**实际下载在进行**，但用户看不到；
+- 默认 `-s huggingface` 在大陆从 `huggingface.co` 直拉 ~9GB，带宽通常 ≪ modelscope 国内 CDN，叠加“无回显”观感更强。
+
+### 根因（两个独立维度同时退化）
+1. **进度通道被 `capture_output=True` 吞没** — `_prefetch_mineru()` 中 `subprocess.run(cmd, capture_output=True, text=True)` 把子进程 stdout/stderr 全收进内存。huggingface_hub 内嵌的 tqdm 在检测到非 TTY 后自动降级为静默或极低频刷新，**视觉上等同卡死**；外加无 `timeout=` 参数，遇到 huggingface_hub TCP 静默断流（参见 [huggingface_hub#3580](https://github.com/huggingface/huggingface_hub/issues/3580)、[#4085](https://github.com/huggingface/huggingface_hub/issues/4085)）会无限期阻塞。
+2. **传输源默认值在大陆带宽较差** — 默认硬编码 `-s huggingface`，未利用 MinerU 官方推荐的 `MINERU_MODEL_SOURCE=modelscope`（[官方文档](https://opendatalab.github.io/MinerU/usage/model_source/)）；modelscope 国内 CDN 带宽通常 10× 于直连 HF。
+
+两个维度叠加：传输慢 → 等待时间长；进度通道哑 → 用户无从判断进度。任一维度单独存在都不至于“看似卡死”，组合则放大。
+
+### 处理方式
+- **`prefetch_models.py` 三点最小重写**（仅作用于 mineru 引擎，docling/marker 不变）：
+  1. 移除 `capture_output=True`、`text=True`，让子进程 stdout/stderr 直接继承父进程终端，tqdm 即可正常实时渲染；
+  2. 默认 `--mineru-source` 改为 `modelscope`，优先级 `CLI 参数 > MINERU_MODEL_SOURCE 环境变量 > 默认 modelscope`；命令行 `-s` 与环境变量双写以同时兼容老/新版 mineru CLI；
+  3. 新增 `--mineru-timeout`（默认 1800 秒）；超时抛 `RuntimeError("mineru 模型下载超时（{}s）；可加大 --mineru-timeout 或切换 --mineru-source")`，由 `_dispatch` 收敛为 error 状态；保留 `_SkipEngine` 与 `shutil.which` 守门。
+- **失败提示改写**：不再提供“末尾 5 行日志”——既然 stdout 已直通终端，错误信息改为引导用户“查看终端上方的 mineru-models-download 输出”，配 `returncode` 与生效 source 一并打印。
+- **测试覆盖（新增/更新 6 条用例）**：默认 modelscope、CLI 覆盖源、环境变量优先级、TimeoutExpired → RuntimeError、白盒回归（`subprocess.run` kwargs 不含 `capture_output`/`stdout=PIPE`/`stderr=PIPE`）、CLI 选项透传到 `_dispatch`；新增 `_restore_mineru_source` autouse fixture 隔离环境污染。
+
+### 后续防范
+- **任何**内嵌 tqdm/进度条的子进程一律避免 `capture_output=True`/`stdout=PIPE`/`stderr=PIPE`——若真要采集日志，应使用 PTY (`pexpect` / `ptyprocess`) 或 `tee`，绝不可静默吞掉用户的进度反馈。
+- **任何**下载类子进程必须显式带 `timeout=`，并将 `subprocess.TimeoutExpired` 转为可读 `RuntimeError`，避免上游 TCP 半断流时无限阻塞。
+- 跨地域大体量模型下载，CLI 默认值应倾向于“目标用户群带宽更优”的源（本仓主要服务大陆开发者 → 默认 modelscope）；同时**始终**留出 `--source` 与环境变量两个出口，禁止把默认值锁死。
+- Issue 排查时复用诊断三件套：`watch -n 5 'du -sh ~/.cache/huggingface/hub'` 看缓存增长、`pgrep -fl mineru-models-download` + `lsof -p <PID> | grep ESTABLISHED` 看 TCP 连接、`sudo nettop -p <PID> -P` 看实时带宽——三者综合可秒判“在下/卡死/已退出”。
+
+### 同类问题影响与注意事项
+- `_prefetch_docling()` 与 `_prefetch_marker()` 走的是 Python 函数调用（`DocumentConverter(...)` / `create_model_dict()`），不经过 `subprocess`，本次不受影响；但若未来引入新的子进程下载入口（如 paddle/easyocr 模型），**必须**照搬本规约（不捕获 stdout + 显式 timeout + 默认源覆盖）。
+- modelscope 与 huggingface 在 `~/.cache` 下落点不同、不互通：切源会让已下载的 HF 副本变成沉默成本，但这是一次性代价；切源后通常十几分钟可补回。如海外环境下默认 modelscope 反而更慢，用户可显式 `--mineru-source huggingface` 或设环境变量回退。
+- CI 环境是非 TTY，tqdm 在非 TTY 下会自动改为“按行输出”（每个 epoch/file 一行），不会刷屏；当前“零输出”反而更可疑——本次 stdout 直通的改动对 CI 友好。
+- `--mineru-timeout` 默认 1800s 对家宽下载 ~9GB 偏紧（按 5MB/s 需 ~30 min 整）；modelscope 国内通常 ≫ 5MB/s 故已足够，但若部署在偏远节点请显式调大。
