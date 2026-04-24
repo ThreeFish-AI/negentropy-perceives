@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Dict, List, Optional
 
 from ...base import Stage, StageResult
@@ -110,6 +111,27 @@ class BuiltinAssembler(PDFToolBase):
                         )
                     )
 
+            # 图片：按阅读顺序插入，跳过已有 <!-- image --> 占位符的图片避免重复
+            if input_data.images and input_data.images.images:
+                existing_text = "\n".join(
+                    e.content for e in elements if e.element_type == "text"
+                )
+                placeholder_count = len(
+                    re.findall(r"<!--\s*image\s*-->", existing_text)
+                )
+                for idx, image in enumerate(input_data.images.images):
+                    if idx < placeholder_count:
+                        continue
+                    elements.append(
+                        _ContentElement(
+                            reading_order=image.reading_order,
+                            page_number=image.page_number,
+                            element_type="image",
+                            content=_image_to_markdown(image),
+                            image=image,
+                        )
+                    )
+
             # 2. 按阅读顺序排序
             elements.sort(key=lambda e: (e.page_number, e.reading_order))
 
@@ -198,6 +220,7 @@ class _ContentElement:
         "table",
         "formula",
         "code_block",
+        "image",
     )
 
     def __init__(
@@ -210,6 +233,7 @@ class _ContentElement:
         table: Optional[ExtractedTable] = None,
         formula: Optional[ExtractedFormula] = None,
         code_block: Optional[ExtractedCodeBlock] = None,
+        image: Optional[ExtractedImage] = None,
     ) -> None:
         self.reading_order = reading_order
         self.page_number = page_number
@@ -219,6 +243,7 @@ class _ContentElement:
         self.table = table
         self.formula = formula
         self.code_block = code_block
+        self.image = image
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +278,12 @@ def _code_block_to_markdown(code_block: ExtractedCodeBlock) -> str:
     """将代码块转换为 Markdown 代码围栏。"""
     lang = code_block.language or ""
     return f"```{lang}\n{code_block.code}\n```"
+
+
+def _image_to_markdown(image: ExtractedImage) -> str:
+    """将图片转换为 Markdown 图片引用。"""
+    alt = image.caption or image.filename or "image"
+    return f"![{alt}](./images/{image.filename})"
 
 
 # ---------------------------------------------------------------------------

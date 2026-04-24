@@ -57,6 +57,38 @@ class PipelineOrchestrator:
         self._pipeline_name = pipeline_name
         self._input_builders: Mapping[str, InputBuilder] = input_builders or {}
         self._scheduler = StageScheduler()
+        self._judge = self._init_judge()
+
+    @staticmethod
+    def _init_judge():
+        """初始化 LLM 评审器（延迟加载，LLM 不可用时返回 None）。"""
+        try:
+            from .llm_judge import LLMCompetitionJudge
+            from ..config import settings
+
+            judge_config = None
+            try:
+                from ..core.pipeline_config import CompetitionJudgeConfig
+
+                judge_config = CompetitionJudgeConfig()
+            except Exception:
+                pass
+
+            judge = LLMCompetitionJudge(
+                config=judge_config,
+                api_key=settings.llm_api_key,
+                api_base_url=settings.llm_api_base_url,
+            )
+            if judge.is_available():
+                logger.info(
+                    "LLM 评审器已激活 model=%s api_base=%s",
+                    settings.llm_model,
+                    settings.llm_api_base_url or "(default)",
+                )
+                return judge
+        except Exception as e:
+            logger.debug("LLM 评审器未激活: %s", e)
+        return None
 
     async def run(
         self,
@@ -172,6 +204,7 @@ class PipelineOrchestrator:
                 competition_mode=competition_mode,
                 competition_config=competition_config,
                 pipeline_name=self._pipeline_name,
+                judge=self._judge,
             )
             result.elapsed_ms = (time.monotonic() - start) * 1000
             if result.engine_used:

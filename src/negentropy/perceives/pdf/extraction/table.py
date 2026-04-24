@@ -627,6 +627,22 @@ def extract_tables_from_text(text: str, page_num: int) -> List[ExtractedTable]:
 
                 # Convert to Markdown table
                 if len(table_lines) >= 2:  # At least header and one data row
+                    # Column consistency check: real tables have consistent column counts
+                    if not _check_column_consistency(table_lines):
+                        continue
+
+                    # Quality gate: parse lines into cells and apply quality filter
+                    cell_data = _parse_table_lines_to_cells(table_lines)
+                    if cell_data:
+                        passed, diag = _table_quality_score(cell_data)
+                        if not passed:
+                            logger.info(
+                                "文本表格质量过滤丢弃 page=%d diag=%s",
+                                page_num,
+                                diag,
+                            )
+                            continue
+
                     table_id = generate_asset_id("table", page_num, len(tables))
                     markdown_table = convert_to_markdown_table(table_lines)
 
@@ -681,6 +697,59 @@ def extract_tables_from_text(text: str, page_num: int) -> List[ExtractedTable]:
 # ---------------------------------------------------------------------------
 
 
+def _parse_table_lines_to_cells(table_lines: List[str]) -> List[List[str]]:
+    """将原始表格文本行转换为二维单元格数组，供质量评分使用。"""
+    if not table_lines:
+        return []
+    rows: List[List[str]] = []
+    for line in table_lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if re.match(r"^[\s|\-]+$", stripped):
+            continue
+        if "|" in stripped:
+            cells = [c.strip() for c in stripped.split("|") if c.strip()]
+        elif "\t" in stripped:
+            cells = [c.strip() for c in stripped.split("\t") if c.strip()]
+        else:
+            cells = [c.strip() for c in re.split(r" {2,}", stripped) if c.strip()]
+        if cells:
+            rows.append(cells)
+    return rows
+
+
+def _check_column_consistency(table_lines: List[str]) -> bool:
+    """检查连续表格行的列数是否一致。
+
+    真实表格的列数在行间基本一致；两端对齐文本被错误分割后列数往往不规则。
+    允许最多 30% 的行偏离众数列数。
+    """
+    if not table_lines:
+        return False
+    col_counts: List[int] = []
+    for line in table_lines:
+        stripped = line.strip()
+        if not stripped or re.match(r"^[\s|\-]+$", stripped):
+            continue
+        if "|" in stripped:
+            count = len([c for c in stripped.split("|") if c.strip()])
+        elif "\t" in stripped:
+            count = len(stripped.split("\t"))
+        else:
+            count = len([s for s in re.split(r" {2,}", stripped) if s.strip()])
+        col_counts.append(count)
+
+    if not col_counts:
+        return False
+
+    from collections import Counter
+
+    most_common = Counter(col_counts).most_common(1)[0][0]
+    inconsistent = sum(1 for c in col_counts if c != most_common)
+    return inconsistent <= max(1, len(col_counts) * 0.3)
+
+
 def is_table_row(line: str) -> bool:
     """Check if a line looks like a table row."""
     line_stripped = line.strip()
@@ -700,8 +769,127 @@ def is_table_row(line: str) -> bool:
 
 
 def _has_multiple_space_separators(line: str) -> bool:
-    """Check if a line has multiple space separators (more than 2 spaces between words)."""
-    return bool(re.search(r" {2,}", line)) and len(line.split()) >= 3
+    """Check if a line has multiple space separators (more than 2 spaces between words).
+
+    Rejects justified prose via three heuristics:
+    1. ≥3 non-empty segments with no single segment > 60% of total chars
+    2. Low stop-word density (prose has >25% function words, tabular data rarely does)
+    """
+    if not re.search(r" {2,}", line):
+        return False
+    segments = [s.strip() for s in re.split(r" {2,}", line.strip()) if s.strip()]
+    if len(segments) < 3:
+        return False
+    total_len = sum(len(s) for s in segments)
+    if total_len == 0:
+        return False
+    max_ratio = max(len(s) for s in segments) / total_len
+    if max_ratio > 0.65:
+        return False
+
+    # Stop-word density check: prose contains many function words (the, of, in…),
+    # whereas real table cells contain domain terms, values, or short labels.
+    words = line.lower().split()
+    if words:
+        stop_count = sum(1 for w in words if w in _STOP_WORDS)
+        if stop_count / len(words) > 0.25:
+            return False
+    return True
+
+
+_STOP_WORDS = frozenset(
+    {
+        # English
+        "the",
+        "a",
+        "an",
+        "of",
+        "in",
+        "to",
+        "for",
+        "with",
+        "on",
+        "at",
+        "by",
+        "from",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "can",
+        "shall",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "and",
+        "or",
+        "but",
+        "not",
+        "no",
+        "nor",
+        "as",
+        "if",
+        "than",
+        "then",
+        "when",
+        "where",
+        "how",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "whose",
+        # Chinese
+        "的",
+        "是",
+        "在",
+        "和",
+        "了",
+        "与",
+        "等",
+        "中",
+        "对",
+        "为",
+        "以",
+        "及",
+        "或",
+        "其",
+        "被",
+        "从",
+        "把",
+        "比",
+        "让",
+        "向",
+        "也",
+        "都",
+        "而",
+        "将",
+        "于",
+        "之",
+        "不",
+        "有",
+        "这",
+        "那",
+    }
+)
 
 
 def convert_to_markdown_table(table_lines: List[str]) -> str:
