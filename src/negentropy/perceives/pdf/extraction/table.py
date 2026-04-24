@@ -14,6 +14,21 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..figure_text_filter import CAPTION_PATTERNS as _CAPTION_PATTERNS
 from ._shared import generate_asset_id
 
+# 质量过滤阈值沿用 settings 的默认值；在测试中可通过 monkeypatch 覆盖
+# 模块级常量的方式切换行为，避免测试环境硬耦合到 pydantic settings。
+try:
+    from negentropy.perceives.config import settings as _settings
+
+    _QF_ENABLED = bool(_settings.pdf_table_quality_filter_enabled)
+    _QF_MIN_OCCUPANCY = float(_settings.pdf_table_quality_min_occupancy)
+    _QF_MAX_WEAK_COLS_RATIO = float(_settings.pdf_table_quality_max_weak_cols_ratio)
+    _QF_MIN_UNIQUE_CELLS = int(_settings.pdf_table_quality_min_unique_cells)
+except Exception:  # noqa: BLE001 - 配置系统未就绪时走保守默认，不阻塞导入
+    _QF_ENABLED = True
+    _QF_MIN_OCCUPANCY = 0.40
+    _QF_MAX_WEAK_COLS_RATIO = 0.5
+    _QF_MIN_UNIQUE_CELLS = 3
+
 # PyMuPDF imports for PDF processing
 try:
     import fitz  # PyMuPDF
@@ -248,6 +263,86 @@ def _find_table_title_regions(
     return regions
 
 
+def _table_quality_score(
+    data: List[List[Any]],
+) -> Tuple[bool, Dict[str, Any]]:
+    """启发式表格质量评分。
+
+    返回 ``(是否通过, 诊断指标)``。不依赖 PyMuPDF 的 ``row_count/col_count``，
+    而是直接基于 ``table.extract()`` 返回的二维矩阵做三项统计：
+
+    * ``occupancy``：非空单元格占比，低于
+      ``pdf_table_quality_min_occupancy`` 视为空白率过高；
+    * ``weak_cols``：每列非空率 < 40% 的列视为“弱列”，弱列数超过
+      ``total_cols × pdf_table_quality_max_weak_cols_ratio`` 视为伪表格；
+    * ``unique_cells``：去重后单元格种类数，≤
+      ``pdf_table_quality_min_unique_cells`` 视为页眉/重复行。
+
+    该函数只负责判别，不修改输入；诊断指标由调用侧决定是否记录到
+    ``metadata.discarded_tables`` 以便事后排查。
+
+    Args:
+        data: ``table.extract()`` / ``merge_table_columns_and_rows`` 产物。
+
+    Returns:
+        ``(通过标记, 诊断字典)``；配置关闭时恒通过，诊断字典仍填充。
+    """
+    if not data:
+        return False, {"reason": "empty"}
+    rows = len(data)
+    if rows < 2:
+        return False, {"reason": "too_few_rows", "rows": rows}
+    cols = max(len(r) for r in data)
+    if cols < 2:
+        return False, {"reason": "too_few_cols", "cols": cols}
+
+    total_cells = rows * cols
+    non_empty = sum(1 for r in data for c in r if c is not None and str(c).strip())
+    occupancy = non_empty / total_cells if total_cells else 0.0
+
+    col_fill: List[float] = []
+    for ci in range(cols):
+        filled = 0
+        for r in data:
+            if len(r) > ci:
+                cell = r[ci]
+                if cell is not None and str(cell).strip():
+                    filled += 1
+        col_fill.append(filled / rows if rows else 0.0)
+    weak_cols = sum(1 for f in col_fill if f < 0.4)
+
+    unique_cells = len(
+        {str(c).strip() for r in data for c in r if c is not None and str(c).strip()}
+    )
+
+    diag: Dict[str, Any] = {
+        "rows": rows,
+        "cols": cols,
+        "occupancy": round(occupancy, 3),
+        "weak_cols": weak_cols,
+        "unique_cells": unique_cells,
+    }
+
+    if not _QF_ENABLED:
+        diag["reason"] = "disabled"
+        return True, diag
+
+    if occupancy < _QF_MIN_OCCUPANCY:
+        diag["reason"] = "low_occupancy"
+        return False, diag
+    if weak_cols > int(cols * _QF_MAX_WEAK_COLS_RATIO):
+        diag["reason"] = "too_many_weak_cols"
+        return False, diag
+    if unique_cells <= _QF_MIN_UNIQUE_CELLS - 1:
+        # 注意：默认 _QF_MIN_UNIQUE_CELLS=3 时命中条件是 unique_cells<=2，
+        # 即“全表只有 ≤ 2 种不同字符串”，典型为页眉复制 / 同值填充伪表。
+        diag["reason"] = "low_uniqueness"
+        return False, diag
+
+    diag["reason"] = "pass"
+    return True, diag
+
+
 def _extract_single_table(
     page,
     clip_rect,
@@ -282,6 +377,16 @@ def _extract_single_table(
         # Post-process: merge continuation columns and rows
         merged_data = merge_table_columns_and_rows(extracted_data)
         if not merged_data or len(merged_data) < 2:
+            return None
+
+        passed, diag = _table_quality_score(merged_data)
+        if not passed:
+            logger.info(
+                "表格质量过滤丢弃 title=%s page=%d diag=%s",
+                title,
+                page_num,
+                diag,
+            )
             return None
 
         # Build markdown from merged data
@@ -355,6 +460,16 @@ def _process_found_table(
         # Post-process if there are empty header columns
         merged_data = merge_table_columns_and_rows(extracted_data)
         if not merged_data or len(merged_data) < 2:
+            return None
+
+        passed, diag = _table_quality_score(merged_data)
+        if not passed:
+            logger.info(
+                "表格质量过滤丢弃 page=%d idx=%d diag=%s",
+                page_num,
+                table_idx,
+                diag,
+            )
             return None
 
         markdown_str = build_markdown_from_data(merged_data)

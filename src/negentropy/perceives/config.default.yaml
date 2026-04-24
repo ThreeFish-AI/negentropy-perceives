@@ -143,6 +143,11 @@ pdf:
   bundle_images_in_response: true # 将图片 base64 放入 MCP 响应的 image_assets 字段
   image_max_base64_kb: 2048 # 单张图片 base64 上限（KB）；超限先 JPEG q=75 重压缩，仍超则跳过
   bundle_total_base64_mb: 32 # 响应体图片总量上限（MB）；超阈值停止追加
+  # 表格质量过滤（PyMuPDF find_tables 兜底启发式；false 时回退原行为）
+  table_quality_filter_enabled: true
+  table_quality_min_occupancy: 0.40 # 非空单元格占比下限
+  table_quality_max_weak_cols_ratio: 0.5 # 弱列（非空率 < 40%）数量占比上限
+  table_quality_min_unique_cells: 3 # 去重后单元格种类下限
 
 # ── Pipeline 编排配置 ────────────────────────────────────────────────────────
 # 定义 PDF 和 WebPage 两条处理管线的 Stage 列表、工具排名和竞争模式。

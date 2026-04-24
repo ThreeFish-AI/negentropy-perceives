@@ -588,6 +588,41 @@ class NegentropyPerceivesSettings(BaseSettings):
         ),
     )
 
+    # ── 表格质量过滤（PyMuPDF find_tables 兜底启发式） ─────────
+    pdf_table_quality_filter_enabled: bool = Field(
+        default=True,
+        description=(
+            "启用后在 PyMuPDF find_tables 结果上再叠加质量过滤，"
+            "剔除“空白率高 / 单值同质 / 半数列近空”的伪表格；"
+            "关闭后回退到仅 row_count>=2 & col_count>=2 的原行为。"
+        ),
+    )
+    pdf_table_quality_min_occupancy: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "单元格非空比例下限；低于该比例判定为伪表格。"
+            "0.40 对应“过半单元格都是空串”的稀疏结构。"
+        ),
+    )
+    pdf_table_quality_max_weak_cols_ratio: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "列弱占比上限；单列非空率 < 40% 视为弱列，"
+            "若弱列数 > 总列数 × 该比例则判定为伪表格。"
+        ),
+    )
+    pdf_table_quality_min_unique_cells: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "单元格不同值数量下限；所有单元格去重后 ≤ 该值判定为页眉/重复行伪表格。"
+        ),
+    )
+
     # ── Pipeline 编排 ─────────────────────────────────────────
     pipeline: Optional[PipelineConfig] = Field(
         default=None,

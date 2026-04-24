@@ -497,6 +497,13 @@ async with NegentropyPerceivesClient(
 | `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                          |
 | `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                        |
 | `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker）        |
+| `NEGENTROPY_PERCEIVES_PDF_BUNDLE_IMAGES_IN_RESPONSE`      | `bool` | `true`  | -                               | 是否将图片 base64 嵌入 MCP 响应体的 `image_assets` 字段         |
+| `NEGENTROPY_PERCEIVES_PDF_IMAGE_MAX_BASE64_KB`            | `int`  | `2048`  | `>= 1`                          | 单张图片 base64 上限（KB）；超限先 JPEG q=75 重压缩，仍超则跳过 |
+| `NEGENTROPY_PERCEIVES_PDF_BUNDLE_TOTAL_BASE64_MB`         | `int`  | `32`    | `>= 1`                          | 响应体图片 base64 总量上限（MB），超阈值保序丢弃尾部            |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_FILTER_ENABLED`   | `bool` | `true`  | -                               | 启用表格质量启发式过滤（剔除空白率高/弱列/同值伪表）            |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MIN_OCCUPANCY`    | `float`| `0.40`  | `[0.0, 1.0]`                    | 非空单元格占比下限；低于则判定伪表格                             |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MAX_WEAK_COLS_RATIO` | `float` | `0.5` | `[0.0, 1.0]`                  | 弱列数占比上限（弱列 = 非空率 < 40% 的列）                       |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MIN_UNIQUE_CELLS` | `int`  | `3`     | `>= 1`                          | 全表去重后单元格种类数下限；≤ 该值判定伪表格                     |
 | `NEGENTROPY_PERCEIVES_PIPELINE`                           | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 配置验证规则

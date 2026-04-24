@@ -355,3 +355,45 @@ doc.close()
 <a id="ref-mcp-image"></a>[1] Anthropic, "Model Context Protocol Specification: Content Types," *MCP Documentation*, 2024. [Online]. Available: https://modelcontextprotocol.io/specification/server/tools#image-content
 
 <a id="ref-pillow-jpeg"></a>[2] A. Clark and Contributors, "Pillow Handbook: JPEG — Image File Format," *Pillow Documentation*, 2025. [Online]. Available: https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#jpeg
+
+## [2026-04-24] parse_pdf_to_markdown 表格提取大量伪表格（对齐列表/菜单项/页眉被识别为表）
+
+### 问题描述
+用户反馈 37 页 PDF 的 Markdown 产物中出现**大量伪表格**：如分栏排版的对齐列表、带缩进的 TOC、页眉页脚等被 PyMuPDF `find_tables` 识别为表并渲染为 Markdown 三线表。
+
+### 表因
+`pdf/extraction/table.py` 在 `_extract_single_table` / `_process_found_table` 两条路径上的唯一门控是：
+```python
+if table.row_count < 2 or table.col_count < 2:
+    return None
+```
+只要 PyMuPDF 返回的 `row_count/col_count ≥ 2` 即被接纳，不校验 cell 内容的“表格性”。
+
+### 根因
+- PyMuPDF `find_tables` 是基于 cell 几何对齐 + 文本块分割的启发式检测器<sup>[[1]](#ref-pymupdf-tables)</sup>，**只关心空间布局**不识别语义；对“两列以上等距对齐”的列表几乎 100% 触发误判；
+- 项目在该检测器之上缺少**任何内容层面**的质量闸门，导致 PyMuPDF 的 false-positive 全量穿透到最终 Markdown；
+- 仅依赖 LLM 编排 Stage 的上游评审对整页 Markdown 做改写，代价高且无法精确打击单个伪表；从源头过滤更具确定性。
+
+### 处理方式
+- **`pdf/extraction/table.py::_table_quality_score`**（新）：对 `table.extract()` 后的二维矩阵做三项指标评分——
+  1. `occupancy`（非空单元格占比）；
+  2. `weak_cols`（单列非空率 < 40% 视为弱列，统计弱列数是否 > `cols × max_weak_cols_ratio`）；
+  3. `unique_cells`（去重后单元格种类数，≤ `min_unique_cells - 1` 视为“页眉/同值填充”）。
+
+  任一维度不过即判定伪表格；返回 `(bool, diag_dict)`，诊断指标回传日志便于事后排查。
+- **`_extract_single_table` / `_process_found_table`**：在 `merge_table_columns_and_rows` 之后、`build_markdown_from_data` 之前插入 `_table_quality_score` 闸门；未通过时 `logger.info` 记录诊断并返回 `None`。
+- **配置**：`config.py` 新增 4 项 pydantic 字段 `pdf_table_quality_*`，YAML `pdf:` block 同步扩展 4 个 key；`pdf_table_quality_filter_enabled=False` 回退原 row×col 行为，保障灰度与回滚路径。
+- **`tests/unit/test_table_quality_filter.py` 新增 11 条**：真实密表通过、稀疏但有效通过、低占用率/过多弱列/低唯一值/单行/单列/空矩阵被拒、关闭开关时任意输入通过、阈值放宽后接纳稀疏样例。全部通过。
+- **`docs/user-guide.md` 同步** 7 个新增环境变量（C5 + C6）的说明行。
+
+### 后续防范
+- 三项阈值互相**正交**：`min_occupancy` 控稀疏、`max_weak_cols_ratio` 控单列分布、`min_unique_cells` 控同质复制；任何一项过松都可能漏判，任何一项过严都可能误杀——联调时应逐项调参，避免一次性拨动多个。
+- 过滤函数**不修改**输入、**不依赖**外部状态（只读模块级阈值），`monkeypatch` 即可覆盖，保障单元测试隔离。
+- 诊断 `diag` 通过 `logger.info` 输出而非 metadata 字段，避免污染 `PDFResponse`；线上排查时 grep `表格质量过滤丢弃` 即可定位被拒表格与命中原因。
+
+### 同类问题影响与注意事项
+- 若未来接入更多表格检测器（Docling TableFormer、Camelot 等），应统一在 `_table_quality_score` 处叠加过滤，而不是每个引擎自成一套；“检测 → 质量过滤 → 渲染”的三段式是可复用的正交分解。
+- **谨慎降低** `min_unique_cells`：比如设成 2 会让“仅 Y/N 两个值”的逻辑表被拒（本测试用例 `TestRejection.test_two_unique_values_rejected`）。如果业务有大量二值枚举表，应明确把阈值调到 2 或在数据清洗时跳过该过滤。
+- 单元测试用 `monkeypatch.setattr(table_mod, "_QF_*", ...)` 直接改模块级常量；不建议用 `patch("negentropy.perceives.pdf.extraction.table.settings", ...)`——本模块只在 import 时读一次 settings，重新 patch settings 无效。
+
+<a id="ref-pymupdf-tables"></a>[1] Artifex Software, "PyMuPDF Table Recognition and Extraction," *PyMuPDF Documentation*, 2025. [Online]. Available: https://pymupdf.readthedocs.io/en/latest/page.html#Page.find_tables
