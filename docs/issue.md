@@ -240,3 +240,34 @@ Mac M 系列芯片虽然硬件与 PyTorch 均支持 MPS（`torch.backends.mps.is
 - CUDA 子进程无类似缺口（CUDA 初始化走 cudaInit 常规路径，不依赖 first-touch），但 XPU（Intel oneAPI）未来接入时建议同样跑一次 `torch.zeros(1, device="xpu")` first-touch 兜底。
 - `PYTORCH_ENABLE_MPS_FALLBACK=1` 仅作为“少数算子不支持 MPS 时回 CPU”的兜底，**不会**整体禁用 MPS；若后续出现算子回 CPU 但整体仍过慢，需对 Docling 个别算子做 profile，而不是误以为 fallback 本身是问题。
 - 若在 Intel Mac 上运行（`mps_built=False`），`smoke_test=skip:mps_not_built`、`NEGENTROPY_MPS_READY=0`，Docling 正确降级 CPU，无任何回归。
+
+## [2026-04-24] parse_pdf_to_markdown 四个 Stage 重复调用 Docling convert，单 PDF 耗时 >250s
+
+### 问题描述
+37 页 PDF 经 `parse_pdf_to_markdown` 总耗时约 **249 秒**，日志显示 Docling 在 `layout_analysis → table_extraction → code_detection → formula_extraction` 四个 Stage 中**各完整跑了一次推理**，分别触发 120s / 75s / 30s / 126s 的 Stage 超时。
+
+### 表因
+`StageScheduler` 在 4 个 Stage 分别调用 `get_engine_pool().run("docling", method="convert", ...)`，每一次都是一次完整的 Docling DocumentConverter 推理（layout + TableFormer + 公式 + 代码一起算）。
+
+### 根因
+`EngineWorkerPool` 只复用 worker 进程与模型权重，**不缓存 `convert()` 的返回值**。而 Docling 的 `DoclingConversionResult` 已一次性聚合全部四类信息（tables / formulas / code / layout），上层 Stage 只是各取所需一个字段——但必须重跑整条管线。
+
+### 处理方式
+- **`infra/_engine_worker_entry.py` 新增 `_ConvertCache` + `_pdf_fingerprint` + `_make_cache_key`**：
+  - 子进程内 LRU(capacity=4) + TTL(300s) 缓存，仅对 `docling/mineru` 白名单引擎的 `method="convert"` 生效；
+  - 键 = `(engine_name, size + mtime_ns + blake2b(head_64KB), page_range, embed_images, init_kwargs_hash)`，覆盖 PDF 内容/时间/切片/选项/初始化参数五个维度；
+  - 读前 64KB 算指纹，常见 PDF I/O <1ms；业务层覆盖写必改 mtime 自动失效；
+  - `result is None` 不入缓存以便下次重试（对齐引擎“不可用/转换失败”语义）。
+- **`worker_main` 缓存查询点**：call 分支按“load engine → cache.get → miss 时执行 → cache.put → send”调用路径织入，对上层调用协议完全透明（Stage 代码不改一行）。
+- **竞争模式 / 并行度保持**：scheduler 的“4 工具并行”一字未动；docling/mineru/marker/pymupdf 仍并行，但 docling 与 mineru 在首个 Stage 之后的 3 次 convert 直接命中缓存，耗时 <1ms。
+- **新增 `tests/unit/test_convert_cache.py` 24 条**覆盖指纹、键构造、LRU、TTL、Stage 重放、PDF 内容变更失效、白名单契约；全部通过。
+
+### 后续防范
+- 任何“全流程推理 → 多字段消费”的引擎（未来可能的 `sycamore / nougat / pix2text` 等）如想接入 `EngineWorkerPool`，其 `convert()` 只要保持“**纯函数 + 不可变返回值**”语义就能白盒接入本缓存，仅需在 `_CACHEABLE_ENGINES` 中补白名单。
+- 同时缓存**多** PDF 时 capacity=4 是“4 Stage + 1 备用”的粗估；长跑场景若观察到 cache-thrashing（eviction 频繁），可以把 capacity 上调到 8~16，TTL 维持 5min 防止长 lived worker RSS 膨胀。
+- Marker 因其内部 DataLoader 与显存占用叠加后风险偏高，暂**不**接入缓存；若后续证明必要，再单独评估。
+
+### 同类问题影响与注意事项
+- 缓存键**不可漏掉** `init_kwargs_hash`：否则同一 PDF 用不同 `DoclingEngine(...)` 配置会错误复用旧结果；已在 `_make_cache_key` 中显式纳入键。
+- Pipeline 未来若引入“编辑/标注后重算”场景，务必通过 `mtime_ns` 自动失效（`os.utime` 或覆盖写）；切勿人为旁路缓存键，否则引入 stale 风险。
+- 读前 64KB 指纹对“在 64KB 之后篡改内容但保留头部 + 同 size + 同 mtime_ns”的攻击向量是**不设防**的；本项目语境下 PDF 来源可信，但如未来引入不可信 PDF 来源，应改为全文件 blake2b。
