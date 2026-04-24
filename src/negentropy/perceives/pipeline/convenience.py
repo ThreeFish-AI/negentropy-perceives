@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
+import io
 import logging
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from ..config import settings
 from .base import StageResult
@@ -16,7 +19,9 @@ from .models import (
     AssemblyInput,
     AssemblyOutput,
     CodeDetectionOutput,
+    ExtractedImage,
     FormulaExtractionOutput,
+    ImageAsset,
     ImageExtractionOutput,
     PipelineResult,
     PreprocessingInput,
@@ -193,6 +198,146 @@ def _log_pdf_engines_summary_once() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# 图片 base64 资产构造（MCP 响应透出）
+# ---------------------------------------------------------------------------
+
+
+def _read_image_bytes(img: ExtractedImage) -> Optional[bytes]:
+    """从 ExtractedImage 中还原原始字节。
+
+    优先级：
+    1. ``base64_data`` 已由上游填充 → 直接 base64 解码；
+    2. ``local_path`` 指向磁盘文件 → 读入字节；
+    3. 上述均无 → 返回 ``None``，调用方丢弃该图。
+
+    对各分支的错误统一吞下并记录 WARN，避免单张图异常中断整个打包流程。
+    """
+    if img.base64_data:
+        try:
+            return base64.b64decode(img.base64_data)
+        except (ValueError, TypeError) as e:
+            logger.warning("图片 %s base64 解码失败: %s", img.filename, e)
+            return None
+    if img.local_path:
+        try:
+            p = Path(img.local_path)
+            if p.exists():
+                return p.read_bytes()
+        except OSError as e:
+            logger.warning("读取图片 %s 失败: %s", img.local_path, e)
+    return None
+
+
+def _downscale_to_jpeg(raw: bytes, *, quality: int = 75) -> Optional[bytes]:
+    """将图片字节以 JPEG q=75 重压缩；失败返回 ``None``。
+
+    超大图的兜底路径：PNG/WebP 等无损格式或未压缩位图转 JPEG 后通常可压到
+    1/5~1/10，确保单图不会独占响应体预算。Pillow 未安装时直接失败，保持
+    不改变原字节的回退逻辑（由调用方决定是否跳过）。
+    """
+    try:
+        from PIL import Image  # type: ignore
+    except ImportError:
+        logger.warning("Pillow 未安装，跳过超大图重压缩")
+        return None
+
+    try:
+        with Image.open(io.BytesIO(raw)) as im:
+            # 统一转 RGB：RGBA/P/LA 等模式无法直接存 JPEG（OSError）；且
+            # `convert` 返回新 Image 而非 ImageFile，显式另赋变量避免类型收窄冲突。
+            converted = im if im.mode in ("RGB", "L") else im.convert("RGB")
+            buf = io.BytesIO()
+            converted.save(buf, format="JPEG", quality=quality, optimize=True)
+            return buf.getvalue()
+    except Exception as e:  # noqa: BLE001 - PIL 异常类型繁多，统一降级
+        logger.warning("JPEG 重压缩失败: %s", e)
+        return None
+
+
+def _build_image_assets(
+    image_output: Optional[ImageExtractionOutput],
+) -> List[ImageAsset]:
+    """从 ImageExtractionOutput 构造供 MCP 响应透出的 ``ImageAsset`` 列表。
+
+    三道护栏（均由 :class:`NegentropyPerceivesSettings` 配置）：
+    1. ``pdf_bundle_images_in_response``：关闭则直接返回空列表；
+    2. ``pdf_image_max_base64_kb``：单图 base64 超限时走 JPEG q=75 重压缩，
+       若仍超限则直接丢弃该图（记录 WARN）；
+    3. ``pdf_bundle_total_base64_mb``：累计字节超阈值后停止追加（保序丢弃尾部）。
+
+    失败策略：任何单图异常仅跳过本图，不影响整体流水线成功。
+    """
+    if image_output is None or not image_output.images:
+        return []
+    if not settings.pdf_bundle_images_in_response:
+        return []
+
+    per_image_limit = settings.pdf_image_max_base64_kb * 1024
+    total_limit = settings.pdf_bundle_total_base64_mb * 1024 * 1024
+
+    assets: List[ImageAsset] = []
+    total_bytes = 0
+    dropped_oversize = 0
+    dropped_total_cap = 0
+
+    for img in image_output.images:
+        raw = _read_image_bytes(img)
+        if raw is None:
+            continue
+
+        downscaled = False
+        mime = img.mime_type or "image/png"
+        filename = img.filename
+
+        if len(raw) > per_image_limit:
+            re_encoded = _downscale_to_jpeg(raw)
+            if re_encoded is not None and len(re_encoded) <= per_image_limit:
+                raw = re_encoded
+                mime = "image/jpeg"
+                # 原扩展名可能是 .png/.webp，此处只替换 MIME 与 filename 后缀，
+                # 避免客户端按扩展名判断时与实际字节不一致
+                stem = Path(filename).stem
+                filename = f"{stem}.jpg"
+                downscaled = True
+            else:
+                dropped_oversize += 1
+                logger.warning(
+                    "图片 %s 超过单图上限 %dKB 且重压缩无效，已跳过",
+                    img.filename,
+                    settings.pdf_image_max_base64_kb,
+                )
+                continue
+
+        if total_bytes + len(raw) > total_limit:
+            dropped_total_cap += 1
+            continue
+
+        assets.append(
+            ImageAsset(
+                filename=filename,
+                mime_type=mime,
+                base64_data=base64.b64encode(raw).decode("ascii"),
+                width=img.width,
+                height=img.height,
+                caption=img.caption,
+                page_number=img.page_number,
+                downscaled=downscaled,
+            )
+        )
+        total_bytes += len(raw)
+
+    if dropped_oversize or dropped_total_cap:
+        logger.info(
+            "图片资产打包：收录=%d 超单图限=%d 超总量限=%d 总字节=%d",
+            len(assets),
+            dropped_oversize,
+            dropped_total_cap,
+            total_bytes,
+        )
+    return assets
+
+
 async def run_pdf_pipeline(
     source: str,
     page_range: Optional[tuple[int, int]] = None,
@@ -292,6 +437,9 @@ async def run_pdf_pipeline(
 
     # 如果有 assembly 输出，直接使用
     if assembly_output and isinstance(assembly_output, AssemblyOutput):
+        image_output_typed = (
+            image_output if isinstance(image_output, ImageExtractionOutput) else None
+        )
         return PipelineResult(
             success=True,
             markdown=assembly_output.markdown,
@@ -309,9 +457,7 @@ async def run_pdf_pipeline(
                 if isinstance(formula_output, FormulaExtractionOutput)
                 else 0
             ),
-            images_count=len(image_output.images)
-            if isinstance(image_output, ImageExtractionOutput)
-            else 0,
+            images_count=len(image_output_typed.images) if image_output_typed else 0,
             code_blocks_count=len(code_output.code_blocks)
             if isinstance(code_output, CodeDetectionOutput)
             else 0,
@@ -325,6 +471,7 @@ async def run_pdf_pipeline(
                 for k, v in stage_results.items()
             },
             metadata=assembly_output.metadata,
+            image_assets=_build_image_assets(image_output_typed),
         )
 
     # 降级：如果没有 assembly 输出，尝试从 text_output 构建

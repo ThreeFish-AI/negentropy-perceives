@@ -180,3 +180,220 @@
 - modelscope 与 huggingface 在 `~/.cache` 下落点不同、不互通：切源会让已下载的 HF 副本变成沉默成本，但这是一次性代价；切源后通常十几分钟可补回。如海外环境下默认 modelscope 反而更慢，用户可显式 `--mineru-source huggingface` 或设环境变量回退。
 - CI 环境是非 TTY，tqdm 在非 TTY 下会自动改为“按行输出”（每个 epoch/file 一行），不会刷屏；当前“零输出”反而更可疑——本次 stdout 直通的改动对 CI 友好。
 - `--mineru-timeout` 默认 1800s 对家宽下载 ~9GB 偏紧（按 5MB/s 需 ~30 min 整）；modelscope 国内通常 ≫ 5MB/s 故已足够，但若部署在偏远节点请显式调大。
+
+## [2026-04-24] parse_pdf_to_markdown Marker 引擎始终报 "daemonic processes are not allowed to have children"
+
+### 问题描述
+真实 PDF 处理日志中 Marker 工具每次都以 `daemonic processes are not allowed to have children` 失败退出；`layout_analysis / table_extraction / formula_extraction / code_detection` 四 Stage 的 Marker 竞争者全部失效，竞争模式不再具备对 Marker 的覆盖。
+
+### 表因
+`WARNING negentropy.perceives.pdf.engines.marker: Marker 转换失败: daemonic processes are not allowed to have children` 在 MCP server 每次处理 PDF 时都会出现。
+
+### 根因
+`EngineWorkerPool` 在 `EngineWorker.start()` 中用 `ctx.Process(..., daemon=True)` 启动子进程（`infra/engine_worker.py:106`）。Python 的硬性限制：**daemon 进程不能再派生自己的子进程**。而 Marker 内部依赖 torch `DataLoader` 的 `num_workers>0` 与 Surya OCR 的进程池，一旦需要派生子进程即抛 `AssertionError`。Docling / MinerU 目前走纯 Python 推理（或自带独立进程管理），因而表现正常。
+
+### 处理方式
+1. `infra/engine_worker.py:106` 将 `daemon=True` 改为 `daemon=False`，并在上方加 WHY 注释。
+2. 在模块末尾新增 `_cleanup_on_exit()` + `atexit.register(_cleanup_on_exit)`：遍历 `_pool_singleton._workers`，对仍存活的 worker 依次 `terminate → join(0.5s) → kill → join(0.5s) → os.kill(SIGKILL)` 兜底强杀（解释器退出路径不可 `await`，全程同步且吞异常）。
+3. 与 `apps/app.py:main()` 中既有的 `finally + atexit` 双路径互为防御，`_shutdown_engine_pool_sync()` 已有幂等 flag，无冲突。
+
+### 后续防范
+- 任何计划派生子进程的引擎（Marker 风格）都**必须**跑在 `daemon=False` 的 worker 上；如未来新增引擎，遵循本规约，不要回退到 daemon=True。
+- `daemon=False` 后父进程异常退出会阻塞在子进程回收；`atexit` 兜底 + `apps/app.py` 生命周期 hook 必须同时存在，否则裸脚本/测试场景会出现孤儿进程。
+- 单测 `tests/unit/test_engine_worker_daemon.py` 固化 `daemon=False` 与 `_cleanup_on_exit` 行为契约，防止回归。
+
+### 同类问题影响与注意事项
+- 子进程改为 non-daemon 后，若 `EngineWorker.terminate()` 路径异常早退，可能遗留 `proc` 存活；`_cleanup_on_exit` 是最后一道防线。若未来新增 worker 管理路径，复用 `_cleanup_on_exit` 模式即可。
+- `pytest` 环境下使用 `_fake_fast` 引擎做 Pool 存活断言，避免真实 PDF 依赖；真实 Marker 可用性由集成测试或人工冒烟验证。
+
+## [2026-04-24] parse_pdf_to_markdown 在 Apple Silicon 上 MPS 被误判不可用，Docling 回退 CPU
+
+### 问题描述
+`parse_pdf_to_markdown` 日志高频出现：
+```
+WARNING engine_worker.docling.utils.accelerator_utils:
+  MPS is not available in the system. Fall back to 'CPU'.
+```
+Mac M 系列芯片虽然硬件与 PyTorch 均支持 MPS（`torch.backends.mps.is_built() == True`），但 Docling 的 `accelerator_utils` 检测依旧 `False`，整条推理管线降级 CPU，单次 37 页 PDF 的 Docling 推理从预期 <30s 膨胀到 >120s（layout/tables/formulas/code 四阶段各占满超时）。
+
+### 表因
+子进程内 `torch.backends.mps.is_available()` 首次调用返回 `False`；Docling 据此选择 CPU。
+
+### 根因
+**`multiprocessing` spawn 子进程内的 MPS 懒初始化缺口。** MPS 的统一内存 allocator 依赖 first-touch（首次真实分配一个 MPS tensor）才会就绪；而 `torch.backends.mps.is_available()` **自身不触发** first-touch。父进程虽已 `set_start_method('spawn')`，但 spawn 子进程是一个全新解释器，torch 在子进程里重新 `import` 后就必须再做一次 first-touch，否则 `is_available()` 会稳定返回 False。Docling 的内部设备探测跑在 worker 子进程中，恰好踩进这个缺口。
+
+### 处理方式
+1. **`infra/_engine_worker_entry.py` 新增 `_preinit_torch_device(logger)`**，`worker_main` 在子进程启动、`conn.send(ready)` 之后、首次 `call` 之前调用，仅对 `docling/mineru/marker` 三类真实 torch 引擎执行：
+   - `os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")`：算子 fallback 兜底，不禁用 MPS；
+   - 采集 `torch_version / start_method / mps_built / mps_available_raw`，darwin + mps_built 时执行 `torch.zeros(1, device="mps")` 作为 first-touch smoke_test；
+   - 结果写入 `NEGENTROPY_MPS_READY=1/0` 环境变量，供下游 `hardware.detection._check_mps_available` 免再探测直接信任；
+   - `logger.warning("子进程 torch 诊断 %s", diag)` 以 WARNING 级输出单行诊断（包含 smoke_test 结果、版本、`is_available_raw` 的首次返回值），无论成功失败都可在线上日志一眼排查。
+2. **`pdf/hardware/detection.py::_check_mps_available` 防御性兜底**：`is_available()=False` 时先读 `NEGENTROPY_MPS_READY==1`，有则直接走“可用”分支；否则尝试一次 first-touch 再复查，彻底堵住“worker 内已 ok 但 Docling 子模块二次探测再次失败”的回归可能。
+3. **单元测试 `tests/unit/test_mps_subprocess.py`** 8 条：torch 缺失、smoke_test ok / fail / skip（未 built）、非 darwin 跳过、默认 `PYTORCH_ENABLE_MPS_FALLBACK=1`、以及 darwin-only 真实环境断言 `READY ∈ {0,1}`，全部通过。
+
+### 后续防范
+- 任何在 spawn 子进程内依赖 torch 硬件的引擎都**必须**在 `worker_main` 的早期窗口显式 first-touch 一次设备，不能信任 `is_available()` 的首次返回。
+- `_preinit_torch_device` 必须保持“永不抛异常”的契约：任何路径失败都静默降级到 `NEGENTROPY_MPS_READY=0`，避免连 worker 本身都起不来；失败原因写进诊断日志即可。
+- Docling / MinerU / Marker 之外如新增真实 torch 引擎，`worker_main` 的 `engine_name in (...)` 白名单必须同步更新。
+
+### 同类问题影响与注意事项
+- CUDA 子进程无类似缺口（CUDA 初始化走 cudaInit 常规路径，不依赖 first-touch），但 XPU（Intel oneAPI）未来接入时建议同样跑一次 `torch.zeros(1, device="xpu")` first-touch 兜底。
+- `PYTORCH_ENABLE_MPS_FALLBACK=1` 仅作为“少数算子不支持 MPS 时回 CPU”的兜底，**不会**整体禁用 MPS；若后续出现算子回 CPU 但整体仍过慢，需对 Docling 个别算子做 profile，而不是误以为 fallback 本身是问题。
+- 若在 Intel Mac 上运行（`mps_built=False`），`smoke_test=skip:mps_not_built`、`NEGENTROPY_MPS_READY=0`，Docling 正确降级 CPU，无任何回归。
+
+## [2026-04-24] parse_pdf_to_markdown 四个 Stage 重复调用 Docling convert，单 PDF 耗时 >250s
+
+### 问题描述
+37 页 PDF 经 `parse_pdf_to_markdown` 总耗时约 **249 秒**，日志显示 Docling 在 `layout_analysis → table_extraction → code_detection → formula_extraction` 四个 Stage 中**各完整跑了一次推理**，分别触发 120s / 75s / 30s / 126s 的 Stage 超时。
+
+### 表因
+`StageScheduler` 在 4 个 Stage 分别调用 `get_engine_pool().run("docling", method="convert", ...)`，每一次都是一次完整的 Docling DocumentConverter 推理（layout + TableFormer + 公式 + 代码一起算）。
+
+### 根因
+`EngineWorkerPool` 只复用 worker 进程与模型权重，**不缓存 `convert()` 的返回值**。而 Docling 的 `DoclingConversionResult` 已一次性聚合全部四类信息（tables / formulas / code / layout），上层 Stage 只是各取所需一个字段——但必须重跑整条管线。
+
+### 处理方式
+- **`infra/_engine_worker_entry.py` 新增 `_ConvertCache` + `_pdf_fingerprint` + `_make_cache_key`**：
+  - 子进程内 LRU(capacity=4) + TTL(300s) 缓存，仅对 `docling/mineru` 白名单引擎的 `method="convert"` 生效；
+  - 键 = `(engine_name, size + mtime_ns + blake2b(head_64KB), page_range, embed_images, init_kwargs_hash)`，覆盖 PDF 内容/时间/切片/选项/初始化参数五个维度；
+  - 读前 64KB 算指纹，常见 PDF I/O <1ms；业务层覆盖写必改 mtime 自动失效；
+  - `result is None` 不入缓存以便下次重试（对齐引擎“不可用/转换失败”语义）。
+- **`worker_main` 缓存查询点**：call 分支按“load engine → cache.get → miss 时执行 → cache.put → send”调用路径织入，对上层调用协议完全透明（Stage 代码不改一行）。
+- **竞争模式 / 并行度保持**：scheduler 的“4 工具并行”一字未动；docling/mineru/marker/pymupdf 仍并行，但 docling 与 mineru 在首个 Stage 之后的 3 次 convert 直接命中缓存，耗时 <1ms。
+- **新增 `tests/unit/test_convert_cache.py` 24 条**覆盖指纹、键构造、LRU、TTL、Stage 重放、PDF 内容变更失效、白名单契约；全部通过。
+
+### 后续防范
+- 任何“全流程推理 → 多字段消费”的引擎（未来可能的 `sycamore / nougat / pix2text` 等）如想接入 `EngineWorkerPool`，其 `convert()` 只要保持“**纯函数 + 不可变返回值**”语义就能白盒接入本缓存，仅需在 `_CACHEABLE_ENGINES` 中补白名单。
+- 同时缓存**多** PDF 时 capacity=4 是“4 Stage + 1 备用”的粗估；长跑场景若观察到 cache-thrashing（eviction 频繁），可以把 capacity 上调到 8~16，TTL 维持 5min 防止长 lived worker RSS 膨胀。
+- Marker 因其内部 DataLoader 与显存占用叠加后风险偏高，暂**不**接入缓存；若后续证明必要，再单独评估。
+
+### 同类问题影响与注意事项
+- 缓存键**不可漏掉** `init_kwargs_hash`：否则同一 PDF 用不同 `DoclingEngine(...)` 配置会错误复用旧结果；已在 `_make_cache_key` 中显式纳入键。
+- Pipeline 未来若引入“编辑/标注后重算”场景，务必通过 `mtime_ns` 自动失效（`os.utime` 或覆盖写）；切勿人为旁路缓存键，否则引入 stale 风险。
+- 读前 64KB 指纹对“在 64KB 之后篡改内容但保留头部 + 同 size + 同 mtime_ns”的攻击向量是**不设防**的；本项目语境下 PDF 来源可信，但如未来引入不可信 PDF 来源，应改为全文件 blake2b。
+
+## [2026-04-24] parse_pdf_to_markdown 图片提取阶段逐页串行、37 页耗时 ~15s
+
+### 问题描述
+同一份 37 页 PDF 在 `image_extraction` Stage 中提取 18 张图片耗时约 **15 秒**，日志每秒打印一条 `Extracted image img_*_...`，明显是“逐页 → 逐图”的串行流。
+
+### 表因
+`pipeline/stages/pdf/image_extraction.py` 的 `FitzImageExtractor._run` 原本：
+```python
+doc = fitz.open(pdf_path)
+for page_idx in range(start_page, end_page):
+    page_images = await processor.extract_images_from_pdf_page(doc, page_idx)
+    ...
+doc.close()
+```
+所有页共享同一个 `fitz.Document`，且没有任何并发包装，等同于 `O(pages)` 串行。
+
+### 根因
+- PyMuPDF 官方 FAQ 明确指出 `Document` 对象**非线程/非重入安全**（同一 Document 并行访问会触发 SIGSEGV 或数据损坏）<sup>[[1]](#ref-pymupdf-thread)</sup>，因此不能用 `asyncio.to_thread` 把同一 Document 丢进线程池；
+- 但 `fitz.open()` 本身是 <10ms 的轻量操作，完全可以“每页一个独立 Document”，再通过 `asyncio.gather + Semaphore(4)` 限制同时打开的文件句柄。
+
+### 处理方式
+- **`image_extraction.py` 重写 `_run`**：
+  1. 先一次性 `with fitz.open(pdf_path) as probe_doc:` 读取 `page_count`，保证“探测”与“抽取”阶段隔离；
+  2. 为每一页协程 `_extract_one_page(page_idx)` 内部独立 `fitz.open()` + `EnhancedPDFProcessor()`，抽取完立即 `doc.close()`；
+  3. `asyncio.Semaphore(4)` 限制同时在跑的页数，避免 37 页 PDF 打开 37 个 fitz 句柄；
+  4. `asyncio.gather(*(_extract_one_page(p) for p in range(start, end)))` 并行触发；
+  5. `metadata` 追加 `concurrency` 与 `page_count`，便于线上排查；
+  6. `page_range=(5, 5)` 等空区间返回空列表，不再触发 gather 空参数。
+- **`tests/unit/test_image_extraction_concurrency.py` 新增 7 条**：全量页抽取、Semaphore 限流峰值 ≤4、墙钟优于串行基线 60%、`page_range` 尊重、空区间、异常透传、`bbox` 缺省。全部通过。
+
+### 后续防范
+- 任何基于 PyMuPDF 的并发路径都必须遵循“**每协程独立 Document**”约束，不要试图在 `asyncio.to_thread` / `ThreadPoolExecutor` 中共享 `fitz.Document`；否则测试环境可能偶发通过，生产 workload 下 SIGSEGV 概率线性上升。
+- `_IMAGE_EXTRACT_CONCURRENCY = 4` 与 `docling/mineru` 竞争的 Pool 并发度对齐；若未来出现“CPU 打满但 I/O 闲置”现象，再单独调参。
+- 上一版本依赖全局 `doc` 在 `extract_images_from_pdf_page` 中回看 cross-page 信息（例如 caption 在相邻页）的代码**必须**走独立通道（例如把 `text_blocks` 预先计算好作为参数传入），否则并发路径无法感知跨页上下文。
+
+### 同类问题影响与注意事项
+- 其他 `PyMuPDF` 绑定 Stage（如 `text_extraction`、`extract_tables_with_geometry`）若也观察到单页耗时线性 × 页数、且 workload profile 显示 CPU 闲置，可沿用同一“每页 open + Semaphore 限流 + gather”方案；注意 Semaphore 上限要与全局 `engine_pool` 并发度协调，避免压爆系统句柄。
+- 并发化后 `logger.info("Extracted image ... from page N")` 的打印顺序不再与页号递增对齐。线上排查若依赖顺序关系，请以 `page_number` 字段为准，不要以日志顺序推断页号。
+
+<a id="ref-pymupdf-thread"></a>[1] Artifex Software, "PyMuPDF FAQ: Is PyMuPDF thread-safe?," *PyMuPDF Documentation*, 2025. [Online]. Available: https://pymupdf.readthedocs.io/en/latest/faq.html#is-pymupdf-thread-safe
+
+## [2026-04-24] parse_pdf_to_markdown MCP 响应体缺失图片 base64 载荷
+
+### 问题描述
+同一份带图片的 PDF 在经过 `parse_pdf_to_markdown` 后，MCP 响应体仅包含 `enhanced_assets.images_count` 的计数，**不含**任何像素数据；下游（多模态 LLM、可视化展示等）消费者必须回退到服务器本地 `local_path`，违反 MCP 协议“远程友好、零本地共享”的语义。
+
+### 表因
+- `pipeline/convenience.py::run_pdf_pipeline` 在装配（assembly）阶段**重建** `PipelineResult`，只读取 `assembly_output.markdown` 等字段，**丢弃** `BuiltinBundler` 产出的 `StageResult`；
+- `pipeline/models/_pdf.py::PipelineResult` 原本没有 `image_assets` 字段，即使 Stage 层构造也没地方装；
+- `ops/pdf.py` 的 auto-method 分支在把 dataclass `PipelineResult` 映射为 Pydantic `PDFResponse` 时，自然也就没有 `image_assets` 出参。
+
+### 根因
+- 在流水线早期设计中，`asset_bundling` 被定位为“本地落盘 + 元数据汇总”，产物（`images/`, `tables/`, `formulas/`）被假设由客户端按 URL 回取；
+- 但 MCP 的真实语境是“客户端运行在异机 / 沙箱内”，本地文件路径不可及。规范上 MCP content block 支持 `type=image` + base64 载荷<sup>[[1]](#ref-mcp-image)</sup>，因此响应体内嵌 base64 才是符合协议的正交做法；
+- 直接在 `asset_bundling.py` 添字段收效甚微（会被 `convenience.py` 丢弃），需要在**真正组装** `PipelineResult` 的 `run_pdf_pipeline` 里集中处理，才能让内部数据模型与对外 Pydantic 模型端到端贯通。
+
+### 处理方式
+- **内部模型**（`pipeline/models/_pdf.py`）：新增 `ImageAsset` dataclass 与 `PipelineResult.image_assets: List[ImageAsset]` 字段；在 `pipeline/models/__init__.py` 中导出。
+- **聚合器**（`pipeline/convenience.py`）：新增三道函数：
+  1. `_read_image_bytes(img)`：优先读 `base64_data`；否则回退 `local_path`；两者都缺则返回 `None`（跳过）；
+  2. `_downscale_to_jpeg(raw, quality=75)`：PIL 缺失或抛异常时返回 `None`，不破坏主链路；采用 JPEG q=75 实现“感知质量/体积”平衡<sup>[[2]](#ref-pillow-jpeg)</sup>；
+  3. `_build_image_assets(image_output)`：三道护栏——
+     - 开关：`pdf_bundle_images_in_response=False` → 返回 `[]`；
+     - 单图上限：超过 `pdf_image_max_base64_kb*1024` → 走 JPEG q=75 重压缩，若仍超限则 `logger.warning` 后跳过；压缩成功则 `filename` 改写为 `*.jpg` 且 `mime_type="image/jpeg"`，避免“扩展名 vs 实际字节”的不一致；
+     - 累计上限：`pdf_bundle_total_base64_mb*1024*1024` → 保序丢弃尾部（“drop-tail”）。
+  并在 `run_pdf_pipeline` 的 assembly 分支把结果写入新 `PipelineResult`。
+- **配置**（`config.py` + `config.default.yaml`）：新增三项 pydantic 字段：`pdf_bundle_images_in_response`（默认 `True`）、`pdf_image_max_base64_kb`（默认 `2048`）、`pdf_bundle_total_base64_mb`（默认 `32`）；YAML 配置 block 为 `pdf: {bundle_images_in_response, image_max_base64_kb, bundle_total_base64_mb}`。`_NO_FLATTEN_KEYS` 不含 `pdf`，经扁平化后正好命中以上字段。
+- **对外响应**（`models.py` + `ops/pdf.py`）：新增 `ImageAssetModel(BaseModel)` 与 `PDFResponse.image_assets: Optional[List[ImageAssetModel]]`；`ops/pdf.py` 的 auto-method 分支在构造 `PDFResponse` 时把 dataclass 列表映射为 Pydantic 列表，**空列表映射为 `None`** —— 客户端据此区分“未传输”与“确实无图”。
+- **单元测试**（`tests/unit/test_asset_bundling_base64.py`）：12 条用例覆盖开关关闭、empty output、base64 优先、`local_path` 回退、两源全缺跳过、单图超限重压缩/重压缩仍超限/PIL 不可用、累计上限 drop-tail、非法 base64 跳过、真实 PIL 集成校验 JPEG SOI `\xff\xd8\xff`。全部通过。
+
+### 后续防范
+- **配置默认保守**：`pdf_image_max_base64_kb=2048` 与 `pdf_bundle_total_base64_mb=32` 是基于“MCP 响应体 ≤64MB 软上限”的经验值，既能容纳常见扫描页，又为元数据和 Markdown 文本留出余量；客户端受限（如手机端）可下调，离线批处理可上调。
+- **优先 base64，其次 local_path**：这种 fallback 让 `convenience` 层对“图像是否已被 asset_bundling 落盘”保持解耦；未来若引入 S3/OSS 直传，新分支放在 `_read_image_bytes` 即可，**调用点不变**。
+- **整函数无异常外传**：`_read_image_bytes` / `_downscale_to_jpeg` / `_build_image_assets` 的任何失败都用 `logger.warning` 记录并跳过该图，确保“图片 bundling 失败”**不会**反向污染主 Markdown 产物。
+
+### 同类问题影响与注意事项
+- `enhanced_assets` 其他子字段（`tables/`, `formulas/`）若未来也要 base64 化嵌入 MCP 响应，可复用本次三道护栏（开关 + 单项上限 + 总量 drop-tail）；切勿为了“完整性”在响应体里夹带 MB 级纯文本 HTML 表格。
+- 客户端代码升级时必须同步更新对 `image_assets` 的 `is None` vs `[]` 判定逻辑：`None` 表示“服务器未开启或未生成”，`[]` 表示“已生成但空”；二者不等价。
+- PIL `Image.save(..., format="JPEG", quality=75)` 对 RGBA/P 模式图片需要先 `.convert("RGB")`，否则直接抛 `OSError`；`_downscale_to_jpeg` 已统一 `convert("RGB")` 兜底。
+
+<a id="ref-mcp-image"></a>[1] Anthropic, "Model Context Protocol Specification: Content Types," *MCP Documentation*, 2024. [Online]. Available: https://modelcontextprotocol.io/specification/server/tools#image-content
+
+<a id="ref-pillow-jpeg"></a>[2] A. Clark and Contributors, "Pillow Handbook: JPEG — Image File Format," *Pillow Documentation*, 2025. [Online]. Available: https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#jpeg
+
+## [2026-04-24] parse_pdf_to_markdown 表格提取大量伪表格（对齐列表/菜单项/页眉被识别为表）
+
+### 问题描述
+用户反馈 37 页 PDF 的 Markdown 产物中出现**大量伪表格**：如分栏排版的对齐列表、带缩进的 TOC、页眉页脚等被 PyMuPDF `find_tables` 识别为表并渲染为 Markdown 三线表。
+
+### 表因
+`pdf/extraction/table.py` 在 `_extract_single_table` / `_process_found_table` 两条路径上的唯一门控是：
+```python
+if table.row_count < 2 or table.col_count < 2:
+    return None
+```
+只要 PyMuPDF 返回的 `row_count/col_count ≥ 2` 即被接纳，不校验 cell 内容的“表格性”。
+
+### 根因
+- PyMuPDF `find_tables` 是基于 cell 几何对齐 + 文本块分割的启发式检测器<sup>[[1]](#ref-pymupdf-tables)</sup>，**只关心空间布局**不识别语义；对“两列以上等距对齐”的列表几乎 100% 触发误判；
+- 项目在该检测器之上缺少**任何内容层面**的质量闸门，导致 PyMuPDF 的 false-positive 全量穿透到最终 Markdown；
+- 仅依赖 LLM 编排 Stage 的上游评审对整页 Markdown 做改写，代价高且无法精确打击单个伪表；从源头过滤更具确定性。
+
+### 处理方式
+- **`pdf/extraction/table.py::_table_quality_score`**（新）：对 `table.extract()` 后的二维矩阵做三项指标评分——
+  1. `occupancy`（非空单元格占比）；
+  2. `weak_cols`（单列非空率 < 40% 视为弱列，统计弱列数是否 > `cols × max_weak_cols_ratio`）；
+  3. `unique_cells`（去重后单元格种类数，≤ `min_unique_cells - 1` 视为“页眉/同值填充”）。
+
+  任一维度不过即判定伪表格；返回 `(bool, diag_dict)`，诊断指标回传日志便于事后排查。
+- **`_extract_single_table` / `_process_found_table`**：在 `merge_table_columns_and_rows` 之后、`build_markdown_from_data` 之前插入 `_table_quality_score` 闸门；未通过时 `logger.info` 记录诊断并返回 `None`。
+- **配置**：`config.py` 新增 4 项 pydantic 字段 `pdf_table_quality_*`，YAML `pdf:` block 同步扩展 4 个 key；`pdf_table_quality_filter_enabled=False` 回退原 row×col 行为，保障灰度与回滚路径。
+- **`tests/unit/test_table_quality_filter.py` 新增 11 条**：真实密表通过、稀疏但有效通过、低占用率/过多弱列/低唯一值/单行/单列/空矩阵被拒、关闭开关时任意输入通过、阈值放宽后接纳稀疏样例。全部通过。
+- **`docs/user-guide.md` 同步** 7 个新增环境变量（C5 + C6）的说明行。
+
+### 后续防范
+- 三项阈值互相**正交**：`min_occupancy` 控稀疏、`max_weak_cols_ratio` 控单列分布、`min_unique_cells` 控同质复制；任何一项过松都可能漏判，任何一项过严都可能误杀——联调时应逐项调参，避免一次性拨动多个。
+- 过滤函数**不修改**输入、**不依赖**外部状态（只读模块级阈值），`monkeypatch` 即可覆盖，保障单元测试隔离。
+- 诊断 `diag` 通过 `logger.info` 输出而非 metadata 字段，避免污染 `PDFResponse`；线上排查时 grep `表格质量过滤丢弃` 即可定位被拒表格与命中原因。
+
+### 同类问题影响与注意事项
+- 若未来接入更多表格检测器（Docling TableFormer、Camelot 等），应统一在 `_table_quality_score` 处叠加过滤，而不是每个引擎自成一套；“检测 → 质量过滤 → 渲染”的三段式是可复用的正交分解。
+- **谨慎降低** `min_unique_cells`：比如设成 2 会让“仅 Y/N 两个值”的逻辑表被拒（本测试用例 `TestRejection.test_two_unique_values_rejected`）。如果业务有大量二值枚举表，应明确把阈值调到 2 或在数据清洗时跳过该过滤。
+- 单元测试用 `monkeypatch.setattr(table_mod, "_QF_*", ...)` 直接改模块级常量；不建议用 `patch("negentropy.perceives.pdf.extraction.table.settings", ...)`——本模块只在 import 时读一次 settings，重新 patch settings 无效。
+
+<a id="ref-pymupdf-tables"></a>[1] Artifex Software, "PyMuPDF Table Recognition and Extraction," *PyMuPDF Documentation*, 2025. [Online]. Available: https://pymupdf.readthedocs.io/en/latest/page.html#Page.find_tables

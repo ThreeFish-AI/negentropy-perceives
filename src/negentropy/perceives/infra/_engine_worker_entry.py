@@ -27,8 +27,112 @@ import os
 import sys
 import time
 import traceback
+from collections import OrderedDict
 from multiprocessing.connection import Connection
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+
+# ── 子进程内 convert 结果缓存（LRU + TTL）──────────────────────────────────
+#
+# 动机：Pipeline 把同一份 PDF 分发到 `layout_analysis` / `table_extraction` /
+# `formula_extraction` / `code_detection` 四个 Stage，每个 Stage 都会对
+# Docling/MinerU 发起一次 `convert()` 完整推理。Docling 的
+# `DoclingConversionResult` 已一次性聚合 tables/formulas/code/layout，完全没
+# 必要重复 3 次（实测每次 30s~120s）。
+#
+# 设计要点：
+# - 仅在真实 torch 引擎（docling / mineru）的 `method=="convert"` 上生效；
+#   Marker 不走缓存以免 DataLoader 副作用与大显存占用叠加；Fake 引擎跳过。
+# - 键：`(pdf_fingerprint, page_range, init_kwargs_hash, embed_images)`；
+#   指纹 = `size + mtime_ns + blake2b(head_64KB)`，业务层 PDF 变更会改 mtime。
+# - 容量：LRU=4（覆盖“4 Stage + 1 备用”），TTL=5min（防止 long-lived worker 膨胀）。
+# - 子进程单线程事件循环 `while True: recv→execute→send`，缓存无需加锁。
+
+_CACHE_CAPACITY = 4
+_CACHE_TTL_SECONDS = 300.0
+_CACHEABLE_ENGINES = frozenset({"docling", "mineru"})
+
+
+class _ConvertCache:
+    """LRU + TTL 缓存，专用于 worker 子进程内的 convert 结果复用。
+
+    TTL 过期与 LRU 淘汰均为懒判定：`get()` 时检查 TTL，`put()` 时执行 LRU；
+    子进程单线程运行，无需显式同步。
+    """
+
+    def __init__(
+        self,
+        capacity: int = _CACHE_CAPACITY,
+        ttl_seconds: float = _CACHE_TTL_SECONDS,
+    ) -> None:
+        self._capacity = max(1, capacity)
+        self._ttl = max(0.0, ttl_seconds)
+        self._store: "OrderedDict[Tuple[Any, ...], Tuple[Any, float]]" = OrderedDict()
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    def get(self, key: Tuple[Any, ...]) -> Optional[Any]:
+        """命中则返回 value（并刷新 LRU 顺序）；未命中或过期返回 None。"""
+        entry = self._store.get(key)
+        if entry is None:
+            return None
+        value, ts = entry
+        if self._ttl > 0 and (time.monotonic() - ts) > self._ttl:
+            # 懒过期：删除并视作 miss
+            self._store.pop(key, None)
+            return None
+        self._store.move_to_end(key)
+        return value
+
+    def put(self, key: Tuple[Any, ...], value: Any) -> None:
+        """写入并淘汰最老条目。`None` 不入缓存（视为失败，上层可重试）。"""
+        if value is None:
+            return
+        self._store[key] = (value, time.monotonic())
+        self._store.move_to_end(key)
+        while len(self._store) > self._capacity:
+            self._store.popitem(last=False)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+def _pdf_fingerprint(pdf_path: str) -> Optional[str]:
+    """对 PDF 文件生成稳定指纹。
+
+    `size + mtime_ns + blake2b(head_64KB)`：
+    - 只读前 64KB，常见 PDF 只需 I/O <1ms；
+    - mtime_ns 对业务层“覆盖写”高度敏感；
+    - blake2b 校验 header 防极端巧合；
+    - 读取失败（如路径不存在）返回 None，上层视作 cache-miss 直接走推理。
+    """
+    try:
+        st = os.stat(pdf_path)
+        with open(pdf_path, "rb") as f:
+            head = f.read(65536)
+    except OSError:
+        return None
+    digest = hashlib.blake2b(head, digest_size=16, usedforsecurity=False).hexdigest()
+    return f"{st.st_size}:{int(st.st_mtime_ns)}:{digest}"
+
+
+def _make_cache_key(
+    engine_name: str,
+    kwargs: Dict[str, Any],
+    init_hash: str,
+) -> Optional[Tuple[Any, ...]]:
+    """构造 convert 缓存键；缺失关键字段返回 None 以跳过缓存。"""
+    pdf_path = kwargs.get("pdf_path")
+    if not pdf_path or not isinstance(pdf_path, str):
+        return None
+    fingerprint = _pdf_fingerprint(pdf_path)
+    if fingerprint is None:
+        return None
+    page_range = kwargs.get("page_range")
+    if isinstance(page_range, list):
+        page_range = tuple(page_range)
+    embed_images = bool(kwargs.get("embed_images", False))
+    return (engine_name, fingerprint, page_range, embed_images, init_hash)
 
 
 # ── 调试引擎：供集成测试模拟各种场景，不依赖真实 PDF 引擎 ──────────────────
@@ -111,6 +215,78 @@ def _hash_init_kwargs(init_kwargs: Optional[Dict[str, Any]]) -> str:
     return hashlib.sha1(serialized.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
+def _preinit_torch_device(logger: logging.Logger) -> None:
+    """spawn 子进程内完成 torch 设备预热 + MPS first-touch + 诊断日志。
+
+    **永不抛异常**：任何失败都被吞掉并降级到 CPU 路径，确保 worker 能稳定启动。
+    副作用：
+    - `PYTORCH_ENABLE_MPS_FALLBACK=1`：仅作算子 fallback 兜底，不禁用 MPS；
+    - `NEGENTROPY_MPS_READY=1/0`：把 smoke_test 结果暴露给下游引擎（Docling
+      `device_config` 可据此决定是否把 `AcceleratorDevice` 设为 MPS）；
+    - 打印一行 `子进程 torch 诊断 {...}` 含版本、start_method、built、
+      available、smoke_test（ok / skip:... / fail:ExcName:msg）。
+    """
+    # 默认 MPS 算子 fallback 兜底；真正禁用 MPS 的开关另行设计
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+    diag: Dict[str, Any] = {
+        "start_method": None,
+        "torch_version": None,
+        "mps_built": None,
+        "mps_available_raw": None,
+        "mps_smoke_test": "skip:not_darwin",
+    }
+
+    try:
+        import multiprocessing as mp
+
+        diag["start_method"] = mp.get_start_method(allow_none=True)
+    except Exception:  # nosec B110
+        pass
+
+    try:
+        import torch
+    except Exception as e:  # torch 缺失或导入失败，直接回退 CPU
+        diag["mps_smoke_test"] = f"fail:torch_import:{type(e).__name__}"
+        os.environ["NEGENTROPY_MPS_READY"] = "0"
+        # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
+        logger.warning("子进程 torch 诊断 %s", diag)
+        return
+
+    diag["torch_version"] = getattr(torch, "__version__", "unknown")
+
+    try:
+        diag["mps_built"] = bool(torch.backends.mps.is_built())
+    except Exception as e:
+        diag["mps_built"] = f"err:{type(e).__name__}:{e}"
+    try:
+        diag["mps_available_raw"] = bool(torch.backends.mps.is_available())
+    except Exception as e:
+        diag["mps_available_raw"] = f"err:{type(e).__name__}:{e}"
+
+    # 仅在 darwin 上尝试 first-touch（其他平台无 MPS）
+    mps_ready = False
+    if sys.platform == "darwin" and diag["mps_built"] is True:
+        try:
+            _ = torch.zeros(1, device="mps")
+            # first-touch 成功后 is_available 可能会从 False 变为 True
+            try:
+                if torch.backends.mps.is_available():
+                    diag["mps_available_raw"] = True
+            except Exception:  # nosec B110
+                pass
+            diag["mps_smoke_test"] = "ok"
+            mps_ready = True
+        except Exception as e:
+            diag["mps_smoke_test"] = f"fail:{type(e).__name__}:{str(e)[:120]}"
+    elif sys.platform == "darwin":
+        diag["mps_smoke_test"] = "skip:mps_not_built"
+
+    os.environ["NEGENTROPY_MPS_READY"] = "1" if mps_ready else "0"
+    # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
+    logger.warning("子进程 torch 诊断 %s", diag)
+
+
 def worker_main(conn: Connection, engine_name: str) -> None:
     """子进程主循环：ready → 等请求 → 懒加载/执行 → 回写。
 
@@ -138,23 +314,24 @@ def worker_main(conn: Connection, engine_name: str) -> None:
         return
 
     # MPS 环境预初始化（仅限 torch 相关引擎，避免 fake/test worker 的导入开销）
+    #
+    # 动机：spawn 子进程首次 `import torch` 后，`torch.backends.mps.is_available()`
+    # 在 Apple Silicon 某些组合下会稳定返回 False；根因是 MPS 的统一内存
+    # allocator 依赖懒初始化，`is_available()` 自身并不触发 first-touch。
+    # 解决：在子进程启动时显式分配一次 MPS tensor（first-touch），之后 allocator
+    # 就绪，`is_available()` 与 `AcceleratorDevice.MPS` 均可正常使用。
+    #
+    # 同时把诊断信息（torch 版本、start_method、built/available/smoke_test 结果）
+    # 打到日志，便于远端 MPS 故障的线上排查。
     if engine_name in ("docling", "mineru", "marker"):
-        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-        try:
-            import torch
-
-            mps_built = torch.backends.mps.is_built()
-            mps_avail = torch.backends.mps.is_available()
-            logger.info(
-                "子进程 MPS 状态: built=%s, available=%s",
-                mps_built,
-                mps_avail,
-            )
-        except Exception as e:
-            logger.info("子进程 PyTorch/MPS 检查异常: %s", e)
+        _preinit_torch_device(logger)
 
     cached_engine: Optional[Any] = None
     cached_hash: Optional[str] = None
+    # convert 结果缓存仅对 docling/mineru 生效；其他引擎保持此对象为 None
+    convert_cache: Optional[_ConvertCache] = (
+        _ConvertCache() if engine_name in _CACHEABLE_ENGINES else None
+    )
 
     while True:
         try:
@@ -230,9 +407,34 @@ def worker_main(conn: Connection, engine_name: str) -> None:
                     break
                 continue
 
+        # convert 结果缓存命中：同一 PDF 的 layout/table/formula/code 四个 Stage
+        # 合用一次推理结果，miss 时走下方常规路径并在返回前回填。
+        cache_key: Optional[Tuple[Any, ...]] = None
+        if convert_cache is not None and method == "convert":
+            cache_key = _make_cache_key(engine_name, kwargs, new_hash)
+            if cache_key is not None:
+                cached_result = convert_cache.get(cache_key)
+                if cached_result is not None:
+                    try:
+                        conn.send(
+                            {
+                                "type": "result",
+                                "id": req_id,
+                                "ok": True,
+                                "result": cached_result,
+                            }
+                        )
+                    except Exception:
+                        break
+                    continue
+
         try:
             func = getattr(cached_engine, method)
             result = func(**kwargs)
+            if cache_key is not None and result is not None:
+                # convert 返回 None 通常代表“引擎不可用/转换失败”，不缓存
+                # 以便下次可重试；非 None 结果写入缓存。
+                convert_cache.put(cache_key, result)  # type: ignore[union-attr]
             conn.send(
                 {
                     "type": "result",

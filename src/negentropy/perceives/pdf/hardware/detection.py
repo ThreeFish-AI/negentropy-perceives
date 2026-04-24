@@ -103,8 +103,23 @@ def _check_mps_available() -> Tuple[bool, Optional[str], Optional[float]]:
             return False, None, None
 
         if not torch.backends.mps.is_available():
-            logger.debug("MPS device is not available")
-            return False, None, None
+            # spawn 子进程中 torch 的 MPS allocator 依赖 first-touch 才会真正
+            # 就绪；若 worker_main 的预热已完成，此处通常直接为 True。作为
+            # 兜底：显式分配一次 MPS tensor 触发懒初始化，再复查一遍。
+            import os as _os
+
+            if _os.environ.get("NEGENTROPY_MPS_READY") == "1":
+                # 主路径：worker_main 已 first-touch 并确认可用
+                pass
+            else:
+                try:
+                    _ = torch.zeros(1, device="mps")
+                except Exception as e:
+                    logger.debug("MPS first-touch 失败: %s", e)
+                    return False, None, None
+                if not torch.backends.mps.is_available():
+                    logger.debug("MPS first-touch 后仍不可用")
+                    return False, None, None
 
         # MPS is available
         # Note: MPS doesn't expose direct memory info, use system memory as approximation

@@ -562,6 +562,67 @@ class NegentropyPerceivesSettings(BaseSettings):
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
     )
 
+    # ── PDF 图片资产打包（MCP 响应体） ────────────────────────
+    pdf_bundle_images_in_response: bool = Field(
+        default=True,
+        description=(
+            "是否在 MCP 响应体中内嵌图片 base64 载荷。"
+            "关闭后 `PDFResponse.image_assets` 恒为空列表，图片仍会落盘到 "
+            "output_dir/images/，仅客户端直传路径关闭。"
+        ),
+    )
+    pdf_image_max_base64_kb: int = Field(
+        default=2048,
+        ge=1,
+        description=(
+            "单张图片 base64 上限（KB）。超限时先以 JPEG q=75 重压缩；"
+            "仍超限则跳过该图（响应体中不出现，但磁盘文件不受影响）。"
+        ),
+    )
+    pdf_bundle_total_base64_mb: int = Field(
+        default=32,
+        ge=1,
+        description=(
+            "单次响应体图片 base64 总量上限（MB）。累计字节达阈值后"
+            "停止追加（按原顺序丢弃尾部），防止 MCP 帧超过传输上限。"
+        ),
+    )
+
+    # ── 表格质量过滤（PyMuPDF find_tables 兜底启发式） ─────────
+    pdf_table_quality_filter_enabled: bool = Field(
+        default=True,
+        description=(
+            "启用后在 PyMuPDF find_tables 结果上再叠加质量过滤，"
+            "剔除“空白率高 / 单值同质 / 半数列近空”的伪表格；"
+            "关闭后回退到仅 row_count>=2 & col_count>=2 的原行为。"
+        ),
+    )
+    pdf_table_quality_min_occupancy: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "单元格非空比例下限；低于该比例判定为伪表格。"
+            "0.40 对应“过半单元格都是空串”的稀疏结构。"
+        ),
+    )
+    pdf_table_quality_max_weak_cols_ratio: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "列弱占比上限；单列非空率 < 40% 视为弱列，"
+            "若弱列数 > 总列数 × 该比例则判定为伪表格。"
+        ),
+    )
+    pdf_table_quality_min_unique_cells: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "单元格不同值数量下限；所有单元格去重后 ≤ 该值判定为页眉/重复行伪表格。"
+        ),
+    )
+
     # ── Pipeline 编排 ─────────────────────────────────────────
     pipeline: Optional[PipelineConfig] = Field(
         default=None,

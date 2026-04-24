@@ -67,6 +67,29 @@ class BatchMarkdownResponse(BaseModel):
     total_conversion_time: float = Field(..., description="总转换时间（秒）")
 
 
+class ImageAssetModel(BaseModel):
+    """PDF 响应中内嵌的图片资产（base64 载荷）。
+
+    与 :class:`negentropy.perceives.pipeline.models.ImageAsset` 配对的
+    Pydantic 视图：前者用于内部流水线，后者用于对外 MCP 响应的序列化与校验。
+    字段保持一一对应。
+    """
+
+    filename: str = Field(..., description="文件名（如 img_p1_0.png）")
+    mime_type: str = Field(default="image/png", description="MIME 类型")
+    base64_data: str = Field(..., description="Base64 编码后的图片字节")
+    width: Optional[int] = Field(default=None, description="图片宽度（像素）")
+    height: Optional[int] = Field(default=None, description="图片高度（像素）")
+    caption: Optional[str] = Field(default=None, description="图片说明文字")
+    page_number: Optional[int] = Field(
+        default=None, description="所在页码（从 0 开始）"
+    )
+    downscaled: bool = Field(
+        default=False,
+        description="是否经过 JPEG q=75 重压缩（超过单图 base64 阈值时触发）",
+    )
+
+
 class PDFResponse(BaseModel):
     """PDF 增强转换的响应模型。"""
 
@@ -81,6 +104,13 @@ class PDFResponse(BaseModel):
     conversion_time: float = Field(..., description="转换耗时（秒）")
     enhanced_assets: Optional[Dict[str, Any]] = Field(
         default=None, description="增强资源提取统计（图像、表格、公式）"
+    )
+    image_assets: Optional[List[ImageAssetModel]] = Field(
+        default=None,
+        description=(
+            "随响应透出的图片 base64 资产列表。"
+            "受配置项 pdf_bundle_images_in_response 门控；关闭或无图时为 None。"
+        ),
     )
     orchestration_info: Optional[Dict[str, Any]] = Field(
         default=None,

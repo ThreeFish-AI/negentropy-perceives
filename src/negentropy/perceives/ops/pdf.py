@@ -12,7 +12,7 @@ from ..core.services import create_pdf_processor
 from ..core.task_context import bind_pipeline, pipeline_var
 from ..core.types import PDFMethod, PDFOutputFormat, elapsed_ms, validate_page_range
 from ..infra import rate_limiter
-from ..models import BatchPDFResponse, PDFResponse
+from ..models import BatchPDFResponse, ImageAssetModel, PDFResponse
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +108,25 @@ async def parse_pdf_to_markdown(
                                 "code_blocks_detected": pipeline_result.code_blocks_count,
                                 "engines_used": pipeline_result.engines_used,
                             }
+                        # 将 pipeline 层的 dataclass ImageAsset 映射为响应层
+                        # 的 Pydantic ImageAssetModel；空列表统一回落为 None，
+                        # 以便客户端用 `is None` 判断“无图片 vs 有图但未透出”。
+                        image_assets_out = None
+                        raw_assets = getattr(pipeline_result, "image_assets", None)
+                        if raw_assets:
+                            image_assets_out = [
+                                ImageAssetModel(
+                                    filename=a.filename,
+                                    mime_type=a.mime_type,
+                                    base64_data=a.base64_data,
+                                    width=a.width,
+                                    height=a.height,
+                                    caption=a.caption,
+                                    page_number=a.page_number,
+                                    downscaled=a.downscaled,
+                                )
+                                for a in raw_assets
+                            ]
                         return PDFResponse(
                             success=True,
                             pdf_source=pdf_source,
@@ -119,6 +138,7 @@ async def parse_pdf_to_markdown(
                             word_count=pipeline_result.word_count,
                             conversion_time=elapsed_ms(_start) / 1000.0,
                             enhanced_assets=enhanced_assets,
+                            image_assets=image_assets_out,
                         )
 
                 # 传统路径（直接调用 PDFProcessor）
