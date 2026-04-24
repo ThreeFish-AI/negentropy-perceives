@@ -33,6 +33,17 @@ def _restore_hf_home():
         os.environ["HF_HOME"] = saved
 
 
+@pytest.fixture(autouse=True)
+def _restore_mineru_source():
+    """隔离 MINERU_MODEL_SOURCE 环境变量污染。"""
+    saved = os.environ.get("MINERU_MODEL_SOURCE")
+    yield
+    if saved is None:
+        os.environ.pop("MINERU_MODEL_SOURCE", None)
+    else:
+        os.environ["MINERU_MODEL_SOURCE"] = saved
+
+
 # ---------------------------------------------------------------------------
 # _parse_engines
 # ---------------------------------------------------------------------------
@@ -69,7 +80,7 @@ def _patch_all_ok(monkeypatch: pytest.MonkeyPatch, called: list[str]):
         called.append("marker")
         return "marker-note"
 
-    def _mineru() -> str:
+    def _mineru(source=None, timeout=1800) -> str:  # noqa: ARG001 — 兼容新签名
         called.append("mineru")
         return "mineru-note"
 
@@ -107,9 +118,12 @@ def test_cli_skipped_engine_still_exits_zero(monkeypatch: pytest.MonkeyPatch):
     def _ok() -> str:
         return "ok-note"
 
+    def _ok_mineru(source=None, timeout=1800) -> str:  # noqa: ARG001
+        return "ok-note"
+
     monkeypatch.setattr(pm, "_prefetch_docling", _ok)
     monkeypatch.setattr(pm, "_prefetch_marker", _skip)
-    monkeypatch.setattr(pm, "_prefetch_mineru", _ok)
+    monkeypatch.setattr(pm, "_prefetch_mineru", _ok_mineru)
 
     result = runner.invoke(app, ["prefetch-models"])
     assert result.exit_code == 0, result.output
@@ -124,9 +138,12 @@ def test_cli_error_engine_exits_nonzero(monkeypatch: pytest.MonkeyPatch):
     def _ok() -> str:
         return "ok"
 
+    def _ok_mineru(source=None, timeout=1800) -> str:  # noqa: ARG001
+        return "ok"
+
     monkeypatch.setattr(pm, "_prefetch_docling", _ok)
     monkeypatch.setattr(pm, "_prefetch_marker", _boom)
-    monkeypatch.setattr(pm, "_prefetch_mineru", _ok)
+    monkeypatch.setattr(pm, "_prefetch_mineru", _ok_mineru)
 
     result = runner.invoke(app, ["prefetch-models"])
     assert result.exit_code == 1
@@ -142,9 +159,13 @@ def test_cli_hf_home_sets_env(monkeypatch: pytest.MonkeyPatch, tmp_path):
         called.append(os.environ.get("HF_HOME", ""))
         return "ok"
 
+    def _check_mineru(source=None, timeout=1800) -> str:  # noqa: ARG001
+        called.append(os.environ.get("HF_HOME", ""))
+        return "ok"
+
     monkeypatch.setattr(pm, "_prefetch_docling", _check)
     monkeypatch.setattr(pm, "_prefetch_marker", _check)
-    monkeypatch.setattr(pm, "_prefetch_mineru", _check)
+    monkeypatch.setattr(pm, "_prefetch_mineru", _check_mineru)
 
     custom = str(tmp_path / "hf_cache")
     result = runner.invoke(app, ["prefetch-models", "--hf-home", custom])
@@ -196,8 +217,11 @@ def test_prefetch_mineru_missing_binary_skips(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_prefetch_mineru_subprocess_failure_raises(monkeypatch: pytest.MonkeyPatch):
-    """子进程非零退出 → RuntimeError（被 _dispatch 上报为 error）。"""
-    import subprocess as _sp
+    """子进程非零退出 → RuntimeError（被 _dispatch 上报为 error）。
+
+    新实现不再 capture stdout/stderr（让 tqdm 进度条直通终端），故错误消息
+    只依赖 returncode；测试相应放宽断言。
+    """
     import sys
     import types
 
@@ -207,15 +231,187 @@ def test_prefetch_mineru_subprocess_failure_raises(monkeypatch: pytest.MonkeyPat
 
     class _R:
         returncode = 2
-        stdout = ""
-        stderr = "something broke"
 
     def _run(cmd, **kw):  # noqa: ANN001
         return _R()
 
-    monkeypatch.setattr(_sp, "run", _run)
     monkeypatch.setattr(pm.subprocess, "run", _run)
 
     with pytest.raises(RuntimeError) as ei:
         pm._prefetch_mineru()
     assert "2" in str(ei.value)
+
+
+def test_prefetch_mineru_default_source_is_modelscope(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """未设置 MINERU_MODEL_SOURCE 且未传 --mineru-source → 默认 modelscope。
+
+    既要在 cmd 上体现 ``-s modelscope``（向后兼容旧版 CLI），也要在
+    ``MINERU_MODEL_SOURCE`` 环境变量上体现（新版 mineru 以 env 为准）。
+    """
+    import sys
+    import types
+
+    fake = types.ModuleType("mineru")
+    monkeypatch.setitem(sys.modules, "mineru", fake)
+    monkeypatch.setattr(pm.shutil, "which", lambda name: "/tmp/fake-mineru")
+    monkeypatch.delenv("MINERU_MODEL_SOURCE", raising=False)
+
+    captured_cmd: list[str] = []
+    captured_env: dict[str, str] = {}
+
+    class _R:
+        returncode = 0
+
+    def _run(cmd, **kw):  # noqa: ANN001
+        captured_cmd.extend(cmd)
+        captured_env["MINERU_MODEL_SOURCE"] = os.environ.get("MINERU_MODEL_SOURCE", "")
+        return _R()
+
+    monkeypatch.setattr(pm.subprocess, "run", _run)
+
+    pm._prefetch_mineru()
+    assert "-s" in captured_cmd
+    s_idx = captured_cmd.index("-s")
+    assert captured_cmd[s_idx + 1] == "modelscope"
+    assert captured_env["MINERU_MODEL_SOURCE"] == "modelscope"
+
+
+def test_prefetch_mineru_respects_user_env(monkeypatch: pytest.MonkeyPatch):
+    """用户预设 MINERU_MODEL_SOURCE → 即使 CLI 默认 modelscope 也不覆盖。"""
+    import sys
+    import types
+
+    fake = types.ModuleType("mineru")
+    monkeypatch.setitem(sys.modules, "mineru", fake)
+    monkeypatch.setattr(pm.shutil, "which", lambda name: "/tmp/fake-mineru")
+    monkeypatch.setenv("MINERU_MODEL_SOURCE", "huggingface")
+
+    captured_cmd: list[str] = []
+
+    class _R:
+        returncode = 0
+
+    def _run(cmd, **kw):  # noqa: ANN001
+        captured_cmd.extend(cmd)
+        return _R()
+
+    monkeypatch.setattr(pm.subprocess, "run", _run)
+
+    pm._prefetch_mineru()  # CLI 未显式指定 source
+    s_idx = captured_cmd.index("-s")
+    assert captured_cmd[s_idx + 1] == "huggingface"
+    assert os.environ["MINERU_MODEL_SOURCE"] == "huggingface"
+
+
+def test_prefetch_mineru_explicit_source_wins_over_env(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """显式传入 source（CLI 直传） > 环境变量 > 默认 modelscope。"""
+    import sys
+    import types
+
+    fake = types.ModuleType("mineru")
+    monkeypatch.setitem(sys.modules, "mineru", fake)
+    monkeypatch.setattr(pm.shutil, "which", lambda name: "/tmp/fake-mineru")
+    monkeypatch.setenv("MINERU_MODEL_SOURCE", "modelscope")
+
+    captured_cmd: list[str] = []
+
+    class _R:
+        returncode = 0
+
+    def _run(cmd, **kw):  # noqa: ANN001
+        captured_cmd.extend(cmd)
+        return _R()
+
+    monkeypatch.setattr(pm.subprocess, "run", _run)
+
+    pm._prefetch_mineru(source="huggingface")
+    s_idx = captured_cmd.index("-s")
+    assert captured_cmd[s_idx + 1] == "huggingface"
+    # 同步刷新 env 让子进程一致看到
+    assert os.environ["MINERU_MODEL_SOURCE"] == "huggingface"
+
+
+def test_prefetch_mineru_timeout_raises(monkeypatch: pytest.MonkeyPatch):
+    """子进程超时 → RuntimeError，错误消息含"超时"提示与切换建议。"""
+    import subprocess as sp_real
+    import sys
+    import types
+
+    fake = types.ModuleType("mineru")
+    monkeypatch.setitem(sys.modules, "mineru", fake)
+    monkeypatch.setattr(pm.shutil, "which", lambda name: "/tmp/fake-mineru")
+
+    def _run(cmd, **kw):  # noqa: ANN001
+        raise sp_real.TimeoutExpired(cmd=cmd, timeout=kw.get("timeout", 0))
+
+    monkeypatch.setattr(pm.subprocess, "run", _run)
+
+    with pytest.raises(RuntimeError) as ei:
+        pm._prefetch_mineru(timeout=1)
+    assert "超时" in str(ei.value)
+
+
+def test_prefetch_mineru_does_not_capture_stdout(monkeypatch: pytest.MonkeyPatch):
+    """关键回归保护：不能再用 capture_output / PIPE 吞掉 tqdm 进度条。"""
+    import sys
+    import types
+
+    fake = types.ModuleType("mineru")
+    monkeypatch.setitem(sys.modules, "mineru", fake)
+    monkeypatch.setattr(pm.shutil, "which", lambda name: "/tmp/fake-mineru")
+
+    captured_kw: dict = {}
+
+    class _R:
+        returncode = 0
+
+    def _run(cmd, **kw):  # noqa: ANN001
+        captured_kw.update(kw)
+        return _R()
+
+    monkeypatch.setattr(pm.subprocess, "run", _run)
+
+    pm._prefetch_mineru()
+    assert captured_kw.get("capture_output") in (None, False), captured_kw
+    assert captured_kw.get("stdout") is None, captured_kw
+    assert captured_kw.get("stderr") is None, captured_kw
+
+
+def test_cli_mineru_source_override_passed_through(monkeypatch: pytest.MonkeyPatch):
+    """`--mineru-source huggingface` 应当被透传到 _prefetch_mineru。"""
+    captured_kwargs: dict = {}
+
+    def _docling() -> str:
+        return "ok"
+
+    def _marker() -> str:
+        return "ok"
+
+    def _mineru(source=None, timeout=1800) -> str:
+        captured_kwargs["source"] = source
+        captured_kwargs["timeout"] = timeout
+        return "ok"
+
+    monkeypatch.setattr(pm, "_prefetch_docling", _docling)
+    monkeypatch.setattr(pm, "_prefetch_marker", _marker)
+    monkeypatch.setattr(pm, "_prefetch_mineru", _mineru)
+
+    result = runner.invoke(
+        app,
+        [
+            "prefetch-models",
+            "--engines",
+            "mineru",
+            "--mineru-source",
+            "huggingface",
+            "--mineru-timeout",
+            "120",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured_kwargs["source"] == "huggingface"
+    assert captured_kwargs["timeout"] == 120
