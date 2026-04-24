@@ -283,6 +283,7 @@ class TestLogPrefixPropagation:
                 orch = PipelineOrchestrator.__new__(PipelineOrchestrator)
                 orch._engine_gates = {}
                 orch._defaults = {}
+                orch._pipeline_name = ""
                 orch._scheduler = AsyncMock()
 
             # Mock scheduler
