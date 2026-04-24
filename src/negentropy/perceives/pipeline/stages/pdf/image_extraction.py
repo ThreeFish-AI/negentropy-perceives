@@ -122,6 +122,10 @@ class FitzImageExtractor(PDFToolBase):
                                 caption=extracted_img.caption,
                             )
                         )
+                    # 按 bbox y0 排序分配 reading_order，使图片在页内有序
+                    results.sort(key=lambda img: img.bbox[1] if img.bbox else 0)
+                    for order, img in enumerate(results):
+                        img.reading_order = order
                     return results
 
             if end_page <= start_page:

@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### ✨ 新增
 
+- **LLM 竞态评审器** — Pipeline 竞争模式新增 `LLMCompetitionJudge`，当多个引擎同时产出成功结果时，通过 LLM 从准确性、结构完整性、格式规范性三个维度进行质量评估并择优。支持 OpenAI API 兼容协议的自定义端点（`llm_api_base_url`），默认使用 `gpt-5.4-mini` 模型。LLM 不可用时自动回退到基于质量信号的启发式评分。评审器通过 `CompetitionJudgeConfig` 配置（strategy / model / temperature / max_tokens），由 `PipelineOrchestrator` 在初始化时延迟加载，不阻塞无 LLM 场景的启动。涉及文件：`pipeline/llm_judge.py`（新增）、`pipeline/scheduler.py`（judge 参数透传）、`pipeline/orchestrator.py`（初始化与注入）、`pdf/llm/client.py`（新增 `api_base_url` 支持）、`config.py`（新增 `llm_api_base_url` 字段）、`config.default.yaml`（默认模型改为 `gpt-5.4-mini`）。
+
+### 🔧 修复
+
+- **`parse_pdf_to_markdown` 两端对齐文本被误识别为表格** — 纯文本路径 `extract_tables_from_text()` 缺失质量过滤（几何路径已有），导致学术论文中两端对齐的段落文本被错误解析为 Markdown 表格。修复方式三层防御：（1）强化 `_has_multiple_space_separators()` 新增中英文停用词密度检测（>25% 视为散文）和最大 segment 占比限制（>65% 拒绝）；（2）新增列数一致性检查 `_check_column_consistency()`，超过 30% 行列数与众数不一致则拒绝；（3）新增 `_parse_table_lines_to_cells()` 将文本行转为二维数组后复用 `_table_quality_score()` 进行占用率/弱列/唯一单元格三指标过滤。涉及文件：`pdf/extraction/table.py`。
+- **`parse_pdf_to_markdown` 图片未嵌入最终 Markdown** — 装配阶段（S8）仅收集 text/table/formula/code 作为内容元素，`ExtractedImage` 的 `reading_order` 和 `page_number` 信息未被利用。修复方式：（1）图片提取阶段按 bbox y0 排序分配 `reading_order`；（2）装配阶段新增图片元素收集，通过 `_image_to_markdown()` 生成 `![caption](./images/filename)` 并按阅读顺序插入，同时跳过已有 `<!-- image -->` 占位符的图片避免重复。涉及文件：`pipeline/stages/pdf/image_extraction.py`、`pipeline/stages/pdf/assembly.py`。
+
+### ✨ 新增（历史）
+
 - **`perceives prefetch-models` 模型预热 CLI** — 新增子命令 `uv run perceives prefetch-models`，一次性幂等地将 Docling / Marker / MinerU 所需模型拉取到本地缓存，避免首次 MCP 请求被 ~1.35GB Marker Layout 模型下载阻塞触发 `Stage 'layout_analysis' 工具 'marker' 超时 (120s)`。命令支持 `--engines docling,marker,mineru|all` 按需过滤与 `--hf-home <path>` 指定 HuggingFace 缓存位置；每个引擎独立 try/except，未安装引擎输出 `skipped` 并给出 `uv sync --extra <engine>` 提示，不中断其它引擎；任一引擎 error → 退出码 1，全部 ok/skipped → 退出码 0。触发方式全部复用各 engine 已验证的下载入口（`DocumentConverter(...)` / `create_model_dict()` / `mineru-models-download -s huggingface -m all`），不自建下载栈。涉及文件：`src/negentropy/perceives/cli/commands/prefetch_models.py`（新增）、`src/negentropy/perceives/cli/app.py`（注册子命令）、`src/negentropy/perceives/pipeline/convenience.py`（`[PDF engines]` 汇总日志追加预热提示）、`tests/unit/test_prefetch_models_cli.py`（11 用例覆盖引擎选择、未安装跳过、subprocess 失败、HF_HOME 传导）。
 
 ### 🔧 修复

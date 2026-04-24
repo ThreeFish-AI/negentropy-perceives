@@ -39,6 +39,7 @@ class StageScheduler:
         competition_config: Optional[Dict[str, Any]] = None,
         selector: Optional[Callable] = None,
         pipeline_name: str = "",
+        judge: Optional[Any] = None,
     ) -> StageResult:
         """执行单个 Stage。
 
@@ -50,6 +51,7 @@ class StageScheduler:
             competition_config: 竞争模式配置（max_concurrent, timeout 等）
             selector: 自定义结果选择器
             pipeline_name: Pipeline 名称，用于限定名查找
+            judge: LLM 评审器实例（LLMCompetitionJudge）
 
         Returns:
             Stage 执行结果
@@ -77,6 +79,7 @@ class StageScheduler:
                 max_concurrent=comp.get("max_concurrent", 2),
                 timeout=comp.get("timeout", 120),
                 selector=selector,
+                judge=judge,
             )
 
     async def _run_fallback(
@@ -128,6 +131,7 @@ class StageScheduler:
         max_concurrent: int = 2,
         timeout: float = 120.0,
         selector: Optional[Callable] = None,
+        judge: Optional[Any] = None,
     ) -> StageResult:
         """竞争模式：并行执行多个工具，择优。"""
         candidates = tools[:max_concurrent]
@@ -177,6 +181,29 @@ class StageScheduler:
         # 多个成功结果 -> 择优
         if selector:
             return selector(successful)
+
+        # LLM 评审
+        if (
+            judge is not None
+            and hasattr(judge, "is_available")
+            and judge.is_available()
+        ):
+            try:
+                best_idx = await judge.judge(stage_name, successful)
+                logger.info(
+                    "Stage '%s' LLM 评审选择索引 %d (%s)",
+                    stage_name,
+                    best_idx,
+                    getattr(successful[best_idx], "engine_used", "unknown"),
+                )
+                return successful[best_idx]
+            except Exception as e:
+                logger.warning(
+                    "Stage '%s' LLM 评审异常，回退到 rank 顺序: %s",
+                    stage_name,
+                    e,
+                )
+
         return successful[0]  # 默认取 rank 最高的
 
     def _resolve_tools(

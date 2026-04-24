@@ -96,8 +96,9 @@ pdf_worker_kill_grace_seconds: 2.0 # 取消时先 terminate，等待此秒数仍
 
 # ── LLM 编排（Smart 模式，需安装 litellm 可选依赖）─────────────────────────
 llm:
-  api_key: null # LLM API Key（ZhipuAI）
-  model: zhipu/glm-5.1 # LiteLLM 模型标识
+  api_key: null # LLM API Key
+  api_base_url: null # LLM API Base URL（OpenAI 兼容协议，如 https://api.openai.com/v1）
+  model: gpt-5.4-mini # LiteLLM 模型标识
   temperature: 0.1 # LLM 温度参数（0.0 ~ 2.0）
   max_tokens: 4096 # LLM 最大输出 token（> 0）
   timeout: 60.0 # LLM API 超时，单位秒（> 0）

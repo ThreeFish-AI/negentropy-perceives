@@ -472,12 +472,14 @@ class NegentropyPerceivesSettings(BaseSettings):
     )
 
     # ── LLM 编排 ──────────────────────────────────────────────
-    llm_api_key: Optional[str] = Field(
-        default=None, description="LLM API Key（ZhipuAI）"
+    llm_api_key: Optional[str] = Field(default=None, description="LLM API Key")
+    llm_api_base_url: Optional[str] = Field(
+        default=None,
+        description="LLM API Base URL（OpenAI 兼容协议，如 https://api.openai.com/v1）",
     )
     llm_model: str = Field(
-        default="zhipu/glm-5.1",
-        description="LiteLLM 模型标识（如 zhipu/glm-5.1）",
+        default="gpt-5.4-mini",
+        description="LiteLLM 模型标识（如 gpt-5.4-mini、zhipu/glm-5.1）",
     )
     llm_temperature: float = Field(
         default=0.1, ge=0.0, le=2.0, description="LLM 温度参数"

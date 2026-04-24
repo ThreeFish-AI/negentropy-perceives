@@ -53,6 +53,7 @@ class LLMClient:
         self,
         model: Optional[str] = None,
         api_key: Optional[str] = None,
+        api_base_url: Optional[str] = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
         timeout: float = 60.0,
@@ -64,6 +65,7 @@ class LLMClient:
             model = settings.llm_model
         self._model = model
         self._api_key = api_key
+        self._api_base_url = api_base_url
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._timeout = timeout
@@ -122,6 +124,8 @@ class LLMClient:
         }
         if self._api_key:
             kwargs["api_key"] = self._api_key
+        if self._api_base_url:
+            kwargs["api_base"] = self._api_base_url
         if response_format:
             kwargs["response_format"] = response_format
 
