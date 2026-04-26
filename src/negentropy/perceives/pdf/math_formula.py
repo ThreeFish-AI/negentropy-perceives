@@ -718,7 +718,7 @@ class DoclingFormulaEnricher:
             AcceleratorDevice,
             AcceleratorOptions,
         )
-        from .device_config import resolve_device_config
+        from .hardware.device_config import resolve_device_config
 
         device_cfg = resolve_device_config(enable_formula=True)
 

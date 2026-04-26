@@ -465,6 +465,21 @@ class MarkdownFormatter:
 
             markdown_content = "\n".join(lines)
             markdown_content = re.sub(r"\n{3,}", "\n\n", markdown_content)
+
+            # 清除泄漏的原始 HTML 标签（防御性后处理）
+            markdown_content = re.sub(
+                r"</?(table|tbody|thead|tfoot|tr|td|th)\b[^>]*>", "", markdown_content
+            )
+            markdown_content = re.sub(
+                r"</?(div|span|svg|path|use|g|video|audio|picture|source|iframe|embed|object)\b[^>]*>",
+                "",
+                markdown_content,
+            )
+            # 清除孤立的 HTML 属性
+            markdown_content = re.sub(r'\s+class="[^"]*"', "", markdown_content)
+            markdown_content = re.sub(r'\s+style="[^"]*"', "", markdown_content)
+            markdown_content = re.sub(r'\s+aria-\w+="[^"]*"', "", markdown_content)
+
             markdown_content = markdown_content.strip()
 
             return markdown_content

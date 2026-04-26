@@ -35,9 +35,12 @@ class TestAppMain:
         monkeypatch.setattr(app_module.sys, "argv", ["negentropy-perceives"])
 
         mock_app = SimpleNamespace(run=fake_run)
-        with patch.dict("sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}):
+        with patch.dict(
+            "sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}
+        ):
             # 清除已缓存的 tools 导入（若有），确保延迟导入使用 mock
             import sys
+
             for mod_name in list(sys.modules):
                 if mod_name == "negentropy.perceives.tools":
                     sys.modules[mod_name] = SimpleNamespace(app=mock_app)
@@ -60,6 +63,7 @@ class TestAppMain:
         assert "uvicorn_config" in call_kwargs
         assert "log_config" in call_kwargs["uvicorn_config"]
         assert call_kwargs["uvicorn_config"]["timeout_graceful_shutdown"] == 5
+        assert call_kwargs.get("show_banner") is False
 
     def test_main_stdio_mode_no_uvicorn_config(self, caplog, monkeypatch):
         """STDIO 模式下不传入 uvicorn_config。"""
@@ -71,7 +75,7 @@ class TestAppMain:
             use_random_user_agent=True,
             use_proxy=False,
             http_host="localhost",
-            http_port=8081,
+            http_port=2992,
             http_path="/mcp",
             http_cors_origins="*",
             log_level="INFO",
@@ -87,8 +91,11 @@ class TestAppMain:
         monkeypatch.setattr(app_module.sys, "argv", ["negentropy-perceives"])
 
         mock_app = SimpleNamespace(run=fake_run)
-        with patch.dict("sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}):
+        with patch.dict(
+            "sys.modules", {"negentropy.perceives.tools": SimpleNamespace(app=mock_app)}
+        ):
             import sys
+
             for mod_name in list(sys.modules):
                 if mod_name == "negentropy.perceives.tools":
                     sys.modules[mod_name] = SimpleNamespace(app=mock_app)
@@ -98,5 +105,5 @@ class TestAppMain:
 
         assert "Starting STDIO server" in caplog.text
         assert len(app_calls) == 1
-        # STDIO 模式下 app.run() 不传参数
-        assert app_calls[0] == {}
+        # STDIO 模式下 app.run() 仅传 show_banner=False
+        assert app_calls[0] == {"show_banner": False}

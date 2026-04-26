@@ -12,7 +12,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-import pytest
 
 from negentropy.perceives.markdown.formula_placeholder_resolver import (
     FormulaMeta,
@@ -187,11 +186,7 @@ class TestEdgeCases:
 
     def test_mixed_resolved_and_unresolved(self) -> None:
         """部分占位符被替换，部分保留。"""
-        md = (
-            "<!-- formula-not-decoded -->\n\n"
-            "text\n\n"
-            "<!-- formula-not-decoded -->"
-        )
+        md = "<!-- formula-not-decoded -->\n\ntext\n\n<!-- formula-not-decoded -->"
         formulas = [FakeFormula(latex="x = y")]
         result = resolve_formula_placeholders(md, formulas)
         assert "$$x = y$$" in result

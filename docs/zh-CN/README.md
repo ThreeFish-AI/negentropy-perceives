@@ -44,7 +44,7 @@ uv add negentropy-perceives
 ### 2. 轰鸣启动引擎
 
 ```bash
-uv run negentropy-perceives  # 默认监听 localhost:8081，HTTP 模式
+uv run negentropy-perceives  # 默认监听 localhost:2992，HTTP 模式
 ```
 
 > 💡 **进阶锦囊**: 首次启动时，Negentropy Percevies 会自动生成的配置至 `~/.negentropy/perceives.config.yaml`。里面潜藏着各类高阶玩法的解锁机关。
@@ -57,7 +57,7 @@ from negentropy.perceives.sdk import NegentropyPerceivesClient
 
 async def perceive_world():
     async with NegentropyPerceivesClient() as client:
-        result = await client.convert_webpage_to_markdown(
+        result = await client.parse_webpage_to_markdown(
             url="https://zh.wikipedia.org/wiki/熵",
         )
         print("====== 萃取原浆 ======")
@@ -76,7 +76,7 @@ asyncio.run(perceive_world())
   "mcpServers": {
     "negentropy-perceives": {
       "type": "http",
-      "url": "http://localhost:8081/mcp"
+      "url": "http://localhost:2992/mcp"
     }
   }
 }
@@ -90,20 +90,26 @@ asyncio.run(perceive_world())
 
 ### 工具总览
 
-| 工具                                 | 功能                                 | 适用场景             |
-| :----------------------------------- | :----------------------------------- | :------------------- |
-| `extract_links`                      | 提取网页链接，支持域名过滤           | 站点地图、链接审计   |
-| `get_page_info`                      | 获取页面元数据（状态码、内容类型等） | 预检目标页面         |
-| `convert_webpage_to_markdown`        | 网页转 Markdown                      | 单页内容提取         |
-| `batch_convert_webpages_to_markdown` | 批量网页转 Markdown                  | 知识库构建、站点归档 |
-| `convert_pdf_to_markdown`            | PDF 转 Markdown                      | 学术论文、财报处理   |
-| `batch_convert_pdfs_to_markdown`     | 批量 PDF 转 Markdown                 | 文档批量数字化       |
+<center>
+
+| 工具                         | 功能                                 | 适用场景             |
+| :--------------------------- | :----------------------------------- | :------------------- |
+| `discover_links`             | 发现网页链接，支持域名过滤           | 站点地图、链接审计   |
+| `inspect_page`               | 检查页面元数据（状态码、内容类型等） | 预检目标页面         |
+| `parse_webpage_to_markdown`  | 网页转 Markdown                      | 单页内容提取         |
+| `parse_webpages_to_markdown` | 批量网页转 Markdown                  | 知识库构建、站点归档 |
+| `parse_pdf_to_markdown`      | PDF 转 Markdown                      | 学术论文、财报处理   |
+| `parse_pdfs_to_markdown`     | 批量 PDF 转 Markdown                 | 文档批量数字化       |
+
+</center>
 
 > [!WARNING]
 >
 > 请遵守目标网站的服务条款（TOS），合理控制请求频率。本工具仅供合法合规的数据获取场景使用。
 
 ### Web 抓取策略
+
+<center>
 
 | 方法                 | 说明                         |
 | :------------------- | :--------------------------- |
@@ -113,7 +119,11 @@ asyncio.run(perceive_world())
 | `stealth_selenium`   | 隐身 Selenium，绕过反爬      |
 | `stealth_playwright` | 隐身 Playwright，轻量反检测  |
 
+</center>
+
 ### PDF 引擎
+
+<center>
 
 | 引擎    | 特长                         | GPU 加速         |
 | :------ | :--------------------------- | :--------------- |
@@ -122,6 +132,8 @@ asyncio.run(perceive_world())
 | Marker  | 学术文档，Nougat 模型        | CUDA             |
 | PyMuPDF | 快速文本提取                 | —                |
 | PyPDF   | 基础降级兜底                 | —                |
+
+</center>
 
 > `auto` 模式按 Docling → MinerU → Marker → PyMuPDF → PyPDF 降级链自动选择。`smart` 模式启用 LLM 编排多引擎并行竞争并择优融合。
 
@@ -152,12 +164,16 @@ graph TD
 
 ## 文档导航
 
+<center>
+
 | 文档                           | 内容                                                  | 适合谁          |
 | :----------------------------- | :---------------------------------------------------- | :-------------- |
 | [用户指南](../user-guide.md)   | 6 个工具参数详解、MCP Server 配置、SDK 接口、高级场景 | 所有用户        |
 | [架构设计](../framework.md)    | 5 层架构、Pipeline 编排、引擎降级链、Smart 模式       | 架构师 / 贡献者 |
 | [开发指南](../development.md)  | 环境搭建、测试体系、CI/CD、PR 规范                    | 开发者          |
 | [更新日志](../../CHANGELOG.md) | 版本历史与变更记录                                    | 所有人          |
+
+</center>
 
 ---
 

@@ -12,7 +12,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -28,11 +28,9 @@ from negentropy.perceives.pdf.llm_orchestrator import (
     _extract_quality_signals,
 )
 from negentropy.perceives.pdf.marker_engine import (
-    MarkerConversionResult,
     MarkerEngine,
 )
 from negentropy.perceives.pdf.mineru_engine import (
-    MinerUConversionResult,
     MinerUEngine,
 )
 
@@ -161,7 +159,9 @@ class TestQuickScan:
         mock_doc.page_count = 5
         mock_doc.__getitem__ = lambda self, idx: mock_page
 
-        with patch("negentropy.perceives.pdf.llm_orchestrator._import_fitz") as mock_fitz:
+        with patch(
+            "negentropy.perceives.pdf.llm.orchestrator._import_fitz"
+        ) as mock_fitz:
             mock_fitz.return_value.open.return_value = mock_doc
             chars = orchestrator._quick_scan(Path("/fake/test.pdf"), None)
 
@@ -169,9 +169,7 @@ class TestQuickScan:
         assert chars.page_count == 5
         assert chars.has_images is True
 
-    @pytest.mark.skipif(
-        not CE_PDF.exists(), reason=f"PDF 文件不存在: {CE_PDF}"
-    )
+    @pytest.mark.skipif(not CE_PDF.exists(), reason=f"PDF 文件不存在: {CE_PDF}")
     def test_quick_scan_real_ce_pdf(self) -> None:
         """使用真实 Context Engineering PDF 验证预扫描。"""
         mock_client = MagicMock(spec=LLMClient)
@@ -322,7 +320,9 @@ class TestContentMerge:
         orchestrator = LLMOrchestrator(llm_client=mock_client)
 
         primary = "# Doc\nText only."
-        secondary = "# Doc\n```python\nprint('hello')\n```\n```js\nconsole.log('hi')\n```"
+        secondary = (
+            "# Doc\n```python\nprint('hello')\n```\n```js\nconsole.log('hi')\n```"
+        )
 
         result = orchestrator._merge_code_blocks(primary, secondary)
         assert "print('hello')" in result
@@ -357,7 +357,9 @@ class TestLLMOrchestratorPipeline:
 
         with (
             patch.object(orchestrator, "_analyze_pdf", return_value=plan),
-            patch.object(orchestrator, "_execute_engines", return_value=[pymupdf_result]),
+            patch.object(
+                orchestrator, "_execute_engines", return_value=[pymupdf_result]
+            ),
         ):
             result = await orchestrator.orchestrate(Path("/fake.pdf"))
 
@@ -400,14 +402,17 @@ class TestLLMOrchestratorPipeline:
         orchestrator = LLMOrchestrator(llm_client=mock_client)
 
         # Mock _quick_scan 正常，_llm_plan 失败
-        with patch.object(
-            orchestrator,
-            "_quick_scan",
-            return_value=PDFCharacteristics(page_count=5),
-        ), patch.object(
-            orchestrator,
-            "_llm_plan",
-            side_effect=Exception("API timeout"),
+        with (
+            patch.object(
+                orchestrator,
+                "_quick_scan",
+                return_value=PDFCharacteristics(page_count=5),
+            ),
+            patch.object(
+                orchestrator,
+                "_llm_plan",
+                side_effect=Exception("API timeout"),
+            ),
         ):
             plan = await orchestrator._analyze_pdf(Path("/fake.pdf"), None)
 
@@ -437,7 +442,8 @@ class TestPDFProcessorSmartMethod:
         processor = PDFProcessor(enable_enhanced_features=False)
 
         with patch(
-            "negentropy.perceives.pdf.llm_client.LLMClient.is_available", return_value=False
+            "negentropy.perceives.pdf.llm_client.LLMClient.is_available",
+            return_value=False,
         ):
             # 应降级到 auto，然后因为没有真实 PDF 而报错
             result = await processor.process_pdf(
@@ -461,32 +467,41 @@ class TestMultiEngineOrchestration:
 
         # 模拟 LLM 返回四引擎计划
         llm_response = MagicMock(spec=LLMResponse)
-        llm_response.content = json.dumps({
-            "engine_tasks": [
-                {"engine": "docling", "focus": "全文档高保真转换", "priority": 8},
-                {"engine": "mineru", "focus": "LaTeX 公式提取", "priority": 7},
-                {"engine": "marker", "focus": "整体结构", "priority": 6},
-                {"engine": "pymupdf", "focus": "快速文本提取", "priority": 5},
-            ],
-            "synthesis_strategy": "merge",
-            "reasoning": "四引擎策略",
-        })
-
-        with patch.object(
-            orchestrator, "_quick_scan",
-            return_value=PDFCharacteristics(page_count=10, has_formulas=True),
-        ), patch.object(
-            orchestrator, "_llm_plan",
-            return_value=OrchestrationPlan(
-                characteristics=PDFCharacteristics(page_count=10, has_formulas=True),
-                engine_tasks=[
-                    EngineTask(engine="docling", focus="full", priority=8),
-                    EngineTask(engine="mineru", focus="formulas", priority=7),
-                    EngineTask(engine="marker", focus="structure", priority=6),
-                    EngineTask(engine="pymupdf", focus="text", priority=5),
+        llm_response.content = json.dumps(
+            {
+                "engine_tasks": [
+                    {"engine": "docling", "focus": "全文档高保真转换", "priority": 8},
+                    {"engine": "mineru", "focus": "LaTeX 公式提取", "priority": 7},
+                    {"engine": "marker", "focus": "整体结构", "priority": 6},
+                    {"engine": "pymupdf", "focus": "快速文本提取", "priority": 5},
                 ],
-                synthesis_strategy="merge",
-                reasoning="四引擎策略",
+                "synthesis_strategy": "merge",
+                "reasoning": "四引擎策略",
+            }
+        )
+
+        with (
+            patch.object(
+                orchestrator,
+                "_quick_scan",
+                return_value=PDFCharacteristics(page_count=10, has_formulas=True),
+            ),
+            patch.object(
+                orchestrator,
+                "_llm_plan",
+                return_value=OrchestrationPlan(
+                    characteristics=PDFCharacteristics(
+                        page_count=10, has_formulas=True
+                    ),
+                    engine_tasks=[
+                        EngineTask(engine="docling", focus="full", priority=8),
+                        EngineTask(engine="mineru", focus="formulas", priority=7),
+                        EngineTask(engine="marker", focus="structure", priority=6),
+                        EngineTask(engine="pymupdf", focus="text", priority=5),
+                    ],
+                    synthesis_strategy="merge",
+                    reasoning="四引擎策略",
+                ),
             ),
         ):
             plan = await orchestrator._analyze_pdf(Path("/fake.pdf"), None)
@@ -633,8 +648,7 @@ class TestMultiEngineOrchestration:
         assert decision["primary_engine"] == "docling"
         # MinerU 公式维度更强，应被检测为补充源
         formula_supplements = [
-            s for s in decision["supplements"]
-            if s["content_type"] == "formulas"
+            s for s in decision["supplements"] if s["content_type"] == "formulas"
         ]
         assert len(formula_supplements) == 1
 
@@ -683,7 +697,12 @@ class TestMultiEngineOrchestration:
             patch.object(
                 orchestrator,
                 "_execute_engines",
-                return_value=[docling_result, mineru_failed, marker_failed, pymupdf_result],
+                return_value=[
+                    docling_result,
+                    mineru_failed,
+                    marker_failed,
+                    pymupdf_result,
+                ],
             ),
         ):
             result = await orchestrator.orchestrate(Path("/fake.pdf"))
@@ -725,11 +744,17 @@ class TestMultiEngineOrchestration:
         )
 
         with (
-            patch.object(orchestrator, "_run_mineru", return_value=mineru_engine_result),
-            patch.object(orchestrator, "_run_marker", return_value=marker_engine_result),
+            patch.object(
+                orchestrator, "_run_mineru", return_value=mineru_engine_result
+            ),
+            patch.object(
+                orchestrator, "_run_marker", return_value=marker_engine_result
+            ),
         ):
             results = await orchestrator._execute_engines(
-                Path("/fake.pdf"), plan, None,
+                Path("/fake.pdf"),
+                plan,
+                None,
             )
 
         assert len(results) == 2
@@ -764,7 +789,9 @@ class TestMultiEngineOrchestration:
             patch.object(MarkerEngine, "is_available", return_value=False),
         ):
             results = await orchestrator._execute_engines(
-                Path("/fake.pdf"), plan, None,
+                Path("/fake.pdf"),
+                plan,
+                None,
             )
 
         assert len(results) == 2

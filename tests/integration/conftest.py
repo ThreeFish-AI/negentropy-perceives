@@ -6,6 +6,7 @@
 
 import logging
 import time
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -112,10 +113,10 @@ def warm_docling_converter(gpu_docling_engine):
 
 # ── 共享 Docling 转换结果（Session 级，消除重复 PDF 处理） ────────
 
-from pathlib import Path
-
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
-_CE_PDF_PATH = _ASSETS_DIR / "Context Engineering 2.0 - The Context of Context Engineering.pdf"
+_CE_PDF_PATH = (
+    _ASSETS_DIR / "Context Engineering 2.0 - The Context of Context Engineering.pdf"
+)
 _ARXIV_PDF_PATH = _ASSETS_DIR / "2603.05344v3.pdf"
 
 

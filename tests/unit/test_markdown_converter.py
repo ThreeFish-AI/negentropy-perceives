@@ -331,7 +331,7 @@ class TestPostprocessMarkdown:
         def hello():
             print("Hello, World!")
         ```
-        
+
         ```
         function greet() {
             console.log("Hello!");
@@ -486,7 +486,6 @@ class TestContentExtraction:
         # article标签应该有优先级
         assert "Article Title" in result
         assert "Article content" in result
-
 
 
 class TestWebpageConversion:

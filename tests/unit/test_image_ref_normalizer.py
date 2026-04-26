@@ -11,7 +11,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-import pytest
 
 from negentropy.perceives.markdown.image_ref_normalizer import (
     ImageMeta,

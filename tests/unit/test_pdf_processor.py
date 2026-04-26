@@ -43,11 +43,11 @@
 
 ### PDF MCP 工具集成测试
 
-#### convert_pdf_to_markdown 工具测试
+#### parse_pdf_to_markdown 工具测试
 
 测试方法、输出格式、页面范围等参数的验证、本地 PDF 文件路径的处理、PDF URL 的下载和处理流程、各种错误情况的响应格式统一性。
 
-#### batch_convert_pdfs_to_markdown 工具测试
+#### parse_pdfs_to_markdown 工具测试
 
 测试 PDF 源列表的验证逻辑、批量处理的性能和准确性、成功和失败混合结果的处理、批量处理统计信息的准确性。
 """
@@ -81,12 +81,28 @@ class TestPDFProcessor:
         assert self.processor is not None
         assert hasattr(self.processor, "process_pdf")
         assert hasattr(self.processor, "batch_process_pdfs")
-        assert self.processor.supported_methods == ["pymupdf", "pypdf", "auto", "docling", "smart", "mineru", "marker"]
+        assert self.processor.supported_methods == [
+            "pymupdf",
+            "pypdf",
+            "auto",
+            "docling",
+            "smart",
+            "mineru",
+            "marker",
+        ]
         assert os.path.exists(self.processor.temp_dir)
 
     def test_supported_methods(self):
         """测试支持的方法列表"""
-        expected_methods = ["pymupdf", "pypdf", "auto", "docling", "smart", "mineru", "marker"]
+        expected_methods = [
+            "pymupdf",
+            "pypdf",
+            "auto",
+            "docling",
+            "smart",
+            "mineru",
+            "marker",
+        ]
         assert self.processor.supported_methods == expected_methods
 
     def test_url_detection(self):
@@ -294,14 +310,15 @@ class TestPyMuPDFExtraction:
         # (x0, y0, x1, y1, text/data, block_no, block_type)
         mock_page = Mock()
         mock_page.get_text.return_value = [
-            (0, 0, 500, 30, "Introduction paragraph.\n", 0, 0),    # text block
-            (0, 40, 500, 300, b"image_binary", 1, 1),               # image block
-            (0, 310, 500, 350, "Text after the image.\n", 2, 0),    # text block
+            (0, 0, 500, 30, "Introduction paragraph.\n", 0, 0),  # text block
+            (0, 40, 500, 300, b"image_binary", 1, 1),  # image block
+            (0, 310, 500, 350, "Text after the image.\n", 2, 0),  # text block
         ]
         mock_doc.load_page.return_value = mock_page
 
         # 预填充 _page_image_maps（模拟 _extract_enhanced_assets 已运行）
         from negentropy.perceives.pdf.enhanced import ExtractedImage
+
         self.processor._page_image_maps = {
             0: {
                 1: ExtractedImage(
@@ -617,7 +634,6 @@ class TestMarkdownConversion:
         text = "Line 1\n\n\nLine 2\n\n\n\nLine 3"
 
         result = self.processor._convert_to_markdown(text)
-        lines = result.split("\n")
 
         assert "Line 1" in result
         assert "Line 2" in result
@@ -949,7 +965,9 @@ class TestMinerUMarkerDispatch:
 
     def setup_method(self):
         """测试前准备"""
-        self.processor = PDFProcessor(enable_enhanced_features=False, prefer_docling=False)
+        self.processor = PDFProcessor(
+            enable_enhanced_features=False, prefer_docling=False
+        )
 
     def teardown_method(self):
         """测试后清理"""
@@ -1014,9 +1032,7 @@ class TestMinerUMarkerDispatch:
                 "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
                 return_value=True,
             ),
-            patch(
-                "negentropy.perceives.pdf.processor.MinerUEngine"
-            ) as MockEngine,
+            patch("negentropy.perceives.pdf.processor.MinerUEngine") as MockEngine,
         ):
             mock_engine_instance = MockEngine.return_value
             mock_engine_instance.convert.return_value = mock_result
@@ -1049,9 +1065,7 @@ class TestMinerUMarkerDispatch:
                 "negentropy.perceives.pdf.marker_engine.MarkerEngine.is_available",
                 return_value=True,
             ),
-            patch(
-                "negentropy.perceives.pdf.processor.MarkerEngine"
-            ) as MockEngine,
+            patch("negentropy.perceives.pdf.processor.MarkerEngine") as MockEngine,
         ):
             mock_engine_instance = MockEngine.return_value
             mock_engine_instance.convert.return_value = mock_result

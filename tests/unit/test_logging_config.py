@@ -2,9 +2,8 @@
 
 import logging
 
-from negentropy.perceives._logging import (
+from negentropy.perceives.core.logging import (
     LOG_DATE_FORMAT,
-    LOG_FORMAT,
     build_uvicorn_log_config,
     setup_logging,
 )
@@ -66,11 +65,14 @@ class TestBuildUvicornLogConfig:
         assert "loggers" in config
 
     def test_format_matches_app_format(self):
-        """Uvicorn 日志格式与应用日志格式一致。"""
+        """Uvicorn 日志格式与应用日志格式一致（使用相同的 ColoredFormatter）。"""
         config = build_uvicorn_log_config("INFO")
-        assert config["formatters"]["default"]["format"] == LOG_FORMAT
-        assert config["formatters"]["access"]["format"] == LOG_FORMAT
-        assert config["formatters"]["default"]["datefmt"] == LOG_DATE_FORMAT
+        for fmt_name in ("default", "access"):
+            assert (
+                config["formatters"][fmt_name]["()"]
+                == "negentropy.perceives.core.logging.ColoredFormatter"
+            )
+            assert config["formatters"][fmt_name]["datefmt"] == LOG_DATE_FORMAT
 
     def test_respects_log_level(self):
         """日志级别参数正确传递到 Uvicorn logger 配置。"""

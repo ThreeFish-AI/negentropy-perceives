@@ -1,21 +1,21 @@
 """MCP 工具注册枢纽。"""
 
 import logging
-from typing import Optional
 
 from fastmcp import FastMCP
 
 from ..config import settings
-from ..markdown.converter import MarkdownConverter
-from ..scraping import WebScraper
-from ._observability import elapsed_ms
-from ._support import (
+from ..core import (
     PDFMethod,
     PDFOutputFormat,
     ScrapeMethod,
-    normalize_extract_config as _normalize_extract_config,
-    validate_page_range as _validate_page_range,
-    validate_url as _validate_url,
+    create_pdf_processor,
+    elapsed_ms,
+    markdown_converter,
+    normalize_extract_config,
+    validate_page_range,
+    validate_url,
+    web_scraper,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,12 +27,12 @@ __all__ = [
     "PDFOutputFormat",
     # FastMCP 实例
     "app",
-    # 共享服务实例
+    # 共享服务实例（从 core re-export）
     "web_scraper",
     "markdown_converter",
-    # 工厂函数
+    # 工厂函数（从 core re-export）
     "create_pdf_processor",
-    # 辅助函数
+    # 辅助函数（从 core re-export）
     "validate_url",
     "validate_page_range",
     "normalize_extract_config",
@@ -42,23 +42,8 @@ __all__ = [
 # FastMCP application instance
 app = FastMCP(settings.server_name, version=settings.server_version)
 
-# Shared service instances
-web_scraper = WebScraper()
-markdown_converter = MarkdownConverter()
+# 注册任务级上下文中间件：在每次工具调用入口绑定 task_id / source / timing，
+# 并在出口输出任务完成摘要。
+from ._middleware import TaskContextMiddleware  # noqa: E402
 
-
-def create_pdf_processor(
-    enable_enhanced_features: bool = True, output_dir: Optional[str] = None
-):
-    """获取 PDF 处理器实例，延迟导入以避免启动警告"""
-    from ..pdf import PDFProcessor
-
-    return PDFProcessor(
-        enable_enhanced_features=enable_enhanced_features, output_dir=output_dir
-    )
-
-
-# 直接赋值导出（消除纯转发的中间层）
-validate_url = _validate_url
-validate_page_range = _validate_page_range
-normalize_extract_config = _normalize_extract_config
+app.add_middleware(TaskContextMiddleware())

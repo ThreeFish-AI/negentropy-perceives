@@ -29,70 +29,8 @@ async def mock_mcp_call(tool_name: str, params: dict[str, Any]) -> dict[str, Any
 # ---------------------------------------------------------------------------
 EXAMPLES: list[tuple[str, str, dict[str, Any]]] = [
     (
-        "Basic Webpage Scraping",
-        "scrape_webpage",
-        {"url": "https://httpbin.org/html", "method": "simple"},
-    ),
-    (
-        "Advanced Data Extraction",
-        "scrape_webpage",
-        {
-            "url": "https://example.com",
-            "method": "auto",
-            "extract_config": {
-                "title": "h1",
-                "paragraphs": {"selector": "p", "multiple": True, "attr": "text"},
-                "links": {"selector": "a", "multiple": True, "attr": "href"},
-                "meta_description": {
-                    "selector": "meta[name='description']",
-                    "attr": "content",
-                    "multiple": False,
-                },
-            },
-        },
-    ),
-    (
-        "Multiple URL Scraping",
-        "scrape_multiple_webpages",
-        {
-            "urls": [
-                "https://httpbin.org/html",
-                "https://httpbin.org/json",
-                "https://httpbin.org/xml",
-            ],
-            "method": "simple",
-            "extract_config": {"title": "title", "headings": "h1, h2, h3"},
-        },
-    ),
-    (
-        "Stealth Scraping",
-        "scrape_with_stealth",
-        {
-            "url": "https://example.com",
-            "method": "selenium",
-            "scroll_page": True,
-            "wait_for_element": "body",
-            "extract_config": {"content": {"selector": "body", "attr": "text"}},
-        },
-    ),
-    (
-        "Form Interaction",
-        "fill_and_submit_form",
-        {
-            "url": "https://httpbin.org/forms/post",
-            "form_data": {
-                "input[name='custname']": "John Doe",
-                "input[name='custtel']": "1234567890",
-                "input[name='custemail']": "john@example.com",
-                "select[name='size']": "large",
-            },
-            "submit": False,
-            "method": "selenium",
-        },
-    ),
-    (
-        "Link Extraction",
-        "extract_links",
+        "Link Discovery",
+        "discover_links",
         {
             "url": "https://example.com",
             "internal_only": False,
@@ -101,24 +39,54 @@ EXAMPLES: list[tuple[str, str, dict[str, Any]]] = [
         },
     ),
     (
-        "Structured Data Extraction",
-        "extract_structured_data",
-        {"url": "https://example.com/contact", "data_type": "all"},
-    ),
-    (
-        "Page Information",
-        "get_page_info",
+        "Page Inspection",
+        "inspect_page",
         {"url": "https://example.com"},
     ),
     (
-        "Robots.txt Check",
-        "check_robots_txt",
-        {"url": "https://example.com"},
+        "Webpage to Markdown",
+        "parse_webpage_to_markdown",
+        {
+            "url": "https://httpbin.org/html",
+            "method": "auto",
+            "extract_main_content": True,
+        },
     ),
     (
-        "Server Metrics",
-        "get_server_metrics",
-        {},
+        "Batch Webpages to Markdown",
+        "parse_webpages_to_markdown",
+        {
+            "urls": [
+                "https://httpbin.org/html",
+                "https://example.com",
+            ],
+            "method": "auto",
+            "extract_main_content": True,
+        },
+    ),
+    (
+        "PDF to Markdown",
+        "parse_pdf_to_markdown",
+        {
+            "pdf_source": "https://example.com/document.pdf",
+            "method": "auto",
+            "extract_images": True,
+            "extract_tables": True,
+            "extract_formulas": True,
+        },
+    ),
+    (
+        "Batch PDFs to Markdown",
+        "parse_pdfs_to_markdown",
+        {
+            "pdf_sources": [
+                "https://example.com/doc1.pdf",
+                "https://example.com/doc2.pdf",
+            ],
+            "method": "auto",
+            "extract_images": True,
+            "extract_tables": True,
+        },
     ),
 ]
 

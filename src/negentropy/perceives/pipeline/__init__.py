@@ -24,16 +24,16 @@
 """
 
 from .base import Stage, StageResult, StageTool
-from .competitive import CompetitiveStage
+from .scheduler import CompetitiveStage
 from .models import (
     # PDF Pipeline 模型
     AssemblyOutput,
     CodeDetectionOutput,
     DocumentCharacteristics,
     ExtractedCodeBlock,
-    ExtractedFormulaV2,
-    ExtractedImageV2,
-    ExtractedTableV2,
+    ExtractedFormula,
+    ExtractedImage,
+    ExtractedTable,
     FormulaExtractionOutput,
     ImageExtractionOutput,
     LayoutAnalysisOutput,
@@ -74,11 +74,11 @@ __all__ = [
     "LayoutAnalysisOutput",
     "TextBlock",
     "TextExtractionOutput",
-    "ExtractedTableV2",
+    "ExtractedTable",
     "TableExtractionOutput",
-    "ExtractedFormulaV2",
+    "ExtractedFormula",
     "FormulaExtractionOutput",
-    "ExtractedImageV2",
+    "ExtractedImage",
     "ImageExtractionOutput",
     "ExtractedCodeBlock",
     "CodeDetectionOutput",

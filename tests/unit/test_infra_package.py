@@ -1,7 +1,5 @@
 """infra/ 子包结构与向后兼容性验证。"""
 
-import pytest
-
 
 class TestInfraPackageExports:
     """验证 infra/ 子包的 __init__.py 导出完整性。"""
@@ -35,11 +33,9 @@ class TestInfraPackageExports:
         assert callable(is_valid_url)
         assert callable(normalize_url)
 
-    def test_import_parsing_facade_classes(self):
-        from negentropy.perceives.infra import TextCleaner, URLValidator
+    def test_import_validate_url(self):
+        from negentropy.perceives.infra import validate_url
 
-        assert TextCleaner is not None
-        assert URLValidator is not None
-
-
-
+        assert callable(validate_url)
+        assert validate_url("https://example.com") is None
+        assert validate_url("not-a-url") is not None

@@ -15,13 +15,12 @@
 """
 
 import pytest
-import asyncio
 import time
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock
 
 from negentropy.perceives.infra import RateLimiter, rate_limiter
 from negentropy.perceives.infra import RetryManager, retry_manager
-from negentropy.perceives.infra import URLValidator, TextCleaner
+from negentropy.perceives.infra import is_valid_url, clean_text, extract_emails
 from negentropy.perceives.tools._registry import normalize_extract_config
 
 
@@ -149,32 +148,34 @@ class TestRetryManager:
 
         assert delay_1 == 2.0
         assert delay_2 == 4.0
+
+
 class TestUtilityFunctions:
     """Test standalone utility functions."""
 
-    def test_url_validator_valid_urls(self):
-        """Test URLValidator with valid URLs."""
-        assert URLValidator.is_valid_url("https://example.com") is True
-        assert URLValidator.is_valid_url("http://test.org/path?query=value") is True
-        assert URLValidator.is_valid_url("https://sub.domain.com:8080") is True
+    def test_is_valid_url_with_valid_urls(self):
+        """Test is_valid_url with valid URLs."""
+        assert is_valid_url("https://example.com") is True
+        assert is_valid_url("http://test.org/path?query=value") is True
+        assert is_valid_url("https://sub.domain.com:8080") is True
 
-    def test_url_validator_invalid_urls(self):
-        """Test URLValidator with invalid URLs."""
-        assert URLValidator.is_valid_url("not-a-url") is False
-        assert URLValidator.is_valid_url("") is False
+    def test_is_valid_url_with_invalid_urls(self):
+        """Test is_valid_url with invalid URLs."""
+        assert is_valid_url("not-a-url") is False
+        assert is_valid_url("") is False
 
-    def test_text_cleaner_clean_text(self):
-        """Test TextCleaner text cleaning."""
+    def test_clean_text_basic(self):
+        """Test clean_text basic cleaning."""
         dirty_text = "  \n\t  Hello   World  \r\n  "
-        cleaned = TextCleaner.clean_text(dirty_text)
+        cleaned = clean_text(dirty_text)
 
         assert cleaned == "Hello World"
 
-    def test_text_cleaner_remove_html_tags(self):
-        """Test TextCleaner text processing."""
+    def test_clean_text_email_extraction(self):
+        """Test email extraction."""
         # Test email extraction
         text_with_email = "Contact us at test@example.com for more info"
-        emails = TextCleaner.extract_emails(text_with_email)
+        emails = extract_emails(text_with_email)
         assert "test@example.com" in emails
 
     def test_normalize_extract_config_valid(self):
@@ -201,4 +202,3 @@ class TestUtilityFunctions:
         """Test global utility instances are properly initialized."""
         assert rate_limiter is not None
         assert retry_manager is not None
-

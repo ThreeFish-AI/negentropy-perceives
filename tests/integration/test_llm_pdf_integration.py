@@ -96,9 +96,7 @@ class TestSmartModeDegradation:
         processor = PDFProcessor(enable_enhanced_features=False)
         try:
             with patch.object(LLMClient, "is_available", return_value=False):
-                result = await processor.process_pdf(
-                    str(CE_PDF), method="smart"
-                )
+                result = await processor.process_pdf(str(CE_PDF), method="smart")
             assert result["success"] is True
             # 降级后不应是 smart 方法
             assert result.get("method_used") != "smart"
@@ -116,14 +114,15 @@ class TestSmartModeDegradation:
         processor = PDFProcessor(enable_enhanced_features=False)
         try:
             # LLMClient.__init__ 抛异常以触发 except 分支降级
-            with patch.object(LLMClient, "is_available", return_value=True), \
-                 patch.object(
-                     LLMClient, "__init__",
-                     side_effect=RuntimeError("模拟 LLM 初始化失败"),
-                 ):
-                result = await processor.process_pdf(
-                    str(CE_PDF), method="smart"
-                )
+            with (
+                patch.object(LLMClient, "is_available", return_value=True),
+                patch.object(
+                    LLMClient,
+                    "__init__",
+                    side_effect=RuntimeError("模拟 LLM 初始化失败"),
+                ),
+            ):
+                result = await processor.process_pdf(str(CE_PDF), method="smart")
             assert result["success"] is True
             assert result.get("method_used") != "smart"
         finally:
@@ -207,9 +206,7 @@ class TestSmartModeCEPDF:
         assert "engines_used" in orch_info
         assert len(orch_info["engines_used"]) > 0
         logger.info(
-            "编排信息:\n"
-            "  引擎: %s\n"
-            "  融合理由: %s",
+            "编排信息:\n  引擎: %s\n  融合理由: %s",
             orch_info.get("engines_used"),
             orch_info.get("synthesis_reasoning", "")[:200],
         )
@@ -327,9 +324,7 @@ class TestSmartVsDoclingComparison:
             )
 
             # 提取质量信号并记录对比
-            smart_signals = _extract_quality_signals(
-                smart_result.get("markdown", "")
-            )
+            smart_signals = _extract_quality_signals(smart_result.get("markdown", ""))
             docling_signals = _extract_quality_signals(
                 docling_result.get("markdown", "")
             )
@@ -397,9 +392,7 @@ class TestLLMOrchestratorDirectIntegration:
         result = await orchestrator.orchestrate(CE_PDF)
 
         assert isinstance(result, OrchestrationResult)
-        assert len(result.content) > 100, (
-            f"编排输出过短: {len(result.content)} 字符"
-        )
+        assert len(result.content) > 100, f"编排输出过短: {len(result.content)} 字符"
         assert result.method_used == "smart"
         assert len(result.engines_used) > 0
 

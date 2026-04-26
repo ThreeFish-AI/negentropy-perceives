@@ -1,7 +1,7 @@
 """无状态文本与 URL 解析工具集。"""
 
 import re
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
 
 
@@ -43,6 +43,14 @@ def is_valid_url(url: str) -> bool:
         return False
 
 
+def validate_url(url: str) -> Optional[str]:
+    """校验 URL 格式，返回错误信息或 None。"""
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return "Invalid URL format"
+    return None
+
+
 def normalize_url(url: str) -> str:
     """规范化 URL 格式。"""
     if not url.startswith(("http://", "https://")):
@@ -57,19 +65,3 @@ def normalize_url(url: str) -> str:
 def extract_domain(url: str) -> str:
     """从 URL 中提取域名。"""
     return urlparse(url).netloc
-
-
-class TextCleaner:
-    """清洗与处理提取的文本（向后兼容 facade）。"""
-
-    clean_text = staticmethod(clean_text)
-    extract_emails = staticmethod(extract_emails)
-    extract_phone_numbers = staticmethod(extract_phone_numbers)
-
-
-class URLValidator:
-    """校验与规范化 URL（向后兼容 facade）。"""
-
-    is_valid_url = staticmethod(is_valid_url)
-    normalize_url = staticmethod(normalize_url)
-    extract_domain = staticmethod(extract_domain)

@@ -1,7 +1,5 @@
 """src/negentropy/perceives/markdown/html_preprocessor.py 数学元素保护的单元测试。"""
 
-import pytest
-
 from negentropy.perceives.markdown.html_preprocessor import (
     _extract_latex_from_annotation,
     _preserve_math_elements,

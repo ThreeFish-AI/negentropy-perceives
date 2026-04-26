@@ -26,100 +26,129 @@ server:
 
 # ── 传输层 ────────────────────────────────────────────────────────────────────
 transport:
-  mode: http                    # MCP 传输协议：stdio / http / sse
+  mode: http # MCP 传输协议：stdio / http / sse
 
 http:
-  host: localhost               # HTTP 服务器绑定主机
-  port: 8081                    # HTTP 服务器监听端口
-  path: /mcp                    # HTTP 端点路径
-  cors_origins: "*"             # CORS 来源白名单（* 允许所有，null 禁用）
+  host: localhost # HTTP 服务器绑定主机
+  port: 2992 # HTTP 服务器监听端口
+  path: /mcp # HTTP 端点路径
+  cors_origins: "*" # CORS 来源白名单（* 允许所有，null 禁用）
 
 # ── 抓取引擎 ──────────────────────────────────────────────────────────────────
-concurrent_requests: 16         # 并发请求上限（> 0）
-download_delay: 1.0             # 下载间隔，单位秒（>= 0）
-randomize_download_delay: true  # 随机化下载间隔
+concurrent_requests: 16 # 并发请求上限（> 0）
+download_delay: 1.0 # 下载间隔，单位秒（>= 0）
+randomize_download_delay: true # 随机化下载间隔
 
 autothrottle:
-  enabled: true                 # 启用自动节流
-  start_delay: 1.0              # 自动节流初始延迟，单位秒
-  max_delay: 60.0               # 自动节流最大延迟，单位秒
-  target_concurrency: 1.0       # 自动节流目标并发度
+  enabled: true # 启用自动节流
+  start_delay: 1.0 # 自动节流初始延迟，单位秒
+  max_delay: 60.0 # 自动节流最大延迟，单位秒
+  target_concurrency: 1.0 # 自动节流目标并发度
 
 # ── 速率限制 ──────────────────────────────────────────────────────────────────
 rate_limit:
-  requests_per_minute: 60       # 每分钟请求频率上限（>= 1）
+  requests_per_minute: 60 # 每分钟请求频率上限（>= 1）
 
 # ── 重试策略 ──────────────────────────────────────────────────────────────────
-max_retries: 3                  # 失败重试最大次数（>= 0）
-retry_delay: 1.0                # 重试间隔，单位秒（>= 0）
+max_retries: 3 # 失败重试最大次数（>= 0）
+retry_delay: 1.0 # 重试间隔，单位秒（>= 0）
 
 # ── 缓存系统 ──────────────────────────────────────────────────────────────────
-enable_caching: true            # 启用响应缓存
+enable_caching: true # 启用响应缓存
 cache:
-  ttl_hours: 24                 # 缓存生存时间，单位小时（> 0）
+  ttl_hours: 24 # 缓存生存时间，单位小时（> 0）
 
 # ── 日志系统 ──────────────────────────────────────────────────────────────────
 log:
-  level: INFO                   # 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL
-  requests: null                # 记录请求详情（可选）
-  responses: null               # 记录响应详情（可选）
+  level: INFO # 日志级别：DEBUG / INFO / WARNING / ERROR / CRITICAL
+  requests: null # 记录请求详情（可选）
+  responses: null # 记录响应详情（可选）
 
 # ── 浏览器引擎 ────────────────────────────────────────────────────────────────
-enable_javascript: false        # 启用 JavaScript 执行
+enable_javascript: false # 启用 JavaScript 执行
 
 browser:
-  headless: true                # 无头浏览器模式
-  timeout: 30                   # 浏览器操作超时，单位秒
-  window_size: "1920x1080"      # 浏览器窗口尺寸
+  headless: true # 无头浏览器模式
+  timeout: 30 # 浏览器操作超时，单位秒
+  window_size: "1920x1080" # 浏览器窗口尺寸
 
 # ── 用户代理 ──────────────────────────────────────────────────────────────────
-use_random_user_agent: true     # 启用随机 User-Agent 轮换
+use_random_user_agent: true # 启用随机 User-Agent 轮换
 default_user_agent: >-
   Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
   (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
 
 # ── 代理服务 ──────────────────────────────────────────────────────────────────
-use_proxy: false                # 启用代理服务器
-proxy_url: null                 # 代理服务器 URL（启用代理时必填）
+use_proxy: false # 启用代理服务器
+proxy_url: null # 代理服务器 URL（启用代理时必填）
 
 # ── 请求设置 ──────────────────────────────────────────────────────────────────
-request_timeout: 30.0           # HTTP 请求超时，单位秒（> 0）
+request_timeout: 30.0 # HTTP 请求超时，单位秒（> 0）
+
+# ── 任务超时（PDF / Webpage 解析任务级兜底） ────────────────────────────────
+task_timeout_seconds: 300 # 单个解析任务默认最长耗时（秒），超过将中止并返回错误，可被 MCP 入参 timeout 覆盖
+
+# ── PDF 引擎进程池（取消传导 + 资源真释放） ────────────────────────────────
+pdf_engine_isolation: process # 引擎隔离策略：process（默认，kill 子进程释放 GPU/CPU）/ thread（兜底）/ inline（调试）
+pdf_worker_pool_size: 1 # 每种 PDF 引擎的 warm worker 数量（1 足以覆盖 95% 单实例场景）
+pdf_worker_max_tasks: 50 # 单个 worker 处理任务数上限；达到后自动回收以防内存泄漏
+pdf_worker_kill_grace_seconds: 2.0 # 取消时先 terminate，等待此秒数仍存活再 kill
 
 # ── LLM 编排（Smart 模式，需安装 litellm 可选依赖）─────────────────────────
 llm:
-  api_key: null                 # LLM API Key（ZhipuAI）
-  model: zhipu/glm-5-plus-250414  # LiteLLM 模型标识
-  temperature: 0.1              # LLM 温度参数（0.0 ~ 2.0）
-  max_tokens: 4096              # LLM 最大输出 token（> 0）
-  timeout: 60.0                 # LLM API 超时，单位秒（> 0）
-  max_retries: 2                # LLM API 重试次数（>= 0）
+  api_key: null # LLM API Key
+  api_base_url: null # LLM API Base URL（OpenAI 兼容协议，如 https://api.openai.com/v1）
+  model: gpt-5.4-mini # LiteLLM 模型标识
+  temperature: 0.1 # LLM 温度参数（0.0 ~ 2.0）
+  max_tokens: 4096 # LLM 最大输出 token（> 0）
+  timeout: 60.0 # LLM API 超时，单位秒（> 0）
+  max_retries: 2 # LLM API 重试次数（>= 0）
 
 # ── 硬件加速 ──────────────────────────────────────────────────────────────────
 accelerator:
-  device: auto                  # 推理设备：auto / cpu / cuda / mps / xpu
-  num_threads: 4                # CPU 推理线程数（>= 1）
-  ocr_batch_size: 0             # OCR 推理 batch size（0 = 自动推断）
-  layout_batch_size: 0          # Layout 推理 batch size（0 = 自动推断）
-  table_batch_size: 0           # Table 推理 batch size（0 = 自动推断）
+  device: auto # 推理设备：auto / cpu / cuda / mps / xpu
+  num_threads: 8 # CPU 推理线程数（>= 1）
+  ocr_batch_size: 0 # OCR 推理 batch size（0 = 自动推断）
+  layout_batch_size: 0 # Layout 推理 batch size（0 = 自动推断）
+  table_batch_size: 0 # Table 推理 batch size（0 = 自动推断）
 
 # ── Docling PDF 引擎（需安装 docling 可选依赖）────────────────────────────────
+# 默认 enabled=true：是否真实参与调度由运行时 is_available() 能力检测决定
+# （包未安装会在 Stage 初始化时被自动过滤跳过，不会破坏默认可用性）。
+# 如需在已安装环境中显式禁用，可设 enabled=false 或环境变量
+# NEGENTROPY_PERCEIVES_DOCLING_ENABLED=false。
 docling:
-  enabled: false                # 启用 Docling 作为 PDF 提取引擎
-  ocr_enabled: true             # 为扫描版 PDF 启用 OCR
-  table_extraction_enabled: true   # 启用 Docling 高级表格提取
+  enabled: true # 启用 Docling 作为 PDF 提取引擎
+  ocr_enabled: true # 为扫描版 PDF 启用 OCR
+  table_extraction_enabled: true # 启用 Docling 高级表格提取
   formula_extraction_enabled: true # 启用 Docling 数学公式提取
 
 # ── MinerU PDF 引擎（需安装 mineru 可选依赖）─────────────────────────────────
+# 默认 enabled=true；运行时 is_available() 过滤未安装情形。
 mineru:
-  enabled: false                # 启用 MinerU 作为 PDF 提取引擎
-  device: auto                  # MinerU 推理设备：auto / cpu / mlx / cuda
-  backend: auto                 # MinerU 后端：auto / pipeline / vlm
+  enabled: true # 启用 MinerU 作为 PDF 提取引擎
+  device: auto # MinerU 推理设备：auto / cpu / mlx / cuda
+  backend: auto # MinerU 后端：auto / pipeline / vlm
 
 # ── Marker PDF 引擎（需安装 marker-pdf 可选依赖）──────────────────────────────
+# 默认 enabled=true；运行时 is_available() 过滤未安装情形。
 marker:
-  enabled: false                # 启用 Marker 作为 PDF 提取引擎
-  llm_enhanced: false           # 启用 Marker LLM 增强模式
-  license_acknowledged: false   # 确认 Marker GPL-3.0 许可证条款
+  enabled: true # 启用 Marker 作为 PDF 提取引擎
+  llm_enhanced: false # 启用 Marker LLM 增强模式
+  license_acknowledged: false # 确认 Marker GPL-3.0 许可证条款
+
+# ── PDF 图片资产打包（MCP 响应体）─────────────────────────────────────────────
+# 控制是否将提取的图片以 base64 内嵌到 MCP 响应中。
+# 关闭不影响磁盘侧 output_dir/images/ 产出。
+pdf:
+  bundle_images_in_response: true # 将图片 base64 放入 MCP 响应的 image_assets 字段
+  image_max_base64_kb: 2048 # 单张图片 base64 上限（KB）；超限先 JPEG q=75 重压缩，仍超则跳过
+  bundle_total_base64_mb: 32 # 响应体图片总量上限（MB）；超阈值停止追加
+  # 表格质量过滤（PyMuPDF find_tables 兜底启发式；false 时回退原行为）
+  table_quality_filter_enabled: true
+  table_quality_min_occupancy: 0.40 # 非空单元格占比下限
+  table_quality_max_weak_cols_ratio: 0.5 # 弱列（非空率 < 40%）数量占比上限
+  table_quality_min_unique_cells: 3 # 去重后单元格种类下限
 
 # ── Pipeline 编排配置 ────────────────────────────────────────────────────────
 # 定义 PDF 和 WebPage 两条处理管线的 Stage 列表、工具排名和竞争模式。
@@ -130,7 +159,6 @@ marker:
 #   引擎级 enabled=false → 该引擎在所有 Stage 中不可用
 #   引擎级 enabled=true + Stage 级 enabled=false → 引擎已安装但不参与此 Stage
 pipeline:
-
   # ── PDF → Markdown 管线 ──────────────────────────────────────────────────
   pdf:
     stages:
@@ -146,6 +174,7 @@ pipeline:
       # S1: 文档特征快速扫描（为后续 Stage 提供路由决策依据）
       - name: quick_scan
         description: "轻量级文档特征分析（页数、表格、公式、图片、布局复杂度）"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -155,6 +184,7 @@ pipeline:
       # S2: 版面分析与阅读顺序（不稳定，建议竞争模式）
       - name: layout_analysis
         description: "检测文档物理布局结构，确定正确阅读顺序"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -170,12 +200,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 4 个，放开至与候选数一致，避免 rank 靠后工具（marker/pymupdf）被硬截断
+          max_concurrent: 4
           timeout: 120
 
       # S3: 文本内容提取（稳定，降级模式即可）
       - name: text_extraction
         description: "从各文本区域中提取纯文本，保留段落结构与标题层级"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -191,6 +223,7 @@ pipeline:
       # S4: 表格识别与提取（不稳定，建议竞争模式）
       - name: table_extraction
         description: "结构化表格识别与 Markdown 表格生成"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -206,12 +239,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 4 个，放开至与候选数一致
+          max_concurrent: 4
           timeout: 60
 
       # S5: 数学公式提取（不稳定，建议竞争模式）
       - name: formula_extraction
         description: "数学公式检测与 LaTeX 转换"
+        input_from: preprocessing
         tools:
           - name: mineru
             rank: 1
@@ -224,12 +259,14 @@ pipeline:
             enabled: true
         competition_mode: true
         competition:
-          max_concurrent: 2
+          # 候选工具 3 个，放开至与候选数一致
+          max_concurrent: 3
           timeout: 60
 
       # S6: 图片/图形提取（稳定）
       - name: image_extraction
         description: "图片提取、分类与 caption 生成"
+        input_from: preprocessing
         tools:
           - name: pymupdf
             rank: 1
@@ -239,6 +276,7 @@ pipeline:
       # S7: 代码块识别（不稳定，建议竞争模式）
       - name: code_detection
         description: "代码块识别与编程语言推断"
+        input_from: preprocessing
         tools:
           - name: docling
             rank: 1
@@ -251,18 +289,20 @@ pipeline:
           max_concurrent: 2
           timeout: 30
 
-      # S8: Markdown 组装与排版
+      # S8: Markdown 组装与排版（复合输入：汇聚各前序 Stage 结果）
       - name: assembly
         description: "将各 Stage 产出按阅读顺序组装为最终 Markdown 文档"
+        input_builder: assembly
         tools:
           - name: builtin_assembler
             rank: 1
             enabled: true
         competition_mode: false
 
-      # S9: 资源打包
+      # S9: 资源打包（复合输入：assembly + image_extraction + preprocessing）
       - name: asset_bundling
         description: "整理提取的资源文件，生成最终输出包"
+        input_builder: asset_bundling
         tools:
           - name: builtin_bundler
             rank: 1
@@ -407,11 +447,11 @@ pipeline:
   # ── 全局 Pipeline 默认配置 ──────────────────────────────────────────────
   defaults:
     competition:
-      max_concurrent: 2               # 默认并行竞争工具数
-      timeout: 120                    # 默认单工具超时（秒）
+      max_concurrent: 2 # 默认并行竞争工具数
+      timeout: 120 # 默认单工具超时（秒）
       judge:
-        enabled: true                 # 启用 LLM 评审
-        strategy: best_of             # best_of / merge / weighted
-        model: null                   # null = 继承顶层 llm.model
+        enabled: true # 启用 LLM 评审
+        strategy: best_of # best_of / merge / weighted
+        model: null # null = 继承顶层 llm.model
         temperature: 0.1
         max_tokens: 2048

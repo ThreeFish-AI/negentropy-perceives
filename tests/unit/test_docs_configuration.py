@@ -70,7 +70,8 @@ class TestConfigGroupCompleteness:
             for match in self.TABLE_ROW_PATTERN.findall(env_var_doc_content)
         }
         code_fields = {
-            name for name in NegentropyPerceivesSettings.model_fields
+            name
+            for name in NegentropyPerceivesSettings.model_fields
             if name not in _EXCLUDED_FIELDS
         }
         missing = code_fields - table_fields

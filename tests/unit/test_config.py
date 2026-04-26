@@ -4,7 +4,6 @@
 """
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,7 +13,6 @@ from pydantic import ValidationError
 from negentropy.perceives import __version__
 from negentropy.perceives.config import (
     NegentropyPerceivesSettings,
-    _config_path_override,
     _flatten_nested_yaml,
     _get_user_config_path,
     _load_bundled_yaml,
@@ -329,7 +327,7 @@ class TestConfigurationEdgeCases:
     def test_missing_environment_variables(self):
         """测试环境变量缺失时的处理"""
         # 清空相关环境变量
-        env_vars_to_clear = [
+        _env_vars_to_clear = [
             "NEGENTROPY_PERCEIVES_SERVER_NAME",
             "NEGENTROPY_PERCEIVES_ENABLE_JAVASCRIPT",
             "NEGENTROPY_PERCEIVES_CONCURRENT_REQUESTS",
@@ -421,8 +419,8 @@ class TestDeepMerge:
         override = {"server": {"port": 9000}}
         result = deep_merge(base, override)
         assert result["server"]["host"] == "localhost"  # 来自 base
-        assert result["server"]["port"] == 9000       # 来自 override
-        assert result["debug"] is False               # 来自 base
+        assert result["server"]["port"] == 9000  # 来自 override
+        assert result["debug"] is False  # 来自 base
 
     def test_list_replacement(self):
         """列表值整体替换：不逐元素合并。"""
@@ -436,9 +434,9 @@ class TestDeepMerge:
         base = {"a": 1, "b": 2}
         override = {"a": None, "c": 3}
         result = deep_merge(base, override)
-        assert result["a"] == 1   # base 值保留
-        assert result["b"] == 2   # base 值保留
-        assert result["c"] == 3   # 新增键正常
+        assert result["a"] == 1  # base 值保留
+        assert result["b"] == 2  # base 值保留
+        assert result["c"] == 3  # 新增键正常
 
     def test_empty_override_returns_base_copy(self):
         """空 override 返回 base 的浅拷贝。"""
@@ -472,8 +470,8 @@ class TestDeepMerge:
         base = {"a": {"b": 1}}
         override = {"a": {"c": 2}}
         _ = deep_merge(base, override)
-        assert base == {"a": {"b": 1}}      # base 未变
-        assert override == {"a": {"c": 2}}   # override 未变
+        assert base == {"a": {"b": 1}}  # base 未变
+        assert override == {"a": {"c": 2}}  # override 未变
 
 
 # ============================================================
@@ -518,7 +516,9 @@ class TestYamlConfigLoading:
     def test_load_valid_yaml_file(self, tmp_path):
         """有效 YAML 文件可正确解析。"""
         yaml_file = tmp_path / "test.yaml"
-        yaml_file.write_text("transport_mode: stdio\nhttp_port: 9999\n", encoding="utf-8")
+        yaml_file.write_text(
+            "transport_mode: stdio\nhttp_port: 9999\n", encoding="utf-8"
+        )
         result = _load_yaml_file(yaml_file)
         assert result is not None
         assert result["transport_mode"] == "stdio"
@@ -545,14 +545,23 @@ class TestYamlConfigLoading:
 class TestBuildSettings:
     """测试 build_settings 配置构建函数。"""
 
-    def test_build_with_defaults_only(self):
+    def test_build_with_defaults_only(self, tmp_path):
         """仅使用内置默认构建配置，所有字段有合理默认值。"""
-        cfg = build_settings()
-        assert cfg.server_name == "negentropy-perceives"
-        assert cfg.transport_mode == "http"
-        assert cfg.http_port == 8081
-        assert cfg.concurrent_requests == 16
-        assert cfg.log_level == "INFO"
+        import negentropy.perceives.config as config_module
+
+        # 隔离用户配置文件，确保仅 bundled 默认生效
+        with patch.object(
+            config_module,
+            "_get_user_config_path",
+            return_value=tmp_path / "nonexistent.yaml",
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = build_settings()
+                assert cfg.server_name == "negentropy-perceives"
+                assert cfg.transport_mode == "http"
+                assert cfg.http_port == 2992
+                assert cfg.concurrent_requests == 16
+                assert cfg.log_level == "INFO"
 
     def test_build_with_custom_yaml(self, tmp_path):
         """自定义 YAML 覆盖默认值（显式 -c 配置优先级高于环境变量）。"""
@@ -577,9 +586,7 @@ class TestBuildSettings:
         yaml_file = tmp_path / "custom.yaml"
         yaml_file.write_text(yaml_content, encoding="utf-8")
 
-        with patch.dict(
-            os.environ, {"NEGENTROPY_PERCEIVES_TRANSPORT_MODE": "http"}
-        ):
+        with patch.dict(os.environ, {"NEGENTROPY_PERCEIVES_TRANSPORT_MODE": "http"}):
             cfg = build_settings(config_path=str(yaml_file))
             # -c 值通过 init_settings 传入，优先级高于环境变量
             assert cfg.transport_mode == "sse"  # -c wins
@@ -665,6 +672,71 @@ class TestCliIntegration:
         assert args.config == "/tmp/x.yaml"
         assert args.init_config is True
 
+    def test_parse_force_flag(self):
+        """--force 标志正确解析。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args(["--init-config", "--force"])
+        assert args.init_config is True
+        assert args.force is True
+
+    def test_parse_no_force_flag(self):
+        """不带 --force 时 force 为 False。"""
+        from negentropy.perceives.apps.app import _parse_args
+
+        args = _parse_args([])
+        assert args.force is False
+
+    def test_ensure_user_config_creates_template(self, tmp_path):
+        """首次运行时生成最小化模板（非完整副本）。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config()
+
+        assert config_path.exists()
+        content = config_path.read_text(encoding="utf-8")
+        # 模板应包含注释引导
+        assert "配置优先级" in content
+        # 模板不应包含完整默认值（仅含注释示例）
+        assert "port: 8081" not in content or content.strip().startswith("#")
+
+    def test_ensure_user_config_force_creates_full_copy(self, tmp_path):
+        """--force 模式生成完整的内置默认配置副本。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config(force=True)
+
+        assert config_path.exists()
+        content = config_path.read_text(encoding="utf-8")
+        # 完整副本应包含实际配置值
+        assert "negentropy-perceives" in content
+
+    def test_ensure_user_config_skips_existing(self, tmp_path):
+        """已有配置文件时不覆盖。"""
+        from negentropy.perceives.apps.app import _ensure_user_config
+
+        config_path = tmp_path / ".negentropy" / "perceives.config.yaml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("existing: config\n", encoding="utf-8")
+
+        with patch(
+            "negentropy.perceives.apps.app._get_user_config_path",
+            return_value=config_path,
+        ):
+            _ensure_user_config()
+
+        assert config_path.read_text(encoding="utf-8") == "existing: config\n"
+
 
 # ============================================================
 # MinerU 引擎配置字段验证
@@ -673,15 +745,13 @@ class TestMinerUConfigFields:
     """测试 MinerU 引擎相关配置字段。"""
 
     def test_mineru_enabled_default(self):
-        """MinerU 引擎默认禁用。"""
+        """MinerU 引擎默认启用（运行时 is_available() 真实决定是否参与调度）。"""
         config = NegentropyPerceivesSettings()
-        assert config.mineru_enabled is False
+        assert config.mineru_enabled is True
 
     def test_mineru_enabled_env_override(self):
         """环境变量 NEGENTROPY_PERCEIVES_MINERU_ENABLED=true 应启用 MinerU。"""
-        with patch.dict(
-            os.environ, {"NEGENTROPY_PERCEIVES_MINERU_ENABLED": "true"}
-        ):
+        with patch.dict(os.environ, {"NEGENTROPY_PERCEIVES_MINERU_ENABLED": "true"}):
             config = NegentropyPerceivesSettings()
             assert config.mineru_enabled is True
 
@@ -698,9 +768,7 @@ class TestMinerUConfigFields:
 
     def test_mineru_device_env_override(self):
         """环境变量覆盖 MinerU 推理设备。"""
-        with patch.dict(
-            os.environ, {"NEGENTROPY_PERCEIVES_MINERU_DEVICE": "mlx"}
-        ):
+        with patch.dict(os.environ, {"NEGENTROPY_PERCEIVES_MINERU_DEVICE": "mlx"}):
             config = NegentropyPerceivesSettings()
             assert config.mineru_device == "mlx"
 
@@ -731,15 +799,13 @@ class TestMarkerConfigFields:
     """测试 Marker 引擎相关配置字段。"""
 
     def test_marker_enabled_default(self):
-        """Marker 引擎默认禁用。"""
+        """Marker 引擎默认启用（运行时 is_available() 决定是否真实参与调度）。"""
         config = NegentropyPerceivesSettings()
-        assert config.marker_enabled is False
+        assert config.marker_enabled is True
 
     def test_marker_enabled_env_override(self):
         """环境变量覆盖 Marker 启用状态。"""
-        with patch.dict(
-            os.environ, {"NEGENTROPY_PERCEIVES_MARKER_ENABLED": "true"}
-        ):
+        with patch.dict(os.environ, {"NEGENTROPY_PERCEIVES_MARKER_ENABLED": "true"}):
             config = NegentropyPerceivesSettings()
             assert config.marker_enabled is True
 
@@ -794,10 +860,10 @@ class TestMultiEngineConfigIntegration:
     def test_all_engine_configs_default(self):
         """Docling、MinerU、Marker 默认值验证。"""
         config = NegentropyPerceivesSettings()
-        # 各引擎默认禁用
-        assert config.docling_enabled is False
-        assert config.mineru_enabled is False
-        assert config.marker_enabled is False
+        # 各引擎默认启用（运行时 is_available() 为单一事实源，未装依赖会自动跳过）
+        assert config.docling_enabled is True
+        assert config.mineru_enabled is True
+        assert config.marker_enabled is True
 
     def test_all_engine_configs_enabled(self):
         """各引擎可独立启用。"""
@@ -889,11 +955,11 @@ class TestBundledDefaultAsSource:
         yaml_file.write_text(yaml_content, encoding="utf-8")
 
         cfg = build_settings(config_path=str(yaml_file))
-        assert cfg.transport_mode == "stdio"       # 用户覆盖
-        assert cfg.http_port == 9999                # 用户覆盖
+        assert cfg.transport_mode == "stdio"  # 用户覆盖
+        assert cfg.http_port == 9999  # 用户覆盖
         assert cfg.server_name == "negentropy-perceives"  # 内置默认保留
-        assert cfg.concurrent_requests == 16        # 内置默认保留
-        assert cfg.log_level == "INFO"              # 内置默认保留
+        assert cfg.concurrent_requests == 16  # 内置默认保留
+        assert cfg.log_level == "INFO"  # 内置默认保留
 
     def test_env_var_overrides_merged_yaml(self, tmp_path):
         """环境变量优先于用户 YAML 配置（无 -c 时，使用 ~/.negentropy/ 路径）。
@@ -907,13 +973,66 @@ class TestBundledDefaultAsSource:
 
         # 模拟无 -c 场景：将 yaml_file 作为用户配置路径（非 -c 显式指定）
         import negentropy.perceives.config as config_module
-        original_get_user_config_path = config_module._get_user_config_path
-        with patch.object(config_module, '_get_user_config_path', return_value=yaml_file):
-            with patch.dict(os.environ, {}, clear=True):
-                os.environ["NEGENTROPY_PERCEIVES_HTTP_PORT"] = "9999"
-                cfg = build_settings(config_path=None)  # 无 -c，走 _UserYamlConfigSource 路径
-                # env_settings > _UserYamlConfigSource（init_settings 为空时）
+
+        with patch.object(
+            config_module, "_get_user_config_path", return_value=yaml_file
+        ):
+            with patch.dict(
+                os.environ,
+                {"NEGENTROPY_PERCEIVES_HTTP_PORT": "9999"},
+                clear=False,
+            ):
+                cfg = build_settings(config_path=None)
+                # env_settings > _UserYamlConfigSource
                 assert cfg.http_port == 9999  # 环境变量胜出
+
+    def test_bundled_yaml_values_take_effect_without_c_flag(self, tmp_path):
+        """核心回归：无 -c 参数时，bundled YAML 值通过 _UserYamlConfigSource 生效。
+
+        验证修复 _UserYamlConfigSource.__call__() 返回空字典的 Bug 后，
+        内置默认配置值不再被忽略，而是通过 pydantic-settings 优先级链正确注入。
+        """
+        import negentropy.perceives.config as config_module
+
+        # 使用不存在的用户配置文件，确保仅 bundled 默认生效
+        with patch.object(
+            config_module,
+            "_get_user_config_path",
+            return_value=tmp_path / "nonexistent.yaml",
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = build_settings(config_path=None)
+                # 验证 bundled YAML 中的默认值生效（而非 Pydantic Field 硬编码默认值）
+                assert cfg.server_name == "negentropy-perceives"
+                assert cfg.transport_mode == "http"
+                assert cfg.http_port == 2992
+                assert cfg.http_host == "localhost"
+                assert cfg.concurrent_requests == 16
+                assert cfg.log_level == "INFO"
+                assert cfg.enable_caching is True
+                assert cfg.max_retries == 3
+                assert cfg.browser_headless is True
+                assert cfg.docling_enabled is True
+                assert cfg.mineru_enabled is True
+                assert cfg.marker_enabled is True
+
+    def test_user_yaml_overrides_bundled_without_c_flag(self, tmp_path):
+        """无 -c 时，用户 YAML 差异项覆盖 bundled 默认（通过 _UserYamlConfigSource）。"""
+        yaml_content = "http_port: 9090\nlog_level: DEBUG\n"
+        yaml_file = tmp_path / "user.yaml"
+        yaml_file.write_text(yaml_content, encoding="utf-8")
+
+        import negentropy.perceives.config as config_module
+
+        with patch.object(
+            config_module, "_get_user_config_path", return_value=yaml_file
+        ):
+            with patch.dict(os.environ, {}, clear=True):
+                cfg = build_settings(config_path=None)
+                assert cfg.http_port == 9090  # 用户覆盖
+                assert cfg.log_level == "DEBUG"  # 用户覆盖
+                assert cfg.server_name == "negentropy-perceives"  # bundled 默认
+                assert cfg.concurrent_requests == 16  # bundled 默认
 
     def test_c_flag_overrides_env_var(self, tmp_path):
         """-c 显式配置优先级高于环境变量（最高优先级）。"""
@@ -933,10 +1052,10 @@ class TestBundledDefaultAsSource:
         yaml_file.write_text(yaml_content, encoding="utf-8")
 
         cfg = build_settings(config_path=str(yaml_file))
-        assert cfg.log_level == "DEBUG"             # 用户覆盖
-        assert cfg.transport_mode == "http"          # 内置默认
-        assert cfg.enable_caching is True           # 内置默认
-        assert cfg.max_retries == 3                 # 内置默认
+        assert cfg.log_level == "DEBUG"  # 用户覆盖
+        assert cfg.transport_mode == "http"  # 内置默认
+        assert cfg.enable_caching is True  # 内置默认
+        assert cfg.max_retries == 3  # 内置默认
 
     def test_bundled_yaml_keys_match_settings_fields(self):
         """展平后的内置 YAML 键名与 Settings 字段名完全对应（黄金回归守护）。"""
@@ -985,7 +1104,7 @@ class TestFlattenNestedYaml:
         """扁平键优先于嵌套展开产生的同名键（向后兼容核心保证）。"""
         data = {
             "http": {"port": 8081},  # 嵌套展开 → http_port=8081
-            "http_port": 9999,        # 顶层扁平键 → http_port=9999
+            "http_port": 9999,  # 顶层扁平键 → http_port=9999
         }
         result = _flatten_nested_yaml(data)
         assert result["http_port"] == 9999  # 扁平键胜出
@@ -1024,12 +1143,7 @@ class TestNestedYamlIntegration:
     def test_nested_yaml_loads_correctly(self, tmp_path):
         """嵌套 YAML 格式通过 build_settings 正确加载为合法配置。"""
         yaml_content = (
-            "transport:\n"
-            "  mode: stdio\n"
-            "http:\n"
-            "  port: 9999\n"
-            "log:\n"
-            "  level: DEBUG\n"
+            "transport:\n  mode: stdio\nhttp:\n  port: 9999\nlog:\n  level: DEBUG\n"
         )
         yaml_file = tmp_path / "nested.yaml"
         yaml_file.write_text(yaml_content, encoding="utf-8")
@@ -1044,11 +1158,7 @@ class TestNestedYamlIntegration:
 
     def test_flat_yaml_backward_compatibility(self, tmp_path):
         """旧版扁平 YAML 格式仍然完全正常工作。"""
-        yaml_content = (
-            "transport_mode: sse\n"
-            "http_port: 7777\n"
-            "log_level: WARNING\n"
-        )
+        yaml_content = "transport_mode: sse\nhttp_port: 7777\nlog_level: WARNING\n"
         yaml_file = tmp_path / "flat.yaml"
         yaml_file.write_text(yaml_content, encoding="utf-8")
 
@@ -1074,6 +1184,50 @@ class TestNestedYamlIntegration:
 
         cfg = build_settings(config_path=str(yaml_file))
         assert cfg.http_host == "0.0.0.0"
-        assert cfg.http_port == 9999         # 扁平键胜出
+        assert cfg.http_port == 9999  # 扁平键胜出
         assert cfg.concurrent_requests == 32
         assert cfg.llm_model == "openai/gpt-4"
+
+
+# ============================================================
+# 防漂移守护测试：Field(default=...) 与 config.default.yaml 同步
+# ============================================================
+class TestFieldDefaultsMatchYaml:
+    """守护测试：确保 config.py Field(default=...) 与 config.default.yaml 保持同步。
+
+    当 config.default.yaml 中的默认值被修改后，如果忘记同步更新
+    对应的 Field(default=...)，此测试将立即报红，防止配置漂移。
+    """
+
+    # 允许 Field 默认值与 YAML 不同的字段白名单
+    _SKIP_FIELDS = frozenset(
+        {
+            "server_version",  # 版本号由 pyproject.toml 注入，非 YAML 配置
+            "pipeline",  # 复杂嵌套对象，展平后不可直接对比
+        }
+    )
+
+    def test_field_defaults_match_yaml_defaults(self):
+        """Field(default=...) 必须与 config.default.yaml 展平后的值完全一致。"""
+        yaml_data = _load_bundled_yaml()
+        flattened = _flatten_nested_yaml(yaml_data)
+        model_fields = NegentropyPerceivesSettings.model_fields
+
+        mismatches = []
+        for field_name, field_info in model_fields.items():
+            if field_name in self._SKIP_FIELDS:
+                continue
+            if field_name not in flattened:
+                continue
+            yaml_val = flattened[field_name]
+            field_default = field_info.default
+            if yaml_val != field_default:
+                mismatches.append(
+                    f"  {field_name}: Field(default={field_default!r})"
+                    f" != YAML({yaml_val!r})"
+                )
+
+        assert not mismatches, (
+            "Field(default=...) 与 config.default.yaml 值不同步！\n"
+            "请更新 config.py 中的 Field 默认值以匹配 YAML：\n" + "\n".join(mismatches)
+        )

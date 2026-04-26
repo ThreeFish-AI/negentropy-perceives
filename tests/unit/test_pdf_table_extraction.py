@@ -4,11 +4,10 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from negentropy.perceives.pdf.enhanced import (
     EnhancedPDFProcessor,
-    ExtractedImage,
     ExtractedTable,
 )
 
@@ -49,7 +48,7 @@ class TestGeometricTableExtraction:
         ]
         return table
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_lines_strategy_finds_bordered_table(self, mock_fitz, processor):
         """Test that 'lines' strategy detects tables with visible borders."""
         mock_doc = Mock()
@@ -61,9 +60,7 @@ class TestGeometricTableExtraction:
         mock_finder.tables = [mock_table]
         mock_page.find_tables.return_value = mock_finder
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            mock_doc, 0, []
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
 
         assert len(tables) == 1
         assert tables[0].rows == 2  # Data rows excluding header
@@ -72,10 +69,8 @@ class TestGeometricTableExtraction:
         assert "| H0 | H1 |" in tables[0].markdown
         assert tables[0].bbox in bbox_map
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
-    def test_text_strategy_fallback_for_borderless_tables(
-        self, mock_fitz, processor
-    ):
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
+    def test_text_strategy_fallback_for_borderless_tables(self, mock_fitz, processor):
         """Test that 'text' strategy is used when 'lines' finds nothing."""
         mock_doc = Mock()
         mock_page = Mock()
@@ -95,15 +90,13 @@ class TestGeometricTableExtraction:
 
         mock_page.find_tables.side_effect = [mock_finder_empty, mock_finder_text]
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            mock_doc, 0, []
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
 
         assert len(tables) == 1
         assert mock_page.find_tables.call_count == 2
         mock_page.find_tables.assert_any_call(strategy="text")
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_small_table_filtered_out(self, mock_fitz, processor):
         """Test that single-row or single-column tables are filtered."""
         mock_doc = Mock()
@@ -116,12 +109,10 @@ class TestGeometricTableExtraction:
         mock_finder.tables = [mock_table]
         mock_page.find_tables.return_value = mock_finder
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            mock_doc, 0, []
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
         assert len(tables) == 0
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_empty_extract_filtered_out(self, mock_fitz, processor):
         """Test that tables producing empty extract() data are filtered."""
         mock_doc = Mock()
@@ -134,12 +125,10 @@ class TestGeometricTableExtraction:
         mock_finder.tables = [mock_table]
         mock_page.find_tables.return_value = mock_finder
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            mock_doc, 0, []
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
         assert len(tables) == 0
 
-    @patch("negentropy.perceives.pdf.enhanced.fitz")
+    @patch("negentropy.perceives.pdf.extraction.table.fitz")
     def test_multiple_tables_on_same_page(self, mock_fitz, processor):
         """Test extraction of multiple tables from one page."""
         mock_doc = Mock()
@@ -152,9 +141,7 @@ class TestGeometricTableExtraction:
         mock_finder.tables = [t1, t2]
         mock_page.find_tables.return_value = mock_finder
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            mock_doc, 0, []
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(mock_doc, 0, [])
 
         assert len(tables) == 2
         assert len(bbox_map) == 2
@@ -329,11 +316,7 @@ class TestTableDedup:
 
     def test_inline_tables_not_duplicated(self, processor):
         """Tables already in markdown should not appear in Extracted Tables."""
-        original = (
-            "# Doc\n\n"
-            "| A | B |\n|---|---|\n| 1 | 2 |\n\n"
-            "More text."
-        )
+        original = "# Doc\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nMore text."
         processor.tables = [
             ExtractedTable(
                 id="t1",
@@ -393,9 +376,7 @@ class TestMarkdownTablePreservation:
     def test_simple_conversion_preserves_table(self, pdf_processor):
         """Tables should be preserved in simple fallback conversion."""
         text_with_table = (
-            "Intro paragraph.\n\n"
-            "| A | B |\n|---|---|\n| 1 | 2 |\n\n"
-            "End text."
+            "Intro paragraph.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nEnd text."
         )
         result = pdf_processor._simple_markdown_conversion(text_with_table)
         assert "| A | B |" in result
@@ -420,7 +401,9 @@ class TestWebFallbackTablePreservation:
 
     def test_fallback_preserves_table_structure(self):
         """Test that fallback_html_conversion preserves HTML tables."""
-        from negentropy.perceives.markdown.html_preprocessor import fallback_html_conversion
+        from negentropy.perceives.markdown.html_preprocessor import (
+            fallback_html_conversion,
+        )
 
         html = """
         <html><body>
@@ -442,7 +425,9 @@ class TestWebFallbackTablePreservation:
 
     def test_fallback_handles_single_row_table(self):
         """Tables with only a header row should be skipped gracefully."""
-        from negentropy.perceives.markdown.html_preprocessor import fallback_html_conversion
+        from negentropy.perceives.markdown.html_preprocessor import (
+            fallback_html_conversion,
+        )
 
         html = """
         <html><body>
@@ -456,7 +441,9 @@ class TestWebFallbackTablePreservation:
     def test_html_table_to_markdown_helper(self):
         """Test the _html_table_to_markdown helper function."""
         from bs4 import BeautifulSoup
-        from negentropy.perceives.markdown.html_preprocessor import _html_table_to_markdown
+        from negentropy.perceives.markdown.html_preprocessor import (
+            _html_table_to_markdown,
+        )
 
         html = """
         <table>
@@ -476,7 +463,9 @@ class TestWebFallbackTablePreservation:
     def test_html_table_pipe_escaping(self):
         """Test that pipe characters in cell content are escaped."""
         from bs4 import BeautifulSoup
-        from negentropy.perceives.markdown.html_preprocessor import _html_table_to_markdown
+        from negentropy.perceives.markdown.html_preprocessor import (
+            _html_table_to_markdown,
+        )
 
         html = """
         <table>
@@ -528,9 +517,7 @@ class TestRealPDFTableExtraction:
         page = doc[page_num]
         blocks = page.get_text("blocks")
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            doc, page_num, blocks
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(doc, page_num, blocks)
         doc.close()
 
         assert len(tables) >= 1, "Should detect at least one table on page 81"
@@ -569,9 +556,7 @@ class TestRealPDFTableExtraction:
         page = doc[page_num]
         blocks = page.get_text("blocks")
 
-        bbox_map, tables = processor.extract_tables_with_geometry(
-            doc, page_num, blocks
-        )
+        bbox_map, tables = processor.extract_tables_with_geometry(doc, page_num, blocks)
         doc.close()
 
         # Find Table 9
@@ -620,7 +605,7 @@ class TestRealPDFTableExtraction:
 
             # Should not be a continuous text blob
             lines = md.split("\n")
-            pipe_lines = [l for l in lines if l.strip().startswith("|")]
+            pipe_lines = [line for line in lines if line.strip().startswith("|")]
             assert len(pipe_lines) >= 3, (
                 f"Expected at least 3 table rows, found {len(pipe_lines)}"
             )
@@ -650,6 +635,4 @@ class TestRealPDFTableExtraction:
 
         doc.close()
 
-        assert total_tables >= 1, (
-            "Should find at least one table in the PDF"
-        )
+        assert total_tables >= 1, "Should find at least one table in the PDF"

@@ -11,8 +11,7 @@ import time
 import pytest
 from unittest.mock import patch
 
-from negentropy.perceives.tools import app, web_scraper
-from negentropy.perceives.scraping import WebScraper
+from negentropy.perceives.tools import app
 from negentropy.perceives.markdown.converter import MarkdownConverter
 
 
@@ -30,12 +29,12 @@ class TestMCPToolRegistration:
 
         # 当前项目中的6个MCP工具
         expected_tools = [
-            "extract_links",  # 1. 链接提取
-            "get_page_info",  # 2. 页面信息获取
-            "convert_webpage_to_markdown",  # 3. 网页转Markdown
-            "batch_convert_webpages_to_markdown",  # 4. 批量网页转Markdown
-            "convert_pdf_to_markdown",  # 5. PDF转Markdown
-            "batch_convert_pdfs_to_markdown",  # 6. 批量PDF转Markdown
+            "discover_links",  # 1. 链接提取
+            "inspect_page",  # 2. 页面信息获取
+            "parse_webpage_to_markdown",  # 3. 网页转Markdown
+            "parse_webpages_to_markdown",  # 4. 批量网页转Markdown
+            "parse_pdf_to_markdown",  # 5. PDF转Markdown
+            "parse_pdfs_to_markdown",  # 6. 批量PDF转Markdown
         ]
 
         assert len(expected_tools) == 6, "预期工具数量应为6个"
@@ -46,9 +45,7 @@ class TestMCPToolRegistration:
             )
 
         # 确保注册的工具数量与预期一致
-        assert len(tool_names) == 6, (
-            f"注册工具数量 {len(tool_names)} 与预期的6个不符"
-        )
+        assert len(tool_names) == 6, f"注册工具数量 {len(tool_names)} 与预期的6个不符"
 
     @pytest.mark.asyncio
     async def test_tool_schema_completeness(self):
@@ -84,7 +81,7 @@ class TestMCPToolParameters:
         """测试链接提取和页面信息工具参数"""
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        for tool_name in ("extract_links", "get_page_info"):
+        for tool_name in ("discover_links", "inspect_page"):
             assert tool_name in tools_by_name, f"工具 {tool_name} 未找到"
             tool = tools_by_name[tool_name]
             if hasattr(tool, "input_schema"):
@@ -97,12 +94,12 @@ class TestMCPToolParameters:
         """测试网页转 Markdown 工具参数 schema"""
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        # Test convert_webpage_to_markdown parameters
-        convert_tool = tools_by_name["convert_webpage_to_markdown"]
+        # Test parse_webpage_to_markdown parameters
+        convert_tool = tools_by_name["parse_webpage_to_markdown"]
         assert hasattr(convert_tool, "schema")
 
-        # Test batch_convert_webpages_to_markdown parameters
-        batch_tool = tools_by_name["batch_convert_webpages_to_markdown"]
+        # Test parse_webpages_to_markdown parameters
+        batch_tool = tools_by_name["parse_webpages_to_markdown"]
         assert hasattr(batch_tool, "schema")
 
     @pytest.mark.asyncio
@@ -110,7 +107,7 @@ class TestMCPToolParameters:
         """测试 PDF 转换工具参数 schema"""
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        for tool_name in ("convert_pdf_to_markdown", "batch_convert_pdfs_to_markdown"):
+        for tool_name in ("parse_pdf_to_markdown", "parse_pdfs_to_markdown"):
             assert tool_name in tools_by_name, f"工具 {tool_name} 未找到"
             tool = tools_by_name[tool_name]
             assert hasattr(tool, "schema")
@@ -119,8 +116,8 @@ class TestMCPToolParameters:
     async def test_markdown_tools_parameters_embed_images(self):
         """Ensure embed_images and embed_options parameters are exposed."""
         tools_by_name = {t.name: t for t in await app.list_tools()}
-        convert_tool = tools_by_name["convert_webpage_to_markdown"]
-        batch_tool = tools_by_name["batch_convert_webpages_to_markdown"]
+        convert_tool = tools_by_name["parse_webpage_to_markdown"]
+        batch_tool = tools_by_name["parse_webpages_to_markdown"]
 
         # Tool should accept embed_images and embed_options in parameters
         if hasattr(convert_tool, "parameters"):
@@ -245,25 +242,25 @@ class TestPDFToolIntegration:
         """Test that PDF conversion tools are properly registered."""
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        assert "convert_pdf_to_markdown" in tools_by_name
-        assert "batch_convert_pdfs_to_markdown" in tools_by_name
+        assert "parse_pdf_to_markdown" in tools_by_name
+        assert "parse_pdfs_to_markdown" in tools_by_name
 
         # Check tool signatures
-        pdf_tool = tools_by_name["convert_pdf_to_markdown"]
-        assert pdf_tool.name == "convert_pdf_to_markdown"
+        pdf_tool = tools_by_name["parse_pdf_to_markdown"]
+        assert pdf_tool.name == "parse_pdf_to_markdown"
 
-        batch_pdf_tool = tools_by_name["batch_convert_pdfs_to_markdown"]
-        assert batch_pdf_tool.name == "batch_convert_pdfs_to_markdown"
+        batch_pdf_tool = tools_by_name["parse_pdfs_to_markdown"]
+        assert batch_pdf_tool.name == "parse_pdfs_to_markdown"
 
     @pytest.mark.asyncio
     async def test_pdf_tool_parameter_validation(self):
         """Test PDF tool parameter validation."""
         # Test that PDF tools are accessible through app
         tools_by_name = {t.name: t for t in await app.list_tools()}
-        assert "convert_pdf_to_markdown" in tools_by_name
+        assert "parse_pdf_to_markdown" in tools_by_name
 
-        pdf_tool = tools_by_name["convert_pdf_to_markdown"]
-        assert pdf_tool.name == "convert_pdf_to_markdown"
+        pdf_tool = tools_by_name["parse_pdf_to_markdown"]
+        assert pdf_tool.name == "parse_pdf_to_markdown"
         assert "PDF" in pdf_tool.description or "pdf" in pdf_tool.description
 
     @pytest.mark.asyncio
@@ -271,10 +268,10 @@ class TestPDFToolIntegration:
         """Test batch PDF tool parameter validation."""
         # Test batch PDF tool registration
         tools_by_name = {t.name: t for t in await app.list_tools()}
-        assert "batch_convert_pdfs_to_markdown" in tools_by_name
+        assert "parse_pdfs_to_markdown" in tools_by_name
 
-        batch_pdf_tool = tools_by_name["batch_convert_pdfs_to_markdown"]
-        assert batch_pdf_tool.name == "batch_convert_pdfs_to_markdown"
+        batch_pdf_tool = tools_by_name["parse_pdfs_to_markdown"]
+        assert batch_pdf_tool.name == "parse_pdfs_to_markdown"
         assert (
             "batch" in batch_pdf_tool.description.lower()
             or "PDF" in batch_pdf_tool.description
@@ -286,15 +283,12 @@ class TestPDFToolIntegration:
         # Verify tools exist and have proper structure
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        assert "convert_pdf_to_markdown" in tools_by_name
-        assert "batch_convert_pdfs_to_markdown" in tools_by_name
+        assert "parse_pdf_to_markdown" in tools_by_name
+        assert "parse_pdfs_to_markdown" in tools_by_name
 
         # Verify the tools are properly registered
-        assert tools_by_name["convert_pdf_to_markdown"].name == "convert_pdf_to_markdown"
-        assert (
-            tools_by_name["batch_convert_pdfs_to_markdown"].name
-            == "batch_convert_pdfs_to_markdown"
-        )
+        assert tools_by_name["parse_pdf_to_markdown"].name == "parse_pdf_to_markdown"
+        assert tools_by_name["parse_pdfs_to_markdown"].name == "parse_pdfs_to_markdown"
 
     @pytest.mark.asyncio
     async def test_pdf_tool_integration_with_mocks(self):
@@ -302,7 +296,7 @@ class TestPDFToolIntegration:
         # Test that PDF tools can be accessed through app interface
         tools_by_name = {t.name: t for t in await app.list_tools()}
 
-        pdf_tool = tools_by_name["convert_pdf_to_markdown"]
+        pdf_tool = tools_by_name["parse_pdf_to_markdown"]
         assert pdf_tool is not None
         assert hasattr(pdf_tool, "description")
         assert hasattr(pdf_tool, "parameters")
@@ -365,10 +359,8 @@ class TestMCPToolWorkflows:
             }
 
             # 工作流工具应该能够无缝访问
-            convert_tool = await app.get_tool("convert_webpage_to_markdown")
-            batch_convert_tool = await app.get_tool(
-                "batch_convert_webpages_to_markdown"
-            )
+            convert_tool = await app.get_tool("parse_webpage_to_markdown")
+            batch_convert_tool = await app.get_tool("parse_webpages_to_markdown")
 
             assert convert_tool is not None
             assert batch_convert_tool is not None
@@ -391,7 +383,7 @@ class TestMCPToolWorkflows:
                 },
             }
 
-            pdf_tool = await app.get_tool("convert_pdf_to_markdown")
+            pdf_tool = await app.get_tool("parse_pdf_to_markdown")
             assert pdf_tool is not None
 
 
@@ -427,12 +419,12 @@ class TestMCPToolRobustness:
 
         # 并发访问所有6个工具
         tool_names = [
-            "extract_links",
-            "get_page_info",
-            "convert_webpage_to_markdown",
-            "batch_convert_webpages_to_markdown",
-            "convert_pdf_to_markdown",
-            "batch_convert_pdfs_to_markdown",
+            "discover_links",
+            "inspect_page",
+            "parse_webpage_to_markdown",
+            "parse_webpages_to_markdown",
+            "parse_pdf_to_markdown",
+            "parse_pdfs_to_markdown",
         ]
 
         tasks = [get_tool_concurrent(name) for name in tool_names]
@@ -493,12 +485,12 @@ class TestMCPToolPerformance:
         """测试工具访问性能"""
 
         tool_names = [
-            "extract_links",
-            "get_page_info",
-            "convert_webpage_to_markdown",
-            "batch_convert_webpages_to_markdown",
-            "convert_pdf_to_markdown",
-            "batch_convert_pdfs_to_markdown",
+            "discover_links",
+            "inspect_page",
+            "parse_webpage_to_markdown",
+            "parse_webpages_to_markdown",
+            "parse_pdf_to_markdown",
+            "parse_pdfs_to_markdown",
         ]
 
         for tool_name in tool_names:

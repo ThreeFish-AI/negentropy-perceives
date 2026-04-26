@@ -137,13 +137,7 @@ class TestIsAlgorithmBlockNegative:
 
     def test_regular_numbered_list(self):
         """普通编号列表（如论文章节目录）。"""
-        text = (
-            "1. Introduction\n"
-            "2. Methods\n"
-            "3. Results\n"
-            "4. Discussion\n"
-            "5. Conclusion"
-        )
+        text = "1. Introduction\n2. Methods\n3. Results\n4. Discussion\n5. Conclusion"
         assert is_algorithm_block(text) is False
 
     def test_regular_paragraph(self):
@@ -367,11 +361,7 @@ class TestFormatterCodeBlockProtection:
     def test_spaces_preserved_in_code_block(self):
         """代码块内的多空格不被压缩。"""
         formatter = MarkdownFormatter()
-        md = (
-            "```algorithm\n"
-            "1: x ← 0     ▷ init\n"
-            "```"
-        )
+        md = "```algorithm\n1: x ← 0     ▷ init\n```"
         result = formatter.format(md)
         # 多空格应被保留（typography fixes 不应压缩）
         assert "▷ init" in result
@@ -449,10 +439,7 @@ class TestPDFProcessorAlgorithmIntegration:
         mock_doc.metadata = {}
         mock_fitz.open.return_value = mock_doc
 
-        regular_text = (
-            "This is a regular paragraph that\n"
-            "continues on the next line.\n"
-        )
+        regular_text = "This is a regular paragraph that\ncontinues on the next line.\n"
         mock_page = Mock()
         mock_page.get_text.return_value = [
             (0, 0, 500, 100, regular_text, 0, 0),
@@ -491,12 +478,7 @@ class TestPDFProcessorAlgorithmIntegration:
 
     def test_normalize_paragraphs_preserves_algorithm(self, processor):
         """_normalize_paragraphs 不拆分算法块。"""
-        text = (
-            "Algorithm 1 Test\n"
-            "Require: x.\n"
-            "Ensure: y.\n"
-            "1: return x + y"
-        )
+        text = "Algorithm 1 Test\nRequire: x.\nEnsure: y.\n1: return x + y"
         result = processor._normalize_paragraphs(text)
         # 不应插入空行拆分算法块
         assert "\n\n" not in result
@@ -508,11 +490,7 @@ class TestPDFProcessorAlgorithmIntegration:
 class TestRealPDFAlgorithmDetection:
     """使用实际 PDF 文件验证算法块检测。"""
 
-    PDF_PATH = (
-        Path(__file__).parent.parent.parent
-        / "assets"
-        / "2603.05344v3.pdf"
-    )
+    PDF_PATH = Path(__file__).parent.parent.parent / "assets" / "2603.05344v3.pdf"
 
     @pytest.mark.asyncio
     async def test_pdf_algorithm_blocks_detected(self):

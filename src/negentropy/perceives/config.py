@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 import yaml
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     InitSettingsSource,
@@ -25,6 +25,10 @@ from pydantic_settings import (
 )
 
 from . import __version__
+
+# 通过向后兼容层导入 PipelineConfig，避免循环引用：
+# config → core.pipeline_config → core.__init__ → core.services → scraping → config.settings
+from ._pipeline_config import PipelineConfig  # type: ignore[attr-defined]  # noqa: F401 — re-exports from core.pipeline_config
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +45,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 # 不展平的顶层键集合（嵌套结构体直接透传）
-_PASSTHROUGH_KEYS = frozenset({"pipeline"})
+_NO_FLATTEN_KEYS = frozenset({"pipeline"})
 
 
 def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
@@ -56,7 +60,7 @@ def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, An
     **向后兼容**：若同一键名同时出现在顶层扁平键和嵌套展开结果中，
     **扁平键优先**，确保旧版扁平 YAML 配置无缝兼容。
 
-    **透传机制**：:data:`_PASSTHROUGH_KEYS` 中声明的顶层键不参与展平，
+    **透传机制**：:data:`_NO_FLATTEN_KEYS` 中声明的顶层键不参与展平，
     其嵌套结构体将作为完整对象直接传递给对应的 Pydantic 模型字段。
 
     Args:
@@ -70,7 +74,7 @@ def _flatten_nested_yaml(data: Dict[str, Any], prefix: str = "") -> Dict[str, An
     flat: Dict[str, Any] = {}
     for key, value in data.items():
         full_key = f"{prefix}{key}" if prefix else key
-        if not prefix and key in _PASSTHROUGH_KEYS:
+        if not prefix and key in _NO_FLATTEN_KEYS:
             # 顶层特殊键：不展平，整体保留
             flat[full_key] = value
         elif isinstance(value, dict):
@@ -185,29 +189,20 @@ class _UserYamlConfigSource(PydanticBaseSettingsSource):
     优先级位置（靠前者优先级更高）：init_settings(-c) > env_settings > _UserYamlConfigSource(YAML)
     即：-c 显式配置 > 环境变量 > 合并后的 YAML 配置
 
-    注意：__call__() 返回空字典，实际字段值通过 get_field_value() 逐字段提供。
-    这确保 pydantic-settings 会继续查询后续源以获取更低优先级的值（作为回退）。
+    pydantic-settings v2 通过 ``__call__()`` 获取配置源的完整值字典，
+    高优先级源的值自动覆盖低优先级源。
     """
 
     def __call__(self) -> Dict[str, Any]:
-        """返回空字典，强制 pydantic-settings 使用 get_field_value() 进行逐字段查询。"""
-        return {}
+        """返回合并后的 YAML 配置数据，供 pydantic-settings 参与优先级链合并。"""
+        return dict(_user_yaml_data)
 
     def get_field_value(  # type: ignore[override]
         self,
         field: Any,
         field_name: str,
     ) -> tuple[Any, str | None, bool]:
-        """从用户 YAML 数据中获取字段值。
-
-        仅当字段在用户 YAML 中显式定义时返回值，
-        否则返回 None 以允许后续源（环境变量）提供该字段的值。
-
-        Returns:
-            (field_value, field_key_name, is_complex)
-        """
-        if field_name in _user_yaml_data:
-            return _user_yaml_data[field_name], field_name, False
+        """满足抽象方法协议（实际值已通过 __call__() 提供）。"""
         return None, None, False
 
 
@@ -346,67 +341,6 @@ def describe_config_sources(
 
 
 # ---------------------------------------------------------------------------
-# Pipeline 编排模型
-# ---------------------------------------------------------------------------
-
-
-class CompetitionJudgeConfig(BaseModel):
-    """竞争模式 LLM 评审配置。"""
-
-    enabled: bool = True
-    strategy: str = "best_of"  # "best_of" | "merge" | "weighted"
-    model: Optional[str] = None  # null = 继承全局 llm.model
-    temperature: float = 0.1
-    max_tokens: int = 2048
-
-
-class CompetitionConfig(BaseModel):
-    """Stage 竞争模式配置。"""
-
-    max_concurrent: int = 2
-    timeout: int = 120
-    judge: CompetitionJudgeConfig = CompetitionJudgeConfig()
-
-
-class StageToolConfig(BaseModel):
-    """Stage 内单个工具的配置。"""
-
-    name: str
-    rank: int = 1
-    enabled: bool = True
-
-
-class StageConfig(BaseModel):
-    """单个 Stage 的配置。"""
-
-    name: str
-    description: str = ""
-    tools: List[StageToolConfig] = []
-    competition_mode: bool = False
-    competition: Optional[CompetitionConfig] = None
-
-
-class PipelineBranchConfig(BaseModel):
-    """单条管线（PDF 或 WebPage）的配置。"""
-
-    stages: List[StageConfig] = []
-
-
-class PipelineDefaultsConfig(BaseModel):
-    """Pipeline 全局默认配置。"""
-
-    competition: CompetitionConfig = CompetitionConfig()
-
-
-class PipelineConfig(BaseModel):
-    """完整 Pipeline 配置。"""
-
-    pdf: PipelineBranchConfig = PipelineBranchConfig()
-    webpage: PipelineBranchConfig = PipelineBranchConfig()
-    defaults: PipelineDefaultsConfig = PipelineDefaultsConfig()
-
-
-# ---------------------------------------------------------------------------
 # 配置模型
 # ---------------------------------------------------------------------------
 
@@ -434,7 +368,7 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="http", description="MCP 传输协议模式：stdio / http / sse"
     )
     http_host: str = Field(default="localhost", description="HTTP 服务器绑定主机")
-    http_port: int = Field(default=8081, description="HTTP 服务器监听端口")
+    http_port: int = Field(default=2992, description="HTTP 服务器监听端口")
     http_path: str = Field(default="/mcp", description="HTTP 端点路径")
     http_cors_origins: Optional[str] = Field(
         default="*", description="CORS 来源白名单（null 禁用）"
@@ -504,13 +438,48 @@ class NegentropyPerceivesSettings(BaseSettings):
         default=30.0, gt=0.0, description="HTTP 请求超时（秒）"
     )
 
+    # ── 任务级超时（PDF / Webpage 解析任务兜底） ─────────────────
+    task_timeout_seconds: int = Field(
+        default=300,
+        ge=1,
+        description="单次解析任务（PDF/Webpage）默认超时秒数。可被 MCP 入参 timeout 覆盖。",
+    )
+
+    # ── PDF 引擎进程池（取消传导 + 资源释放） ─────────────────────
+    pdf_engine_isolation: Literal["process", "thread", "inline"] = Field(
+        default="process",
+        description=(
+            "PDF 引擎（Docling/MinerU/Marker）隔离策略："
+            "process=独立子进程（默认，取消时 kill 真正释放 GPU/CPU）；"
+            "thread=asyncio.to_thread（兜底，无法强制 kill）；"
+            "inline=同步调用（仅调试）。"
+        ),
+    )
+    pdf_worker_pool_size: int = Field(
+        default=1,
+        ge=1,
+        description="每种 PDF 引擎的 warm worker 数量。值 1 足以覆盖 95% 单实例场景。",
+    )
+    pdf_worker_max_tasks: int = Field(
+        default=50,
+        ge=1,
+        description="单个 worker 处理任务数上限；达到后自动回收以防内存泄漏。",
+    )
+    pdf_worker_kill_grace_seconds: float = Field(
+        default=2.0,
+        ge=0.0,
+        description="取消时先 terminate，等待此秒数后若仍存活再 kill。",
+    )
+
     # ── LLM 编排 ──────────────────────────────────────────────
-    llm_api_key: Optional[str] = Field(
-        default=None, description="LLM API Key（ZhipuAI）"
+    llm_api_key: Optional[str] = Field(default=None, description="LLM API Key")
+    llm_api_base_url: Optional[str] = Field(
+        default=None,
+        description="LLM API Base URL（OpenAI 兼容协议，如 https://api.openai.com/v1）",
     )
     llm_model: str = Field(
-        default="zhipu/glm-5-plus-250414",
-        description="LiteLLM 模型标识（如 zhipu/glm-5-plus-250414）",
+        default="gpt-5.4-mini",
+        description="LiteLLM 模型标识（如 gpt-5.4-mini、zhipu/glm-5.1）",
     )
     llm_temperature: float = Field(
         default=0.1, ge=0.0, le=2.0, description="LLM 温度参数"
@@ -524,7 +493,7 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="auto",
         description="推理设备：auto / cpu / cuda (NVIDIA) / mps (Apple Silicon) / xpu (Intel)",
     )
-    accelerator_num_threads: int = Field(default=4, ge=1, description="CPU 推理线程数")
+    accelerator_num_threads: int = Field(default=8, ge=1, description="CPU 推理线程数")
     accelerator_ocr_batch_size: int = Field(
         default=0,
         ge=0,
@@ -543,8 +512,13 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── Docling PDF 引擎 ──────────────────────────────────────
     docling_enabled: bool = Field(
-        default=False,
-        description="启用 Docling 作为可选 PDF 提取引擎（需安装 docling 可选依赖）",
+        default=True,
+        description=(
+            "允许 Docling 参与 PDF Pipeline 调度（默认 True）。"
+            "实际是否运行仍取决于 `is_available()` 运行时能力检测——"
+            "未安装 docling 可选依赖时会自动跳过，不会影响其它工具。"
+            "如需在已安装环境下显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     docling_ocr_enabled: bool = Field(default=True, description="为扫描版 PDF 启用 OCR")
     docling_table_extraction_enabled: bool = Field(
@@ -556,8 +530,12 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── MinerU PDF 引擎 ──────────────────────────────────────
     mineru_enabled: bool = Field(
-        default=False,
-        description="启用 MinerU 作为 PDF 提取引擎（Apache 2.0，最佳 LaTeX 公式提取，CDM 90.85）",
+        default=True,
+        description=(
+            "允许 MinerU 参与 PDF Pipeline 调度（Apache 2.0，最佳 LaTeX 公式提取，CDM 90.85）。"
+            "默认 True，实际是否运行取决于 `is_available()`：未安装 mineru 可选依赖时会自动跳过。"
+            "如需显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     mineru_device: str = Field(
         default="auto",
@@ -570,8 +548,12 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── Marker PDF 引擎 ──────────────────────────────────────
     marker_enabled: bool = Field(
-        default=False,
-        description="启用 Marker 作为 PDF 提取引擎（GPL-3.0，最佳整体准确率 95.67）",
+        default=True,
+        description=(
+            "允许 Marker 参与 PDF Pipeline 调度（GPL-3.0，最佳整体准确率 95.67）。"
+            "默认 True，实际是否运行取决于 `is_available()`：未安装 marker 可选依赖时会自动跳过。"
+            "注意 GPL-3.0 许可证，商业使用需评估；如需显式禁用，可通过环境变量或 YAML 覆盖为 False。"
+        ),
     )
     marker_llm_enhanced: bool = Field(
         default=False,
@@ -580,6 +562,67 @@ class NegentropyPerceivesSettings(BaseSettings):
     marker_license_acknowledged: bool = Field(
         default=False,
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
+    )
+
+    # ── PDF 图片资产打包（MCP 响应体） ────────────────────────
+    pdf_bundle_images_in_response: bool = Field(
+        default=True,
+        description=(
+            "是否在 MCP 响应体中内嵌图片 base64 载荷。"
+            "关闭后 `PDFResponse.image_assets` 恒为空列表，图片仍会落盘到 "
+            "output_dir/images/，仅客户端直传路径关闭。"
+        ),
+    )
+    pdf_image_max_base64_kb: int = Field(
+        default=2048,
+        ge=1,
+        description=(
+            "单张图片 base64 上限（KB）。超限时先以 JPEG q=75 重压缩；"
+            "仍超限则跳过该图（响应体中不出现，但磁盘文件不受影响）。"
+        ),
+    )
+    pdf_bundle_total_base64_mb: int = Field(
+        default=32,
+        ge=1,
+        description=(
+            "单次响应体图片 base64 总量上限（MB）。累计字节达阈值后"
+            "停止追加（按原顺序丢弃尾部），防止 MCP 帧超过传输上限。"
+        ),
+    )
+
+    # ── 表格质量过滤（PyMuPDF find_tables 兜底启发式） ─────────
+    pdf_table_quality_filter_enabled: bool = Field(
+        default=True,
+        description=(
+            "启用后在 PyMuPDF find_tables 结果上再叠加质量过滤，"
+            "剔除“空白率高 / 单值同质 / 半数列近空”的伪表格；"
+            "关闭后回退到仅 row_count>=2 & col_count>=2 的原行为。"
+        ),
+    )
+    pdf_table_quality_min_occupancy: float = Field(
+        default=0.40,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "单元格非空比例下限；低于该比例判定为伪表格。"
+            "0.40 对应“过半单元格都是空串”的稀疏结构。"
+        ),
+    )
+    pdf_table_quality_max_weak_cols_ratio: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "列弱占比上限；单列非空率 < 40% 视为弱列，"
+            "若弱列数 > 总列数 × 该比例则判定为伪表格。"
+        ),
+    )
+    pdf_table_quality_min_unique_cells: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "单元格不同值数量下限；所有单元格去重后 ≤ 该值判定为页眉/重复行伪表格。"
+        ),
     )
 
     # ── Pipeline 编排 ─────────────────────────────────────────

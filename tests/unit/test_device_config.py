@@ -8,10 +8,9 @@
 
 from unittest.mock import Mock, patch
 
-import pytest
 
 from negentropy.perceives.pdf.hardware import DeviceType
-from negentropy.perceives.pdf.device_config import (
+from negentropy.perceives.pdf.hardware.device_config import (
     DoclingDeviceConfig,
     _apply_cuda_optimizations,
     _apply_mps_constraints,
@@ -51,7 +50,9 @@ class TestDoclingDeviceConfig:
         assert config.ocr_engine == "default"
 
     def test_cache_key_segment(self) -> None:
-        config = DoclingDeviceConfig(device="mps", num_threads=8, use_flash_attention=False)
+        config = DoclingDeviceConfig(
+            device="mps", num_threads=8, use_flash_attention=False
+        )
         segment = config.cache_key_segment
         assert "dev=mps" in segment
         assert "threads=8" in segment
@@ -167,7 +168,7 @@ class TestComputeGPUBatchSizes:
 class TestMPSConstraints:
     """验证 Apple Silicon MPS 限制处理。"""
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_disables_formula_enrichment(self, mock_hw: Mock) -> None:
         """MPS 应主动禁用 formula enrichment。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -180,7 +181,7 @@ class TestMPSConstraints:
         assert config.do_formula_enrichment is False
         assert "formula_enrichment" in config.adjustments
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_preserves_table_structure(self, mock_hw: Mock) -> None:
         """MPS 不应影响 table structure 配置。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -192,7 +193,7 @@ class TestMPSConstraints:
         _apply_mps_constraints(config)
         assert config.do_table_structure is True
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_disables_flash_attention(self, mock_hw: Mock) -> None:
         """MPS 应禁用 Flash Attention 2。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -204,7 +205,7 @@ class TestMPSConstraints:
         _apply_mps_constraints(config)
         assert config.use_flash_attention is False
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_no_adjustment_when_formula_disabled(self, mock_hw: Mock) -> None:
         """formula 已禁用时不应记录 formula 调整。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -216,7 +217,7 @@ class TestMPSConstraints:
         _apply_mps_constraints(config)
         assert "formula_enrichment" not in config.adjustments
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_sets_optimized_batch_sizes(self, mock_hw: Mock) -> None:
         """MPS 应根据统一内存设置优化后的 batch sizes。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -227,7 +228,7 @@ class TestMPSConstraints:
         assert config.table_batch_size >= 4
         assert "batch_sizes" in config.adjustments
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_batch_size_scales_with_memory(self, mock_hw: Mock) -> None:
         """不同内存大小应产生不同的 batch sizes。"""
         configs = []
@@ -241,7 +242,7 @@ class TestMPSConstraints:
         assert configs[1].ocr_batch_size <= configs[2].ocr_batch_size
 
     @patch("platform.system", return_value="Darwin")
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_mps_ocr_engine_set_on_macos(self, mock_hw: Mock, _mock_sys: Mock) -> None:
         """macOS 平台上应设置 mac_native OCR 引擎偏好。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -251,8 +252,10 @@ class TestMPSConstraints:
         assert "ocr_engine" in config.adjustments
 
     @patch("platform.system", return_value="Linux")
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    def test_mps_ocr_engine_default_on_linux(self, mock_hw: Mock, _mock_sys: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    def test_mps_ocr_engine_default_on_linux(
+        self, mock_hw: Mock, _mock_sys: Mock
+    ) -> None:
         """非 macOS 平台不应设置 mac_native OCR。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
         config = DoclingDeviceConfig(device="mps", device_type=DeviceType.MPS)
@@ -266,9 +269,14 @@ class TestMPSConstraints:
 class TestCUDAOptimizations:
     """验证 NVIDIA CUDA 优化处理。"""
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=True)
-    def test_cuda_enables_flash_attention(self, _mock_fa: object, mock_hw: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=True,
+    )
+    def test_cuda_enables_flash_attention(
+        self, _mock_fa: object, mock_hw: Mock
+    ) -> None:
         """CUDA + flash_attn 已安装时应启用 FA2。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
         config = DoclingDeviceConfig(device="cuda", device_type=DeviceType.CUDA)
@@ -276,17 +284,25 @@ class TestCUDAOptimizations:
         assert config.use_flash_attention is True
         assert "flash_attention" in config.adjustments
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=False)
-    def test_cuda_no_flash_attention_when_missing(self, _mock_fa: object, mock_hw: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=False,
+    )
+    def test_cuda_no_flash_attention_when_missing(
+        self, _mock_fa: object, mock_hw: Mock
+    ) -> None:
         """CUDA + flash_attn 未安装时应跳过 FA2。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
         config = DoclingDeviceConfig(device="cuda", device_type=DeviceType.CUDA)
         _apply_cuda_optimizations(config)
         assert config.use_flash_attention is False
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=False)
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=False,
+    )
     def test_cuda_preserves_all_features(self, _mock_fa: object, mock_hw: Mock) -> None:
         """CUDA 应保留所有 Docling 功能。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
@@ -300,9 +316,14 @@ class TestCUDAOptimizations:
         assert config.do_formula_enrichment is True
         assert config.do_table_structure is True
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=False)
-    def test_cuda_sets_optimized_batch_sizes(self, _mock_fa: object, mock_hw: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=False,
+    )
+    def test_cuda_sets_optimized_batch_sizes(
+        self, _mock_fa: object, mock_hw: Mock
+    ) -> None:
         """CUDA 应根据显存设置优化后的 batch sizes。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
         config = DoclingDeviceConfig(device="cuda", device_type=DeviceType.CUDA)
@@ -317,7 +338,7 @@ class TestCUDAOptimizations:
 class TestXPUDefaults:
     """验证 Intel XPU 基础优化。"""
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_xpu_disables_flash_attention(self, mock_hw: Mock) -> None:
         """XPU 应禁用 Flash Attention 2。"""
         mock_hw.return_value = _mock_hardware_info(8.0, DeviceType.XPU)
@@ -325,7 +346,7 @@ class TestXPUDefaults:
         _apply_xpu_defaults(config)
         assert config.use_flash_attention is False
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     def test_xpu_sets_batch_sizes(self, mock_hw: Mock) -> None:
         """XPU 应设置 batch sizes。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.XPU)
@@ -340,7 +361,10 @@ class TestXPUDefaults:
 class TestResolveDeviceConfig:
     """验证 resolve_device_config 核心入口。"""
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_cpu_no_adjustments(self, _mock: object) -> None:
         """CPU 设备应无配置降级。"""
         config = resolve_device_config(device_preference="cpu")
@@ -349,8 +373,11 @@ class TestResolveDeviceConfig:
         assert config.use_flash_attention is False
         assert config.ocr_batch_size == 4  # CPU 默认值
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="mps")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="mps",
+    )
     def test_mps_applies_constraints(self, _mock_dev: object, mock_hw: Mock) -> None:
         """MPS 设备应自动应用限制。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -361,10 +388,18 @@ class TestResolveDeviceConfig:
         assert "formula_enrichment" in config.adjustments
         assert config.ocr_batch_size > 4  # GPU batch size 优化
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cuda")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=True)
-    def test_cuda_applies_optimizations(self, _mock_fa: object, _mock_dev: object, mock_hw: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="cuda",
+    )
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=True,
+    )
+    def test_cuda_applies_optimizations(
+        self, _mock_fa: object, _mock_dev: object, mock_hw: Mock
+    ) -> None:
         """CUDA 设备应启用优化。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
         config = resolve_device_config(device_preference="cuda")
@@ -374,23 +409,32 @@ class TestResolveDeviceConfig:
         assert config.do_formula_enrichment is True
         assert config.ocr_batch_size > 4  # GPU batch size 优化
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_explicit_cpu_preference(self, _mock: object) -> None:
         """显式指定 CPU 应跳过 GPU 优化。"""
         config = resolve_device_config(device_preference="cpu")
         assert config.device_type == DeviceType.CPU
         assert config.use_flash_attention is False
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="mps")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="mps",
+    )
     def test_custom_num_threads(self, _mock_dev: object, mock_hw: Mock) -> None:
         """应正确传递自定义线程数。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
         config = resolve_device_config(device_preference="mps", num_threads=8)
         assert config.num_threads == 8
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="xpu")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="xpu",
+    )
     def test_xpu_applies_defaults(self, _mock_dev: object, mock_hw: Mock) -> None:
         """XPU 应应用基础优化。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.XPU)
@@ -400,8 +444,11 @@ class TestResolveDeviceConfig:
         assert config.use_flash_attention is False
         assert config.ocr_batch_size > 4  # GPU batch size 优化
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="mps")
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="mps",
+    )
     def test_user_override_batch_size(self, _mock_dev: object, mock_hw: Mock) -> None:
         """用户显式指定 batch size 应覆盖自动推断。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
@@ -412,10 +459,18 @@ class TestResolveDeviceConfig:
         assert config.ocr_batch_size == 32
         assert "ocr_batch_size_override" in config.adjustments
 
-    @patch("negentropy.perceives.pdf.hardware.get_cached_hardware_info")
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cuda")
-    @patch("negentropy.perceives.pdf.device_config._check_flash_attention_available", return_value=False)
-    def test_all_batch_size_overrides(self, _mock_fa: object, _mock_dev: object, mock_hw: Mock) -> None:
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="cuda",
+    )
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_flash_attention_available",
+        return_value=False,
+    )
+    def test_all_batch_size_overrides(
+        self, _mock_fa: object, _mock_dev: object, mock_hw: Mock
+    ) -> None:
         """所有 batch size 覆盖应同时生效。"""
         mock_hw.return_value = _mock_hardware_info(16.0, DeviceType.CUDA)
         config = resolve_device_config(
@@ -428,7 +483,10 @@ class TestResolveDeviceConfig:
         assert config.layout_batch_size == 16
         assert config.table_batch_size == 4
 
-    @patch("negentropy.perceives.pdf.device_config.get_device_for_docling", return_value="cpu")
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
+        return_value="cpu",
+    )
     def test_zero_override_keeps_auto(self, _mock: object) -> None:
         """override=0 时不应覆盖（使用自动推断值）。"""
         config = resolve_device_config(

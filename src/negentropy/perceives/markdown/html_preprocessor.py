@@ -3,9 +3,9 @@
 import logging
 import re
 from typing import Dict, Optional
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 from bs4 import BeautifulSoup, Comment
-from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,10 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
         # Preserve math elements (MathJax, KaTeX, MathML) BEFORE removing scripts
         _preserve_math_elements(soup)
 
+        # 将非 Markdown 友好的媒体元素转换为可转换形式
+        # 必须在 unwanted_tags/unwanted_patterns 移除之前执行
+        _convert_media_elements(soup, base_url)
+
         # Remove unwanted elements that typically don't contain main content
         unwanted_tags = [
             "script",
@@ -57,17 +61,62 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
                     element.decompose()
 
         # Remove elements with specific classes/ids commonly used for ads/navigation
+        # 使用词边界约束防止误匹配 CSS Module 哈希和复合词（如 reading 中的 ad）
         unwanted_patterns = [
-            re.compile(r".*(ad|advertisement|sidebar|nav|menu|footer|header).*", re.I)
+            re.compile(
+                r"(?<![a-zA-Z0-9])"
+                r"(?:ad(?:s)?|advertisement|sidebar|nav|menu)"
+                r"(?![a-zA-Z0-9])",
+                re.I,
+            ),
+            re.compile(
+                r".*(newsletter|subscribe|subscription|signup|sign-up|mailing-list).*",
+                re.I,
+            ),
+            re.compile(r".*(social|share|sharing-widget|share-buttons).*", re.I),
+            re.compile(r".*(cookie|consent|gdpr|cookie-banner).*", re.I),
+            re.compile(r".*(copy-button|copy-btn|clipboard|code-toolbar).*", re.I),
+            re.compile(r".*(carousel|slider|gallery|swiper|slick).*", re.I),
+            re.compile(r".*(tooltip|popover|modal|dialog|overlay|toast).*", re.I),
         ]
+
+        # 含正文媒体的容器（carousel/gallery 等常被文章用作媒体展示）需
+        # 被保护，不能整个移除——否则会丢失图片/视频等内容元素。
+        def _has_content_media(el) -> bool:
+            try:
+                return bool(el.find(["img", "figure", "picture", "video", "audio"]))
+            except Exception:
+                return False
 
         for pattern in unwanted_patterns:
             for element in soup.find_all(class_=pattern):
-                if id(element) not in protected_ids:
-                    element.decompose()
+                if id(element) in protected_ids:
+                    continue
+                if _has_content_media(element):
+                    continue
+                element.decompose()
             for element in soup.find_all(id=pattern):
-                if id(element) not in protected_ids:
-                    element.decompose()
+                if id(element) in protected_ids:
+                    continue
+                if _has_content_media(element):
+                    continue
+                element.decompose()
+
+        # 移除无内容价值的交互元素
+        for element in soup.find_all(["button", "noscript"]):
+            if id(element) not in protected_ids:
+                element.decompose()
+
+        # 移除不含 <text> 的内联 SVG 图标（保留含文字的 SVG 图表）
+        for svg in soup.find_all("svg"):
+            if id(svg) not in protected_ids and not svg.find("text"):
+                svg.decompose()
+
+        # 剥离所有剩余元素的 class 和 style 属性（对 Markdown 输出无语义价值）
+        for element in soup.find_all(True):
+            if id(element) not in protected_ids:
+                element.attrs.pop("class", None)
+                element.attrs.pop("style", None)
 
         # 确保块级元素之间有换行，以便 MarkItDown 正确识别段落边界。
         # MarkItDown 在无空白分隔的连续 <p> 标签间会将内容合并为同一行。
@@ -497,3 +546,331 @@ def _extract_latex_from_annotation(element) -> Optional[str]:  # noqa: ANN001
                 return latex.strip()
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# 媒体元素转换（Phase 2）
+# ---------------------------------------------------------------------------
+
+# iframe 嵌入视频平台 URL 匹配模式
+_IFRAME_VIDEO_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    # YouTube: youtube.com/embed/VIDEO_ID
+    (
+        re.compile(r"https?://(?:www\.)?youtube\.com/embed/([A-Za-z0-9_-]{11})", re.I),
+        "https://www.youtube.com/watch?v={id}",
+    ),
+    # YouTube Shorts: youtube.com/shorts/VIDEO_ID
+    (
+        re.compile(r"https?://(?:www\.)?youtube\.com/shorts/([A-Za-z0-9_-]{11})", re.I),
+        "https://www.youtube.com/watch?v={id}",
+    ),
+    # youtu.be 短链接
+    (
+        re.compile(r"https?://youtu\.be/([A-Za-z0-9_-]{11})", re.I),
+        "https://www.youtube.com/watch?v={id}",
+    ),
+    # Vimeo: player.vimeo.com/video/VIDEO_ID
+    (
+        re.compile(r"https?://player\.vimeo\.com/video/(\d+)", re.I),
+        "https://vimeo.com/{id}",
+    ),
+    # Bilibili: player.bilibili.com/player.html?bvid=BV...
+    (
+        re.compile(
+            r"https?://player\.bilibili\.com/player\.html\?.*bvid=(BV[A-Za-z0-9]+)",
+            re.I,
+        ),
+        "https://www.bilibili.com/video/{id}",
+    ),
+    # Bilibili: player.bilibili.com/player.html?aid=...
+    (
+        re.compile(
+            r"https?://player\.bilibili\.com/player\.html\?.*aid=(\d+)",
+            re.I,
+        ),
+        "https://www.bilibili.com/video/av{id}",
+    ),
+    # Bilibili: www.bilibili.com/video/BV...
+    (
+        re.compile(r"https?://(?:www\.)?bilibili\.com/video/(BV[A-Za-z0-9]+)", re.I),
+        "https://www.bilibili.com/video/{id}",
+    ),
+    # Bilibili: www.bilibili.com/video/av...
+    (
+        re.compile(r"https?://(?:www\.)?bilibili\.com/video/av(\d+)", re.I),
+        "https://www.bilibili.com/video/av{id}",
+    ),
+]
+
+# Next.js 图片优化代理 URL 匹配
+_NEXTJS_IMAGE_RE = re.compile(r"/_next/image\b")
+
+# 常见占位符 src（透明 gif / 占位 svg / about:blank）
+_PLACEHOLDER_SRC_RE = re.compile(
+    r"^(data:image/(?:gif|svg\+xml);base64,|data:image/svg\+xml,|about:blank)",
+    re.IGNORECASE,
+)
+
+
+def _is_placeholder_src(src: object) -> bool:
+    """判断 img src 是否为占位符/缺失（触发懒加载属性兜底）。
+
+    未设置（``None``）与空字符串均视为占位，以覆盖 ``srcset-only`` 写法。
+    """
+    if src is None:
+        return True
+    if not isinstance(src, str):
+        return False
+    s = src.strip()
+    if not s:
+        return True
+    return bool(_PLACEHOLDER_SRC_RE.match(s))
+
+
+def _resolve_iframe_video_url(src: str) -> Optional[str]:
+    """识别 iframe 嵌入的视频平台 URL，返回可访问的播放页链接。"""
+    for pattern, template in _IFRAME_VIDEO_PATTERNS:
+        match = pattern.search(src)
+        if match:
+            return template.format(id=match.group(1))
+    return None
+
+
+def _resolve_nextjs_image_url(url: str, base_url: Optional[str] = None) -> str:
+    """将 Next.js 图片优化代理 URL 解析为真实 CDN URL。
+
+    ``/_next/image?url=<encoded_url>&w=<width>&q=<quality>`` → 真实 CDN URL。
+    相对路径代理 URL 会使用 base_url 解析。
+    """
+    if not _NEXTJS_IMAGE_RE.search(url):
+        return url
+
+    parsed = urlparse(url)
+    qs = parse_qs(parsed.query)
+    real_url = qs.get("url", [None])[0]
+    if not real_url:
+        return url
+
+    real_url = unquote(real_url)
+
+    if base_url and not real_url.startswith(("http://", "https://", "data:")):
+        real_url = urljoin(base_url, real_url)
+
+    return real_url
+
+
+def _pick_best_srcset_url(srcset: str) -> Optional[str]:
+    """从 srcset 属性值中选取最高分辨率的图片 URL。
+
+    srcset 格式：``url1 1x, url2 2x, url3 3x`` 或 ``url1 100w, url2 200w``。
+    选取描述符数值最大的 URL。
+    """
+    if not srcset:
+        return None
+
+    best_url: Optional[str] = None
+    best_density: float = 0
+
+    for entry in srcset.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = entry.split()
+        if not parts:
+            continue
+
+        url = parts[0]
+        descriptor = parts[1] if len(parts) > 1 else "1x"
+
+        try:
+            if descriptor.endswith("x"):
+                density = float(descriptor.rstrip("x"))
+            elif descriptor.endswith("w"):
+                density = float(descriptor.rstrip("w")) / 1000.0  # 归一化
+            else:
+                density = 1.0
+        except (ValueError, TypeError):
+            density = 1.0
+
+        if density >= best_density:
+            best_density = density
+            best_url = url
+
+    return best_url
+
+
+def _convert_media_elements(
+    soup: BeautifulSoup, base_url: Optional[str] = None
+) -> None:
+    """将非 Markdown 友好的媒体元素转换为可转换的等价形式。
+
+    必须在 unwanted_tags/unwanted_patterns 移除之前调用，
+    否则媒体元素可能因父容器被删除而丢失。
+    """
+    # ── 1. <video> → <a> 链接 ──────────────────────────────────────
+    for video in soup.find_all("video"):
+        video_url: Optional[str] = video.get("src")  # type: ignore[assignment]
+        if not video_url:
+            source_tag = video.find("source")
+            if source_tag:
+                video_url = source_tag.get("src")  # type: ignore[assignment]
+        if not video_url or not isinstance(video_url, str):
+            video.decompose()
+            continue
+
+        if base_url and not video_url.startswith(("http://", "https://")):
+            video_url = urljoin(base_url, video_url)
+
+        parts: list[str] = []
+        poster = video.get("poster")  # type: ignore[assignment]
+        if (
+            poster
+            and isinstance(poster, str)
+            and base_url
+            and not poster.startswith(("http://", "https://", "data:"))
+        ):
+            poster = urljoin(base_url, poster)
+        if poster and isinstance(poster, str):
+            poster_img = soup.new_tag("img", src=poster, alt="[视频封面]")
+            parts.append(str(poster_img))
+
+        link = soup.new_tag("a", href=video_url)
+        link.string = "[视频]"
+        parts.append(str(link))
+
+        video.replace_with(BeautifulSoup(" ".join(parts), "html.parser"))
+
+    # ── 2. <audio> → <a> 链接 ──────────────────────────────────────
+    for audio in soup.find_all("audio"):
+        audio_url = audio.get("src")  # type: ignore[assignment]
+        if not audio_url:
+            source_tag = audio.find("source")
+            if source_tag:
+                audio_url = source_tag.get("src")  # type: ignore[assignment]
+        if not audio_url or not isinstance(audio_url, str):
+            audio.decompose()
+            continue
+
+        if base_url and not audio_url.startswith(("http://", "https://")):
+            audio_url = urljoin(base_url, audio_url)
+
+        link = soup.new_tag("a", href=audio_url)
+        link.string = "[音频]"
+        audio.replace_with(link)
+
+    # ── 3. <iframe> 视频 → <a> 链接 ────────────────────────────────
+    for iframe in soup.find_all("iframe"):
+        src = iframe.get("src", "")  # type: ignore[assignment]
+        if not src or not isinstance(src, str):
+            iframe.decompose()
+            continue
+
+        watch_url = _resolve_iframe_video_url(src)
+        if watch_url:
+            link = soup.new_tag("a", href=watch_url)
+            link.string = "[视频]"
+            iframe.replace_with(link)
+        # 非视频 iframe（如地图、表单等）保留原样，由后续流程处理
+
+    # ── 4. <embed> 视频 → <a> 链接 ────────────────────────────────
+    for embed in soup.find_all("embed"):
+        embed_src = embed.get("src", "")  # type: ignore[assignment]
+        embed_type = embed.get("type", "")  # type: ignore[assignment]
+        if not embed_src or not isinstance(embed_src, str):
+            embed.decompose()
+            continue
+        etype = embed_type.lower() if isinstance(embed_type, str) else ""
+        if "video/" in etype or embed_src.endswith(
+            (".mp4", ".webm", ".ogg", ".avi", ".mov")
+        ):
+            if base_url and not embed_src.startswith(("http://", "https://")):
+                embed_src = urljoin(base_url, embed_src)
+            link = soup.new_tag("a", href=embed_src)
+            link.string = "[视频]"
+            embed.replace_with(link)
+        # 非视频 embed（如 PDF）保留原样
+
+    # ── 5. <object> 视频 → <a> 链接 ───────────────────────────────
+    for obj in soup.find_all("object"):
+        data_url = obj.get("data", "")  # type: ignore[assignment]
+        obj_type = obj.get("type", "")  # type: ignore[assignment]
+        if not data_url or not isinstance(data_url, str):
+            obj.decompose()
+            continue
+        otype = obj_type.lower() if isinstance(obj_type, str) else ""
+        if "video/" in otype or data_url.endswith(
+            (".mp4", ".webm", ".ogg", ".avi", ".mov")
+        ):
+            if base_url and not data_url.startswith(("http://", "https://")):
+                data_url = urljoin(base_url, data_url)
+            link = soup.new_tag("a", href=data_url)
+            link.string = "[视频]"
+            obj.replace_with(link)
+        # 非视频 object 保留原样
+
+    # ── 6. <img> 归一化：懒加载 + srcset + Next.js 代理解析 ───────
+    _LAZY_SRC_ATTRS = (
+        "data-src",
+        "data-original",
+        "data-lazy-src",
+        "data-url",
+        "data-srcset",
+    )
+    for img in soup.find_all("img"):
+        # 6a. 懒加载兜底：src 为空/占位符时迁移 data-* 真实 URL
+        if _is_placeholder_src(img.get("src")):
+            for attr in _LAZY_SRC_ATTRS:
+                lazy = img.get(attr)
+                if isinstance(lazy, str) and lazy.strip():
+                    if attr == "data-srcset":
+                        best_lazy = _pick_best_srcset_url(lazy)
+                        if best_lazy:
+                            img["src"] = best_lazy
+                            break
+                    else:
+                        img["src"] = lazy.strip()
+                        break
+
+        # 6b. 仍无 src 但有 srcset：从 srcset 选最佳回填
+        if _is_placeholder_src(img.get("src")):
+            srcset_val = img.get("srcset", "")
+            if isinstance(srcset_val, str) and srcset_val:
+                best = _pick_best_srcset_url(srcset_val)
+                if best:
+                    img["src"] = best
+
+        # 6c. src 中的 Next.js 代理 → 真实 CDN URL
+        src = img.get("src", "")  # type: ignore[assignment]
+        if src and isinstance(src, str) and _NEXTJS_IMAGE_RE.search(src):
+            img["src"] = _resolve_nextjs_image_url(src, base_url)
+
+        # 6d. srcset 中的 Next.js 代理：选最佳 URL 解析后回写到 src
+        srcset = img.get("srcset", "")  # type: ignore[assignment]
+        if srcset and isinstance(srcset, str) and _NEXTJS_IMAGE_RE.search(srcset):
+            best = _pick_best_srcset_url(srcset)
+            if best:
+                img["src"] = _resolve_nextjs_image_url(best, base_url)
+
+    # ── 7. <picture> 元素展平 ─────────────────────────────────────
+    for picture in soup.find_all("picture"):
+        best_url: Optional[str] = None
+
+        for source in picture.find_all("source"):
+            srcset = source.get("srcset", "")  # type: ignore[assignment]
+            if srcset and isinstance(srcset, str):
+                best_url = _pick_best_srcset_url(srcset)
+                if best_url:
+                    break
+            src = source.get("src", "")  # type: ignore[assignment]
+            if src and isinstance(src, str) and not best_url:
+                best_url = src
+
+        child_img = picture.find("img")
+        if child_img:
+            if best_url:
+                child_img["src"] = best_url
+            picture.replace_with(child_img)
+        elif best_url:
+            replacement = soup.new_tag("img", src=best_url)
+            picture.replace_with(replacement)
+        # else: 无子 img 也无可用 URL，保留原 picture（后续由 _basic_cleanup 清除）

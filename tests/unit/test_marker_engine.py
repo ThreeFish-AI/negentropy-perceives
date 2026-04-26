@@ -10,11 +10,9 @@
 """
 
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from negentropy.perceives.pdf.marker_engine import (
     MarkerCodeBlock,
@@ -130,6 +128,7 @@ class TestMarkerEngineAvailability:
     def test_is_available_fallback_to_marker(self) -> None:
         """marker_pdf 不可用时应回退检测 marker 包。"""
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -145,6 +144,7 @@ class TestMarkerEngineAvailability:
     def test_is_available_false_when_neither_installed(self) -> None:
         """两个包都不可用时应返回 False。"""
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -349,7 +349,7 @@ class TestMarkerHelpers:
     def test_get_block_caption_from_html(self) -> None:
         mock_block = MagicMock(spec=["html"])
         mock_block.caption = None
-        mock_block.html = '<table><caption>Fig Caption</caption></table>'
+        mock_block.html = "<table><caption>Fig Caption</caption></table>"
         assert MarkerEngine._get_block_caption(mock_block) == "Fig Caption"
 
     def test_get_block_caption_none(self) -> None:
@@ -389,9 +389,7 @@ class TestMarkerEngineConvert:
         mock_rendered.metadata = {"pages": 2}
         mock_rendered.children = []
 
-        mock_tfr = MagicMock(
-            return_value=("# Test Document\n\nContent here.", {}, {})
-        )
+        mock_tfr = MagicMock(return_value=("# Test Document\n\nContent here.", {}, {}))
 
         with (
             patch.object(MarkerEngine, "is_available", return_value=True),
@@ -400,7 +398,9 @@ class TestMarkerEngineConvert:
                 "negentropy.perceives.pdf.math_formula.DoclingFormulaEnricher.postprocess_latex",
                 side_effect=lambda x: x,
             ),
-            patch.dict("sys.modules", {"marker.output": MagicMock(text_from_rendered=mock_tfr)}),
+            patch.dict(
+                "sys.modules", {"marker.output": MagicMock(text_from_rendered=mock_tfr)}
+            ),
             patch(
                 "negentropy.perceives.markdown.image_ref_normalizer.normalize_image_references",
                 side_effect=lambda md, imgs, **kw: md,
@@ -421,7 +421,9 @@ class TestMarkerEngineConvert:
         engine = MarkerEngine(output_dir=str(tmp_path))
 
         with patch.object(MarkerEngine, "is_available", return_value=True):
-            with patch.object(engine, "_get_converter", side_effect=RuntimeError("model error")):
+            with patch.object(
+                engine, "_get_converter", side_effect=RuntimeError("model error")
+            ):
                 result = engine.convert(str(tmp_path / "test.pdf"))
                 assert result is None
 

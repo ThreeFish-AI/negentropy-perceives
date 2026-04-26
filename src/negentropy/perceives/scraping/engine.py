@@ -67,7 +67,7 @@ class SeleniumScraper:
             page_source = self.driver.page_source
             soup = BeautifulSoup(page_source, "html.parser")
 
-            result = {
+            result: dict[str, Any] = {
                 "url": self.driver.current_url,
                 "title": self.driver.title,
                 "meta_description": None,
@@ -77,7 +77,7 @@ class SeleniumScraper:
             # Get meta description
             meta_desc = soup.find("meta", attrs={"name": "description"})
             if meta_desc and hasattr(meta_desc, "get"):
-                result["meta_description"] = meta_desc.get("content")
+                result["meta_description"] = meta_desc.get("content")  # type: ignore[assignment]
 
             # Extract based on configuration
             if extract_config:

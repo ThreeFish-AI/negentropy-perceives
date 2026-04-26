@@ -11,10 +11,9 @@
 """
 
 import json
-import platform
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -155,16 +154,16 @@ class TestMinerUEngineConfigKey:
         assert "device=" in key
 
     def test_explicit_backend_overrides(self) -> None:
-        """用户显式指定 backend 应覆盖自动检测。"""
-        engine = MinerUEngine(backend="vlm-mlx-engine")
+        """用户显式指定 backend 应覆盖自动检测（合法值透传）。"""
+        engine = MinerUEngine(backend="hybrid-auto-engine")
         backend = engine._resolve_device()
-        assert backend == "vlm-mlx-engine"
+        assert backend == "hybrid-auto-engine"
 
-    def test_mps_device_maps_to_mlx(self) -> None:
-        """MPS 设备应映射到 vlm-mlx-engine 后端。"""
+    def test_mps_device_maps_to_vlm_auto(self) -> None:
+        """MPS 设备应映射到 vlm-auto-engine 后端（MinerU CLI 合法值）。"""
         engine = MinerUEngine(device="mps")
         backend = engine._resolve_device()
-        assert backend == "vlm-mlx-engine"
+        assert backend == "vlm-auto-engine"
 
     def test_cuda_device_maps_to_pipeline(self) -> None:
         """CUDA 设备应映射到 pipeline 后端。"""
@@ -183,7 +182,7 @@ class TestMinerUEngineConfigKey:
         engine = MinerUEngine(device="auto")
         backend = engine._resolve_device()
         if MinerUEngine._is_apple_silicon():
-            assert backend == "vlm-mlx-engine"
+            assert backend == "vlm-auto-engine"
         else:
             assert backend == "pipeline"
 
@@ -191,14 +190,27 @@ class TestMinerUEngineConfigKey:
         result = MinerUEngine._is_apple_silicon()
         assert isinstance(result, bool)
 
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Darwin")
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="arm64")
-    def test_apple_silicon_detected(self, _mock_machine: object, _mock_system: object) -> None:
+    @patch(
+        "negentropy.perceives.pdf.engines.mineru.platform.system", return_value="Darwin"
+    )
+    @patch(
+        "negentropy.perceives.pdf.engines.mineru.platform.machine", return_value="arm64"
+    )
+    def test_apple_silicon_detected(
+        self, _mock_machine: object, _mock_system: object
+    ) -> None:
         assert MinerUEngine._is_apple_silicon() is True
 
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.system", return_value="Linux")
-    @patch("negentropy.perceives.pdf.mineru_engine.platform.machine", return_value="x86_64")
-    def test_not_apple_silicon(self, _mock_machine: object, _mock_system: object) -> None:
+    @patch(
+        "negentropy.perceives.pdf.engines.mineru.platform.system", return_value="Linux"
+    )
+    @patch(
+        "negentropy.perceives.pdf.engines.mineru.platform.machine",
+        return_value="x86_64",
+    )
+    def test_not_apple_silicon(
+        self, _mock_machine: object, _mock_system: object
+    ) -> None:
         assert MinerUEngine._is_apple_silicon() is False
 
     def test_different_configs_produce_different_keys(self) -> None:
@@ -297,7 +309,9 @@ class TestMinerUNormalizeOutput:
 
     def test_normalize_output_non_array_json(self, tmp_path: Path) -> None:
         """非数组 JSON 应返回 None。"""
-        (tmp_path / "content_list.json").write_text('{"key": "value"}', encoding="utf-8")
+        (tmp_path / "content_list.json").write_text(
+            '{"key": "value"}', encoding="utf-8"
+        )
         engine = MinerUEngine()
         result = engine._normalize_output(tmp_path, str(tmp_path / "test.pdf"))
         assert result is None
@@ -387,7 +401,12 @@ class TestMinerUStructuredExtraction:
 
     def test_extract_formulas_from_content_list(self) -> None:
         content_list = [
-            {"type": "equation", "latex": r"\sum_i x_i", "format": "block", "page_no": 0},
+            {
+                "type": "equation",
+                "latex": r"\sum_i x_i",
+                "format": "block",
+                "page_no": 0,
+            },
             {"type": "equation", "latex": r"\alpha", "format": "inline", "page_no": 0},
         ]
         engine = MinerUEngine()
@@ -516,7 +535,9 @@ class TestMinerUTableDimensions:
         assert cols == 2
 
     def test_html_table_dimensions(self) -> None:
-        content = "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+        content = (
+            "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+        )
         engine = MinerUEngine()
         rows, cols = engine._parse_table_dimensions(content, is_html=True)
         assert rows == 2
@@ -618,7 +639,7 @@ class TestPDFProcessorMinerUIntegration:
                 pdf_path = f.name
 
             with patch(
-                "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
+                "negentropy.perceives.pdf.engines.mineru.MinerUEngine.is_available",
                 return_value=False,
             ):
                 result = await proc.process_pdf(pdf_path, method="mineru")

@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
-from .base import StageResult, StageTool
+from .base import Stage, StageResult, StageTool
 from .registry import get_tool
 
 logger = logging.getLogger(__name__)
 
+TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
 
 
@@ -37,6 +38,8 @@ class StageScheduler:
         competition_mode: bool = False,
         competition_config: Optional[Dict[str, Any]] = None,
         selector: Optional[Callable] = None,
+        pipeline_name: str = "",
+        judge: Optional[Any] = None,
     ) -> StageResult:
         """执行单个 Stage。
 
@@ -47,12 +50,16 @@ class StageScheduler:
             competition_mode: 是否启用竞争模式
             competition_config: 竞争模式配置（max_concurrent, timeout 等）
             selector: 自定义结果选择器
+            pipeline_name: Pipeline 名称，用于限定名查找
+            judge: LLM 评审器实例（LLMCompetitionJudge）
 
         Returns:
             Stage 执行结果
         """
         # 解析可用工具
-        tools = self._resolve_tools(tool_configs)
+        tools = self._resolve_tools(
+            tool_configs, stage_name=stage_name, pipeline_name=pipeline_name
+        )
         if not tools:
             return StageResult(
                 success=False,
@@ -72,6 +79,7 @@ class StageScheduler:
                 max_concurrent=comp.get("max_concurrent", 2),
                 timeout=comp.get("timeout", 120),
                 selector=selector,
+                judge=judge,
             )
 
     async def _run_fallback(
@@ -123,8 +131,13 @@ class StageScheduler:
         max_concurrent: int = 2,
         timeout: float = 120.0,
         selector: Optional[Callable] = None,
+        judge: Optional[Any] = None,
     ) -> StageResult:
-        """竞争模式：并行执行多个工具，择优。"""
+        """竞争模式：并行执行多个工具，择优。
+
+        使用 ``asyncio.as_completed`` 按完成顺序收集结果，
+        避免被慢引擎超时拖住整个 Stage。
+        """
         candidates = tools[:max_concurrent]
         logger.info(
             "Stage '%s' 竞争模式：并行运行 %d 个工具 [%s]",
@@ -133,32 +146,37 @@ class StageScheduler:
             ", ".join(t.name for t in candidates),
         )
 
-        tasks = [
-            asyncio.wait_for(tool.execute(input_data), timeout=timeout)
-            for tool in candidates
-        ]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        successful: List[StageResult] = []
-        for i, raw in enumerate(raw_results):
-            tool_name = candidates[i].name
-            if isinstance(raw, StageResult) and raw.success:
-                raw.engine_used = tool_name
-                successful.append(raw)
-            elif isinstance(raw, asyncio.TimeoutError):
+        async def _safe_execute(tool: StageTool) -> Tuple[str, Any]:
+            try:
+                result = await asyncio.wait_for(
+                    tool.execute(input_data), timeout=timeout
+                )
+                return tool.name, result
+            except asyncio.TimeoutError:
                 logger.warning(
                     "Stage '%s' 工具 '%s' 超时 (%.0fs)",
                     stage_name,
-                    tool_name,
+                    tool.name,
                     timeout,
                 )
-            elif isinstance(raw, Exception):
+                return tool.name, None
+            except Exception as exc:
                 logger.warning(
                     "Stage '%s' 工具 '%s' 异常: %s",
                     stage_name,
-                    tool_name,
-                    raw,
+                    tool.name,
+                    exc,
                 )
+                return tool.name, None
+
+        aws = [asyncio.create_task(_safe_execute(t)) for t in candidates]
+
+        successful: List[StageResult] = []
+        for coro in asyncio.as_completed(aws):
+            tool_name, result = await coro
+            if isinstance(result, StageResult) and result.success:
+                result.engine_used = tool_name
+                successful.append(result)
 
         if not successful:
             return StageResult(
@@ -172,13 +190,43 @@ class StageScheduler:
         # 多个成功结果 -> 择优
         if selector:
             return selector(successful)
+
+        # LLM 评审
+        if (
+            judge is not None
+            and hasattr(judge, "is_available")
+            and judge.is_available()
+        ):
+            try:
+                best_idx = await judge.judge(stage_name, successful)
+                logger.info(
+                    "Stage '%s' LLM 评审选择索引 %d (%s)",
+                    stage_name,
+                    best_idx,
+                    getattr(successful[best_idx], "engine_used", "unknown"),
+                )
+                return successful[best_idx]
+            except Exception as e:
+                logger.warning(
+                    "Stage '%s' LLM 评审异常，回退到 rank 顺序: %s",
+                    stage_name,
+                    e,
+                )
+
         return successful[0]  # 默认取 rank 最高的
 
-    def _resolve_tools(self, tool_configs: List[Dict[str, Any]]) -> List[StageTool]:
+    def _resolve_tools(
+        self,
+        tool_configs: List[Dict[str, Any]],
+        stage_name: str = "",
+        pipeline_name: str = "",
+    ) -> List[StageTool]:
         """根据配置解析并排序工具实例。
 
         Args:
             tool_configs: ``[{name: str, rank: int, enabled: bool}, ...]``
+            stage_name: Stage 名称，用于限定名查找（如 ``preprocessing.pymupdf``）
+            pipeline_name: Pipeline 名称，用于跨 Pipeline 隔离
 
         Returns:
             按 rank 排序的可用工具实例列表
@@ -190,12 +238,100 @@ class StageScheduler:
         tools = []
         for tc in sorted_configs:
             name = tc.get("name", "")
-            try:
-                tool = get_tool(name)
-                if tool.is_available():
-                    tools.append(tool)
-                else:
-                    logger.debug("工具 '%s' 未安装或不可用，跳过", name)
-            except ValueError:
-                logger.debug("工具 '%s' 未注册，跳过", name)
+            tool = None
+            # 1. 尝试 pipeline 感知限定名（如 "pdf.preprocessing.pymupdf"）
+            if pipeline_name and stage_name:
+                try:
+                    tool = get_tool(f"{pipeline_name}.{stage_name}.{name}")
+                except ValueError:
+                    pass
+            # 2. 兼容旧格式 stage 限定名（如 "preprocessing.pymupdf"）
+            if tool is None and stage_name:
+                try:
+                    tool = get_tool(f"{stage_name}.{name}")
+                except ValueError:
+                    pass
+            # 3. 通用名回退（如 "aiohttp"）
+            if tool is None:
+                try:
+                    tool = get_tool(name)
+                except ValueError:
+                    logger.debug("工具 '%s' 未注册，跳过", name)
+                    continue
+            if tool.is_available():
+                tools.append(tool)
+            else:
+                logger.info(
+                    "Stage '%s' 工具 '%s' 不可用（未安装或环境探测失败），自动跳过",
+                    stage_name,
+                    name,
+                )
+        if not tools and sorted_configs:
+            names_tried = [tc.get("name", "") for tc in sorted_configs]
+            logger.warning(
+                "Stage '%s' 无可用工具，已尝试: %s",
+                stage_name,
+                names_tried,
+            )
+        elif tools:
+            declared = [tc.get("name", "") for tc in sorted_configs]
+            logger.info(
+                "Stage '%s' 参与竞争 tools=%s（声明=%s，已过滤不可用）",
+                stage_name,
+                [t.name for t in tools],
+                declared,
+            )
         return tools
+
+
+class CompetitiveStage(Stage[TInput, TOutput]):
+    """多工具并行竞争 Stage。
+
+    并行运行多个候选工具，通过选择器择优。
+    委托 ``StageScheduler._run_competition`` 执行实际竞争逻辑。
+    """
+
+    def __init__(
+        self,
+        stage_id: str,
+        stage_name: str,
+        candidates: List[StageTool],
+        selector: Optional[
+            Callable[[List[StageResult[TOutput]]], StageResult[TOutput]]
+        ] = None,
+        max_concurrent: int = 2,
+        timeout: float = 120.0,
+    ):
+        self._stage_id = stage_id
+        self._stage_name = stage_name
+        self._candidates = candidates
+        self._selector = selector
+        self._max_concurrent = max_concurrent
+        self._timeout = timeout
+        self._scheduler = StageScheduler()
+
+    @property
+    def stage_id(self) -> str:
+        return self._stage_id
+
+    @property
+    def stage_name(self) -> str:
+        return self._stage_name
+
+    async def execute(self, input_data: TInput) -> StageResult[TOutput]:
+        """并行执行候选工具并择优。"""
+        available = [c for c in self._candidates if c.is_available()]
+        if not available:
+            return StageResult(
+                success=False,
+                error=f"Stage '{self._stage_id}' 无可用候选工具",
+            )
+
+        return await self._scheduler._run_competition(
+            stage_name=self._stage_id,
+            tools=available,
+            input_data=input_data,
+            max_concurrent=self._max_concurrent,
+            timeout=self._timeout,
+            selector=self._selector,
+        )

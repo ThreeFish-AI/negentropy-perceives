@@ -15,7 +15,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from negentropy.perceives.pdf.figure_text_filter import (
-    CAPTION_PATTERNS,
     FigureRegion,
     collect_figure_internal_texts,
     is_caption_text,
@@ -32,76 +31,106 @@ class TestIsTextInsideFigure:
 
     def test_fully_contained(self):
         """文本完全在图区域内 → True"""
-        assert is_text_inside_figure(
-            text_bbox=(100, 100, 200, 120),
-            figure_bbox=(50, 50, 300, 300),
-        ) is True
+        assert (
+            is_text_inside_figure(
+                text_bbox=(100, 100, 200, 120),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is True
+        )
 
     def test_completely_outside(self):
         """文本完全在图区域外 → False"""
-        assert is_text_inside_figure(
-            text_bbox=(400, 400, 500, 420),
-            figure_bbox=(50, 50, 300, 300),
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(400, 400, 500, 420),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is False
+        )
 
     def test_no_vertical_overlap(self):
         """水平重叠但垂直无交集 → False"""
-        assert is_text_inside_figure(
-            text_bbox=(100, 350, 200, 370),
-            figure_bbox=(50, 50, 300, 300),
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(100, 350, 200, 370),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is False
+        )
 
     def test_no_horizontal_overlap(self):
         """垂直重叠但水平无交集 → False"""
-        assert is_text_inside_figure(
-            text_bbox=(350, 100, 450, 120),
-            figure_bbox=(50, 50, 300, 300),
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(350, 100, 450, 120),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is False
+        )
 
     def test_partial_overlap_below_threshold(self):
         """重叠面积占比 < 0.6 → False"""
         # 文本宽度 150，只有 50 在图内：50/150 = 0.33
-        assert is_text_inside_figure(
-            text_bbox=(250, 100, 400, 120),
-            figure_bbox=(50, 50, 300, 300),
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(250, 100, 400, 120),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is False
+        )
 
     def test_partial_overlap_above_threshold(self):
         """重叠面积占比 >= 0.6 → True"""
         # 文本宽度 120，有 100 在图内：100/120 = 0.83
-        assert is_text_inside_figure(
-            text_bbox=(200, 100, 320, 120),
-            figure_bbox=(50, 50, 300, 300),
-        ) is True
+        assert (
+            is_text_inside_figure(
+                text_bbox=(200, 100, 320, 120),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is True
+        )
 
     def test_custom_threshold(self):
         """自定义阈值测试"""
         # 50% 重叠，默认阈值 0.6 → False
-        assert is_text_inside_figure(
-            text_bbox=(200, 100, 400, 120),
-            figure_bbox=(50, 50, 300, 300),
-            overlap_threshold=0.6,
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(200, 100, 400, 120),
+                figure_bbox=(50, 50, 300, 300),
+                overlap_threshold=0.6,
+            )
+            is False
+        )
         # 同样的重叠，阈值 0.4 → True
-        assert is_text_inside_figure(
-            text_bbox=(200, 100, 400, 120),
-            figure_bbox=(50, 50, 300, 300),
-            overlap_threshold=0.4,
-        ) is True
+        assert (
+            is_text_inside_figure(
+                text_bbox=(200, 100, 400, 120),
+                figure_bbox=(50, 50, 300, 300),
+                overlap_threshold=0.4,
+            )
+            is True
+        )
 
     def test_zero_area_text(self):
         """零面积文本 → False"""
-        assert is_text_inside_figure(
-            text_bbox=(100, 100, 100, 120),
-            figure_bbox=(50, 50, 300, 300),
-        ) is False
+        assert (
+            is_text_inside_figure(
+                text_bbox=(100, 100, 100, 120),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is False
+        )
 
     def test_exact_overlap(self):
         """文本与图区域完全重合 → True"""
-        assert is_text_inside_figure(
-            text_bbox=(50, 50, 300, 300),
-            figure_bbox=(50, 50, 300, 300),
-        ) is True
+        assert (
+            is_text_inside_figure(
+                text_bbox=(50, 50, 300, 300),
+                figure_bbox=(50, 50, 300, 300),
+            )
+            is True
+        )
 
 
 # ============================================================
@@ -166,8 +195,18 @@ class TestCollectFigureInternalTexts:
     def test_basic_filtering(self):
         """文本在图区域内应被收集"""
         items = [
-            {"label": "text", "text": "Figure label", "page": 1, "bbox": (100, 100, 200, 120)},
-            {"label": "text", "text": "Body text", "page": 1, "bbox": (50, 400, 500, 420)},
+            {
+                "label": "text",
+                "text": "Figure label",
+                "page": 1,
+                "bbox": (100, 100, 200, 120),
+            },
+            {
+                "label": "text",
+                "text": "Body text",
+                "page": 1,
+                "bbox": (50, 400, 500, 420),
+            },
         ]
         regions = [FigureRegion(page_no=1, bbox=(80, 80, 250, 250))]
 
@@ -186,7 +225,12 @@ class TestCollectFigureInternalTexts:
     def test_caption_excluded(self):
         """标题文字不应被收集"""
         items = [
-            {"label": "text", "text": "Figure 1: Architecture", "page": 1, "bbox": (100, 260, 300, 280)},
+            {
+                "label": "text",
+                "text": "Figure 1: Architecture",
+                "page": 1,
+                "bbox": (100, 260, 300, 280),
+            },
         ]
         regions = [FigureRegion(page_no=1, bbox=(80, 80, 350, 300))]
 
@@ -204,7 +248,12 @@ class TestCollectFigureInternalTexts:
     def test_different_page(self):
         """不同页面的文本不受影响"""
         items = [
-            {"label": "text", "text": "Some text", "page": 2, "bbox": (100, 100, 200, 120)},
+            {
+                "label": "text",
+                "text": "Some text",
+                "page": 2,
+                "bbox": (100, 100, 200, 120),
+            },
         ]
         regions = [FigureRegion(page_no=1, bbox=(80, 80, 250, 250))]
 
@@ -222,7 +271,12 @@ class TestCollectFigureInternalTexts:
     def test_non_body_labels_ignored(self):
         """非正文 label 不参与过滤"""
         items = [
-            {"label": "section_header", "text": "Title", "page": 1, "bbox": (100, 100, 200, 120)},
+            {
+                "label": "section_header",
+                "text": "Title",
+                "page": 1,
+                "bbox": (100, 100, 200, 120),
+            },
         ]
         regions = [FigureRegion(page_no=1, bbox=(80, 80, 250, 250))]
 
@@ -240,7 +294,12 @@ class TestCollectFigureInternalTexts:
     def test_empty_regions(self):
         """无图区域时返回空集"""
         items = [
-            {"label": "text", "text": "Some text", "page": 1, "bbox": (100, 100, 200, 120)},
+            {
+                "label": "text",
+                "text": "Some text",
+                "page": 1,
+                "bbox": (100, 100, 200, 120),
+            },
         ]
         result = collect_figure_internal_texts(
             items,
@@ -364,7 +423,8 @@ class TestDoclingEngineFigureFiltering:
 
         regions = engine._collect_figure_regions(doc)
         assert len(regions) == 1
-        assert regions[0].page_no == 1
+        # Docling 上报 1-based page_no=1 → 项目 0-based 归一化为 0
+        assert regions[0].page_no == 0
         assert regions[0].bbox == (50.0, 100.0, 400.0, 350.0)
 
     def test_filter_figure_internal_texts_integration(self):
