@@ -465,6 +465,7 @@ async with NegentropyPerceivesClient(
 | 环境变量                               | 类型    | 默认值                    | 约束        | 说明                                                  |
 | -------------------------------------- | ------- | ------------------------- | ----------- | ----------------------------------------------------- |
 | `NEGENTROPY_PERCEIVES_LLM_API_KEY`     | `str?`  | `null`                    | -           | LLM API Key（ZhipuAI），也可通过 `ZHIPU_API_KEY` 设置 |
+| `NEGENTROPY_PERCEIVES_LLM_API_BASE_URL` | `str?` | `null`                    | -           | LLM API Base URL（OpenAI 兼容协议，如 `https://api.openai.com/v1`） |
 | `NEGENTROPY_PERCEIVES_LLM_MODEL`       | `str`   | `zhipu/glm-5.1` | -           | LiteLLM 模型标识                                      |
 | `NEGENTROPY_PERCEIVES_LLM_TEMPERATURE` | `float` | `0.1`                     | `0.0 ~ 2.0` | LLM 温度参数                                          |
 | `NEGENTROPY_PERCEIVES_LLM_MAX_TOKENS`  | `int`   | `4096`                    | `> 0`       | LLM 最大输出 token                                    |
