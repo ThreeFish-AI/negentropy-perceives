@@ -72,7 +72,9 @@ class DoclingTableExtractor(PDFToolBase):
                         markdown=table.markdown,
                         rows=table.rows,
                         columns=table.columns,
-                        page_number=table.page_number or 0,
+                        page_number=(
+                            table.page_number if table.page_number is not None else 0
+                        ),
                         bbox=table.bbox,
                         caption=table.caption,
                     )

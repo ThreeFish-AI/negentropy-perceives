@@ -285,6 +285,7 @@ class TestLogPrefixPropagation:
                 orch._defaults = {}
                 orch._pipeline_name = ""
                 orch._scheduler = AsyncMock()
+                orch._judge = None
 
             # Mock scheduler
             mock_result = StageResult(

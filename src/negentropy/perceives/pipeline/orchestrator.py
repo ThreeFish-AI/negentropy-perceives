@@ -71,8 +71,8 @@ class PipelineOrchestrator:
                 from ..core.pipeline_config import CompetitionJudgeConfig
 
                 judge_config = CompetitionJudgeConfig()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("CompetitionJudgeConfig 未配置，使用默认值: %s", e)
 
             judge = LLMCompetitionJudge(
                 config=judge_config,

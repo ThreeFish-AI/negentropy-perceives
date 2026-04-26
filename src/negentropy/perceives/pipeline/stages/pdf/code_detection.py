@@ -72,7 +72,9 @@ class DoclingCodeDetector(PDFToolBase):
                         code_id=f"code_{idx}",
                         code=cb.code,
                         language=cb.language,
-                        page_number=cb.page_number or 0,
+                        page_number=(
+                            cb.page_number if cb.page_number is not None else 0
+                        ),
                         confidence=0.9,
                     )
                 )
@@ -133,7 +135,9 @@ class MarkerCodeDetector(PDFToolBase):
                         code_id=f"code_{idx}",
                         code=cb.code,
                         language=cb.language,
-                        page_number=cb.page_number or 0,
+                        page_number=(
+                            cb.page_number if cb.page_number is not None else 0
+                        ),
                         confidence=0.85,
                     )
                 )
@@ -195,30 +199,29 @@ class AlgorithmCodeDetector(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(doc.page_count, input_data.page_range[1])
 
-            # 逐页提取文本，用双换行拼接
-            page_texts: List[str] = []
+            # 逐页扫描算法块，把页码绑定到每个 region；避免全文拼接后页码丢失，
+            # 导致 assembly 把跨页算法块全部锚定到首页 (page=0) 顶部。
+            code_blocks: List[ExtractedCodeBlock] = []
+            counter = 0
             for page_idx in range(start_page, end_page):
                 page = doc[page_idx]
                 page_text = page.get_text("text")
-                if page_text.strip():
-                    page_texts.append(page_text)
+                if not page_text.strip():
+                    continue
+                for region in detect_algorithm_regions(page_text):
+                    code_blocks.append(
+                        ExtractedCodeBlock(
+                            code_id=f"algo_{counter}",
+                            code=region.content,
+                            language="algorithm",
+                            is_algorithm=True,
+                            page_number=page_idx,
+                            confidence=region.confidence,
+                        )
+                    )
+                    counter += 1
 
             doc.close()
-
-            full_text = "\n\n".join(page_texts)
-            regions = detect_algorithm_regions(full_text)
-
-            code_blocks: List[ExtractedCodeBlock] = []
-            for idx, region in enumerate(regions):
-                code_blocks.append(
-                    ExtractedCodeBlock(
-                        code_id=f"algo_{idx}",
-                        code=region.content,
-                        language="algorithm",
-                        is_algorithm=True,
-                        confidence=region.confidence,
-                    )
-                )
 
             output = CodeDetectionOutput(
                 code_blocks=code_blocks,
