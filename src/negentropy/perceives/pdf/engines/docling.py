@@ -75,6 +75,17 @@ class DoclingCodeBlock:
 
 
 @dataclass
+class DoclingTextBlock:
+    """Docling 提取的文本块（含页码与 bbox，TopLeft 坐标系）。"""
+
+    text: str
+    page_number: Optional[int] = None
+    bbox: Optional[Tuple[float, float, float, float]] = None
+    label: str = "paragraph"
+    heading_level: Optional[int] = None
+
+
+@dataclass
 class DoclingConversionResult:
     """Docling 转换结果的标准化数据结构。"""
 
@@ -83,6 +94,7 @@ class DoclingConversionResult:
     images: List[DoclingImage] = field(default_factory=list)
     formulas: List[DoclingFormula] = field(default_factory=list)
     code_blocks: List[DoclingCodeBlock] = field(default_factory=list)
+    text_blocks: List[DoclingTextBlock] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     page_count: int = 0
 
@@ -383,10 +395,11 @@ class DoclingEngine:
 
                 markdown = normalize_image_references(markdown, images)
 
-            # 4. 提取结构化元素（表格、公式、代码块）
+            # 4. 提取结构化元素（表格、公式、代码块、文本块）
             tables = self._extract_tables(doc)
             formulas = self._extract_formulas(doc, markdown)
             code_blocks = self._extract_code_blocks(doc)
+            text_blocks = self._extract_text_blocks(doc)
 
             # 5. 元数据
             metadata = self._extract_metadata(doc)
@@ -400,6 +413,7 @@ class DoclingEngine:
                 images=images,
                 formulas=formulas,
                 code_blocks=code_blocks,
+                text_blocks=text_blocks,
                 metadata=metadata,
                 page_count=page_count,
             )
@@ -488,7 +502,10 @@ class DoclingEngine:
             item = item_tuple[0]
             prov = getattr(item, "prov", None)
             if prov and len(prov) > 0:
-                return self._extract_bbox_tuple(getattr(prov[0], "bbox", None))
+                raw_page = self._get_raw_page_no(item)
+                return self._to_topleft_bbox(
+                    getattr(prov[0], "bbox", None), doc, raw_page
+                )
             return None
 
         texts_to_remove = collect_figure_internal_texts(
@@ -509,7 +526,7 @@ class DoclingEngine:
         return markdown
 
     def _collect_figure_regions(self, doc: Any) -> List["FigureRegion"]:
-        """从文档中提取所有图片/图表的边界框。"""
+        """从文档中提取所有图片/图表的边界框（页码 0-based，bbox TopLeft）。"""
         from ..figure_text_filter import FigureRegion
 
         regions: List[FigureRegion] = []
@@ -520,15 +537,16 @@ class DoclingEngine:
             prov = getattr(pic, "prov", None)
             if not prov or len(prov) == 0:
                 continue
-            page_no = getattr(prov[0], "page_no", None)
+            raw_page_no = getattr(prov[0], "page_no", None)
+            normalized_page_no = self._normalize_docling_page_no(raw_page_no)
             bbox_obj = getattr(prov[0], "bbox", None)
-            if page_no is None or bbox_obj is None:
+            if normalized_page_no is None or bbox_obj is None:
                 continue
-            bbox = self._extract_bbox_tuple(bbox_obj)
+            bbox = self._to_topleft_bbox(bbox_obj, doc, raw_page_no)
             if bbox:
                 caption = self._safe_caption(pic, doc)
                 regions.append(
-                    FigureRegion(page_no=page_no, bbox=bbox, caption=caption)
+                    FigureRegion(page_no=normalized_page_no, bbox=bbox, caption=caption)
                 )
 
         return regions
@@ -567,7 +585,7 @@ class DoclingEngine:
     # ------------------------------------------------------------------
 
     def _extract_tables(self, doc: Any) -> List[DoclingTable]:
-        """从 DoclingDocument 提取结构化表格。"""
+        """从 DoclingDocument 提取结构化表格（页码 0-based，bbox TopLeft）。"""
         tables: List[DoclingTable] = []
         if not hasattr(doc, "tables"):
             return tables
@@ -587,8 +605,15 @@ class DoclingEngine:
                 # 标题（captions 可能是 RefItem 列表，需通过 doc 解析）
                 caption = self._safe_caption(table_item, doc)
 
-                # 页码
+                # 页码与 bbox（在边界做归一化：0-based + TopLeft）
                 page_no = self._get_page_number(table_item)
+                raw_page_no = self._get_raw_page_no(table_item)
+                bbox = None
+                prov = getattr(table_item, "prov", None)
+                if prov and len(prov) > 0:
+                    bbox = self._to_topleft_bbox(
+                        getattr(prov[0], "bbox", None), doc, raw_page_no
+                    )
 
                 tables.append(
                     DoclingTable(
@@ -597,6 +622,7 @@ class DoclingEngine:
                         columns=cols,
                         page_number=page_no,
                         caption=caption,
+                        bbox=bbox,
                     )
                 )
             except Exception as e:
@@ -629,7 +655,16 @@ class DoclingEngine:
                 caption = self._safe_caption(pic, doc)
                 classification = getattr(pic, "classification", None)
                 page_no = self._get_page_number(pic)
+                raw_page_no = self._get_raw_page_no(pic)
                 image_ref = getattr(pic, "image", None)
+
+                # bbox（TopLeft 坐标系，便于 assembly 与 PyMuPDF 数据一致排序）
+                bbox = None
+                prov = getattr(pic, "prov", None)
+                if prov and len(prov) > 0:
+                    bbox = self._to_topleft_bbox(
+                        getattr(prov[0], "bbox", None), doc, raw_page_no
+                    )
 
                 filename = None
                 local_path = None
@@ -668,6 +703,7 @@ class DoclingEngine:
                         classification=(
                             str(classification) if classification else None
                         ),
+                        bbox=bbox,
                         image_ref=image_ref,
                         filename=filename,
                         local_path=local_path,
@@ -728,6 +764,72 @@ class DoclingEngine:
             logger.warning("提取 Docling 代码块失败: %s", e)
 
         return code_blocks
+
+    # 视为正文文本的 Docling label 集合
+    _TEXT_LABELS = frozenset(
+        {
+            "title",
+            "section_header",
+            "paragraph",
+            "text",
+            "list_item",
+            "footnote",
+            "caption",
+        }
+    )
+
+    def _extract_text_blocks(self, doc: Any) -> List[DoclingTextBlock]:
+        """遍历 ``doc.iterate_items()`` 提取带页码与 bbox 的文本块。
+
+        Docling 的 ``export_to_markdown()`` 是聚合输出，丢失了段落到页码的映射；
+        而 ``iterate_items()`` 保留了每个 item 的 ``prov[0].page_no`` 与 ``bbox``，
+        是实现「文本块按页排序」的唯一可靠路径。
+        """
+        blocks: List[DoclingTextBlock] = []
+        if not hasattr(doc, "iterate_items"):
+            return blocks
+
+        try:
+            for item, _level in doc.iterate_items():
+                label = str(getattr(item, "label", "")).lower()
+                if label not in self._TEXT_LABELS:
+                    continue
+                text = getattr(item, "text", "") or ""
+                if not text or not text.strip():
+                    continue
+                page_no = self._get_page_number(item)
+                raw_page_no = self._get_raw_page_no(item)
+                bbox = None
+                prov = getattr(item, "prov", None)
+                if prov and len(prov) > 0:
+                    bbox = self._to_topleft_bbox(
+                        getattr(prov[0], "bbox", None), doc, raw_page_no
+                    )
+
+                heading_level: Optional[int] = None
+                if label == "title":
+                    heading_level = 1
+                elif label == "section_header":
+                    raw_level = getattr(item, "level", None)
+                    try:
+                        heading_level = int(raw_level) if raw_level else 2
+                    except (TypeError, ValueError):
+                        heading_level = 2
+                    heading_level = max(1, min(6, heading_level))
+
+                blocks.append(
+                    DoclingTextBlock(
+                        text=text.strip(),
+                        page_number=page_no,
+                        bbox=bbox,
+                        label=label,
+                        heading_level=heading_level,
+                    )
+                )
+        except Exception as e:
+            logger.warning("提取 Docling 文本块失败: %s", e)
+
+        return blocks
 
     def _extract_metadata(self, doc: Any) -> Dict[str, Any]:
         """提取文档元数据。"""
@@ -793,13 +895,97 @@ class DoclingEngine:
                     )
         return ""
 
+    # Docling 报告的 page_no 为 1-based（首页 page_no=1）。
+    # 项目内统一使用 0-based 页码（PyMuPDF / ExtractedImage / TextBlock 等），
+    # 因此在 Docling 数据进入项目域的边界统一归一化。
+    _DOCLING_PAGE_OFFSET = 1
+
+    @staticmethod
+    def _normalize_docling_page_no(page_no: Optional[int]) -> Optional[int]:
+        """将 Docling 1-based 页码转换为项目 0-based 约定。"""
+        if page_no is None:
+            return None
+        try:
+            return max(0, int(page_no) - DoclingEngine._DOCLING_PAGE_OFFSET)
+        except (TypeError, ValueError):
+            return None
+
     @staticmethod
     def _get_page_number(item: Any) -> Optional[int]:
-        """从 Docling 元素的 prov 属性中获取页码。"""
+        """从 Docling 元素的 prov 属性中获取 0-based 页码。"""
         prov = getattr(item, "prov", None)
         if prov and len(prov) > 0:
-            return getattr(prov[0], "page_no", None)
+            return DoclingEngine._normalize_docling_page_no(
+                getattr(prov[0], "page_no", None)
+            )
         return None
+
+    @staticmethod
+    def _get_raw_page_no(item: Any) -> Optional[int]:
+        """获取 Docling 原始 1-based 页码（用于查 ``doc.pages`` 取页面尺寸）。"""
+        prov = getattr(item, "prov", None)
+        if prov and len(prov) > 0:
+            raw = getattr(prov[0], "page_no", None)
+            if raw is None:
+                return None
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    @staticmethod
+    def _get_page_height(doc: Any, raw_page_no: Optional[int]) -> Optional[float]:
+        """从 ``doc.pages`` 中读取指定 1-based 页码的页高。"""
+        if doc is None or raw_page_no is None:
+            return None
+        pages = getattr(doc, "pages", None)
+        if pages is None:
+            return None
+        try:
+            page_obj = (
+                pages.get(raw_page_no) if hasattr(pages, "get") else pages[raw_page_no]
+            )
+        except (KeyError, IndexError, TypeError):
+            return None
+        if page_obj is None:
+            return None
+        size = getattr(page_obj, "size", None)
+        if size is None:
+            return None
+        height = getattr(size, "height", None)
+        if height is None:
+            return None
+        try:
+            return float(height)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _to_topleft_bbox(
+        bbox_obj: Any,
+        doc: Any,
+        raw_page_no: Optional[int],
+    ) -> Optional[Tuple[float, float, float, float]]:
+        """从 Docling BoundingBox 提取 (x0, y0, x1, y1) 并归一化为 TopLeft 坐标系。
+
+        Docling 的 ``BoundingBox`` 默认 ``coord_origin=BOTTOMLEFT``（y0 = 距页底距离），
+        与 PyMuPDF / 项目其余路径使用的 TopLeft（y0 = 距页顶距离）相反。直接混用会
+        导致 ``assembly`` 的 ``y0`` 排序键把 Docling 元素误排到 PyMuPDF 之后。
+        """
+        bbox = DoclingEngine._extract_bbox_tuple(bbox_obj)
+        if bbox is None:
+            return None
+        coord_origin = getattr(bbox_obj, "coord_origin", None)
+        if coord_origin is None:
+            return bbox
+        if "BOTTOMLEFT" not in str(coord_origin).upper():
+            return bbox
+        page_h = DoclingEngine._get_page_height(doc, raw_page_no)
+        if page_h is None or page_h <= 0:
+            return bbox  # 缺页高时保留原值，由 reading_order 兜底排序
+        x0, y0, x1, y1 = bbox
+        return (x0, page_h - y1, x1, page_h - y0)
 
     # ------------------------------------------------------------------
     # 缓存管理

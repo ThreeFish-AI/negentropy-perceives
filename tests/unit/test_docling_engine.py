@@ -439,19 +439,39 @@ class TestDoclingResultExtraction:
         assert metadata["filename"] == "test.pdf"
 
     def test_get_page_number_with_prov(self) -> None:
-        """应从 prov 中获取页码。"""
+        """应从 prov 中获取并归一化为 0-based 页码。
+
+        Docling 上报 1-based ``page_no``，项目内部统一 0-based，
+        因此 ``page_no=3`` 应转换为 ``2``。
+        """
         mock_prov = MagicMock()
         mock_prov.page_no = 3
         mock_item = MagicMock()
         mock_item.prov = [mock_prov]
 
-        assert DoclingEngine._get_page_number(mock_item) == 3
+        assert DoclingEngine._get_page_number(mock_item) == 2
 
     def test_get_page_number_no_prov(self) -> None:
         """无 prov 时应返回 None。"""
         mock_item = MagicMock()
         mock_item.prov = []
         assert DoclingEngine._get_page_number(mock_item) is None
+
+    def test_normalize_docling_page_no_first_page(self) -> None:
+        """Docling 1-based page_no=1 应归一化为 0-based 的 0。"""
+        assert DoclingEngine._normalize_docling_page_no(1) == 0
+
+    def test_normalize_docling_page_no_none(self) -> None:
+        """None 输入应原样返回 None。"""
+        assert DoclingEngine._normalize_docling_page_no(None) is None
+
+    def test_normalize_docling_page_no_invalid(self) -> None:
+        """无法解析的输入应返回 None。"""
+        assert DoclingEngine._normalize_docling_page_no("abc") is None  # type: ignore[arg-type]
+
+    def test_normalize_docling_page_no_clamps_below_zero(self) -> None:
+        """异常的 page_no=0 不应产出负数页码。"""
+        assert DoclingEngine._normalize_docling_page_no(0) == 0
 
 
 # ============================================================

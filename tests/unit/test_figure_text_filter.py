@@ -423,7 +423,8 @@ class TestDoclingEngineFigureFiltering:
 
         regions = engine._collect_figure_regions(doc)
         assert len(regions) == 1
-        assert regions[0].page_no == 1
+        # Docling 上报 1-based page_no=1 → 项目 0-based 归一化为 0
+        assert regions[0].page_no == 0
         assert regions[0].bbox == (50.0, 100.0, 400.0, 350.0)
 
     def test_filter_figure_internal_texts_integration(self):

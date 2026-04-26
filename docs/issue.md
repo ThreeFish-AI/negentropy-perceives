@@ -3,6 +3,50 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-04-26] parse_pdf_to_markdown 输出 Markdown 头部丢失首页（标题/作者/Abstract）
+
+### 问题描述
+`parse_pdf_to_markdown` 处理 `assets/2603.05344v3.pdf` 时，输出 Markdown 的头部不再是源 PDF 首页内容（标题「Building Effective AI Coding Agents for the Terminal」、作者、Abstract、「1 Introduction」开头），而是把第二页起的「Figure 1: Overview of OPENBOX...」放到了文档最前。
+
+### 表因
+直接调用 PyMuPDF (`page.get_text("blocks")`) 在源 PDF page 0 能取到全部 12 个文本块（标题/作者/Abstract/Introduction），坐标合理；但管线最终输出却把页 2 之后的算法块/图注挪到了首位。问题出现在「上游各 Stage 的 page_number 语义不一致」与「assembly 排序键依赖该字段」之间。
+
+### 根因
+1. **页码语义跨 Stage 漂移**：`pdf/engines/docling.py::_get_page_number()` 直接透传 Docling 的 1-based `prov[0].page_no`，而 PyMuPDF 链路（`text/image/table_extraction`、Camelot 显式 `page-1`）全部 0-based。Docling 表格/代码块从而被锚定到「下一页」的位置，与 PyMuPDF 文本流错位混排。
+2. **`DoclingTextExtractor` 把所有段落 `page_number` 硬编码为 0**（`text_extraction.py:191`）：当文本提取走 Docling 路径时，整本书全部坐落在 page 0，与图表的真实页码彻底冲突。
+3. **`AlgorithmCodeDetector` 不带 page_number / bbox**（`code_detection.py`）：把整本 PDF 文本拼成一个 `full_text` 后扫描算法块，结果所有 `ExtractedCodeBlock` 都以 `page_number=0`、`bbox=None` 落到 assembly。`assembly` 用 `(page, y0)` 排序，缺 bbox 时 `y0=reading_order*100=0`，把这些「分散在第 2-N 页」的算法块全部挤到 page 0 顶端，盖住了真正的首页文本。
+4. **Docling BBox 默认 `coord_origin=BOTTOMLEFT`，PyMuPDF 默认 TopLeft**：直接把两套 y0 喂进同一个排序键，越靠上的 Docling 元素 y0 越大，反而排到 PyMuPDF 元素之后。
+5. **`DoclingTable`/`DoclingImage` 数据类有 `bbox` 字段但 `_extract_tables`/`_extract_images` 从未填充**，跨类型排序失去 y0/x0 锚点，全靠 `reading_order * 100` 兜底，跨 Stage 协调失效。
+6. 最近 commit `e94d2dc` 把 assembly 排序键从 `(page, reading_order)` 改成 `(page, y0)`，把上述全部隐藏的页码错位放大成了用户可见的「首页消失」。
+
+### 处理方式
+- **`pdf/engines/docling.py`**：
+  - 新增常量 `_DOCLING_PAGE_OFFSET=1` 与 `_normalize_docling_page_no()` / `_get_raw_page_no()` / `_get_page_height()` / `_to_topleft_bbox()`，在 Docling 数据进入项目域的边界一次性归一化为「0-based 页码 + TopLeft bbox」。
+  - `_get_page_number()` 改为返回 0-based；`_collect_figure_regions()` 与 `_filter_figure_internal_texts()` 内 `_get_bbox` 同步使用 `_to_topleft_bbox`，确保 figure 区域与 item bbox 同坐标系比较。
+  - 新增 `DoclingTextBlock` 数据类与 `_extract_text_blocks()`：仿照 `_extract_code_blocks` 走 `doc.iterate_items()`，对 `title/section_header/paragraph/text/list_item/footnote/caption` 标签捕获 `text/page_no/bbox/heading_level`，并填入 `DoclingConversionResult.text_blocks`。
+  - `_extract_tables()` / `_extract_images()` 补 `bbox=_to_topleft_bbox(...)` 字段填充。
+- **`pipeline/stages/pdf/text_extraction.py`**：`DoclingTextExtractor._run` 优先消费 `result.text_blocks`，每个 `TextBlock` 携带正确页码与 bbox；`text_blocks` 为空时降级到 `_fallback_markdown_split()`（旧的按 `\n\n` 切段路径），保障向后兼容。
+- **`pipeline/stages/pdf/code_detection.py`**：`AlgorithmCodeDetector` 改为「逐页扫描」，把 `page_idx` 直接写入 `ExtractedCodeBlock.page_number`；同时把 Docling/Marker 路径里 `cb.page_number or 0` 改为 `if ... is not None else 0`，避免把 0-based page=0 误判为「无页码」。
+- **`pipeline/stages/pdf/{table,formula}_extraction.py`**：相同的 `or 0` → `if ... is not None else 0` 清理。
+- **`pipeline/stages/pdf/assembly.py`**：sort_key 升级为四级稳定序「`(page, y0, x0, reading_order)`」；page 加 `max(0, ...)` 防御兜底。`x0` 作为多列布局列序兜底，`reading_order` 作为同坐标稳定序兜底。
+- **`tests/integration/test_pdf_first_page_regression.py`（新）**：调用真实 `run_pdf_pipeline(2603.05344v3.pdf)`，断言「标题在前 500 字符内」「Abstract 在前 1500 字符内」「Introduction 在 Figure 1 之前」「标题在 'Overview of OPENBOX' 之前」。`@pytest.mark.slow` 隔离慢测；缺资产或缺 docling 时 skip。
+- **既有单测对齐**：`tests/unit/test_docling_engine.py` 与 `tests/unit/test_figure_text_filter.py` 关于 `page_no` 的断言更新到 0-based；新增 `_normalize_docling_page_no` 的边界用例。
+
+### 后续防范
+- 「跨 Stage 协调字段（页码/坐标系/单位）必须在边界归一化一次」是本类问题的通用原则。后续接入新的 PDF 引擎（Marker、Unstructured 等）时，必须在该引擎的 `_extract_*` 输出口完成 0-based 页码 + TopLeft bbox 的归一化，**不要**留给下游 Stage 再适配。
+- assembly 的排序键不应随手改动；任何跨 Stage 排序变更都应附带「跨页混排」的回归用例。`tests/integration/test_pdf_first_page_regression.py` 是该类回归的最小定式。
+- `or 0` 在带页码字段上是反模式：它会把合法的 0-based 首页页码与「未提供」的 None 混为一谈，掩盖上游 bug。统一使用 `x if x is not None else 0`。
+- 任何「按全文聚合扫描」的 Stage（如 `AlgorithmCodeDetector`）必须保留页定位信息，否则 assembly 永远没法正确排序。改为「按页扫描 + 页码绑定」是可复用范式。
+
+### 同类问题影响与注意事项
+- 凡是依赖 `prov[0].page_no` 的 Docling 数据点（包括未来新增的 `formulas`/`text_blocks`/`tables`/`pictures`/`code_blocks`/`captions`）都要走 `_get_page_number(item)` / `_normalize_docling_page_no(...)`；不要再写 `getattr(prov[0], "page_no", None)`。
+- 凡是来自 Docling 的 `bbox` 都应经过 `_to_topleft_bbox(...)`；`figure_text_filter` 已经按 TopLeft 假设进行重叠判定。
+- MPS 路径下 Docling 公式 enrichment 默认关闭（`do_formula_enrichment=False`），`DoclingFormula` 走 markdown 正则恢复且不带 page_no——这属于既存能力下限，不在本次修复范围；assembly 的 `max(0, page)` 兜底足以避免它把 page=0 错排。
+- `_collect_figure_regions` 与 `_filter_figure_internal_texts` 必须同时使用同一坐标系（TopLeft）与同一页码语义（0-based），否则会出现「图区域永远不命中」或「全部正文被当作图内文字过滤」两种极端误差。
+
+<a id="ref-docling-coord-origin"></a>[1] Docling Project, "BoundingBox.coord_origin," *Docling Core Documentation*, 2026. [Online]. Available: https://docling-project.github.io/docling/reference/
+
+
 ## [2026-04-22] parse_webpage_to_markdown 图片元素丢失（Phase 1 / 2 / 3）
 
 ### 问题描述

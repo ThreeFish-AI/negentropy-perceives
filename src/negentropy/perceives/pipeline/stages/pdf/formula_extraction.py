@@ -73,7 +73,7 @@ class MinerUFormulaExtractor(PDFToolBase):
                         formula_id=f"formula_{idx}",
                         latex=f.latex,
                         formula_type=f.formula_type,
-                        page_number=f.page_number or 0,
+                        page_number=(f.page_number if f.page_number is not None else 0),
                         original_text=f.original_text,
                     )
                 )
@@ -141,7 +141,7 @@ class DoclingFormulaExtractor(PDFToolBase):
                         formula_id=f"formula_{idx}",
                         latex=f.latex,
                         formula_type=f.formula_type,
-                        page_number=f.page_number or 0,
+                        page_number=(f.page_number if f.page_number is not None else 0),
                         original_text=f.original_text,
                     )
                 )

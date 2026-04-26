@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ...base import Stage, StageResult
 from ...models import (
@@ -143,7 +143,13 @@ class DoclingTextExtractor(PDFToolBase):
     async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[TextExtractionOutput]:
-        """使用 Docling 提取文本。"""
+        """使用 Docling 提取文本。
+
+        优先消费 ``DoclingConversionResult.text_blocks``（携带 0-based ``page_number``
+        与 TopLeft bbox），从根本上解决 ``export_to_markdown()`` 聚合输出导致段落
+        无法定位到源页面的问题。当 ``text_blocks`` 为空时，降级到旧的「按 ``\\n\\n``
+        拆段、page_number 缺省」路径以保持向后兼容。
+        """
         try:
             from ....core.cancellation import current_cancel_scope
             from ....infra import get_engine_pool
@@ -161,40 +167,11 @@ class DoclingTextExtractor(PDFToolBase):
             if result is None or not result.markdown:
                 return StageResult(success=False, error="Docling 返回空结果")
 
-            # 将 Markdown 内容解析为 TextBlock 列表
-            blocks: List[TextBlock] = []
-            reading_order = 0
-            for paragraph in result.markdown.split("\n\n"):
-                paragraph = paragraph.strip()
-                if not paragraph:
-                    continue
-
-                block_type = "paragraph"
-                heading_level: Optional[int] = None
-
-                # 检测标题
-                heading_match = re.match(r"^(#{1,6})\s+(.+)", paragraph)
-                if heading_match:
-                    block_type = "heading"
-                    heading_level = len(heading_match.group(1))
-                    paragraph = heading_match.group(2)
-
-                # 检测列表
-                if re.match(r"^\s*[-*+]\s", paragraph) or re.match(
-                    r"^\s*\d+\.\s", paragraph
-                ):
-                    block_type = "list_item"
-
-                blocks.append(
-                    TextBlock(
-                        text=paragraph,
-                        page_number=0,
-                        block_type=block_type,
-                        heading_level=heading_level,
-                        reading_order=reading_order,
-                    )
-                )
-                reading_order += 1
+            blocks: List[TextBlock]
+            if getattr(result, "text_blocks", None):
+                blocks = self._blocks_from_text_blocks(result.text_blocks)
+            else:
+                blocks = self._fallback_markdown_split(result.markdown)
 
             full_text = result.markdown
             word_count = len(full_text.split())
@@ -215,6 +192,73 @@ class DoclingTextExtractor(PDFToolBase):
         except Exception as e:
             logger.warning("Docling 文本提取失败: %s", e)
             return StageResult(success=False, error=f"Docling 文本提取失败: {e}")
+
+    @staticmethod
+    def _blocks_from_text_blocks(text_blocks: List[Any]) -> List[TextBlock]:
+        """从 ``DoclingTextBlock`` 列表构造 ``TextBlock``，保留页码与 bbox。"""
+        blocks: List[TextBlock] = []
+        for ro, tb in enumerate(text_blocks):
+            label = (tb.label or "paragraph").lower()
+            if label in ("title", "section_header"):
+                block_type = "heading"
+                heading_level = tb.heading_level or (1 if label == "title" else 2)
+            elif label == "list_item":
+                block_type = "list_item"
+                heading_level = None
+            elif label == "footnote":
+                block_type = "footnote"
+                heading_level = None
+            else:
+                block_type = "paragraph"
+                heading_level = None
+
+            blocks.append(
+                TextBlock(
+                    text=tb.text,
+                    page_number=tb.page_number if tb.page_number is not None else 0,
+                    bbox=tb.bbox,
+                    block_type=block_type,
+                    heading_level=heading_level,
+                    reading_order=ro,
+                )
+            )
+        return blocks
+
+    @staticmethod
+    def _fallback_markdown_split(markdown: str) -> List[TextBlock]:
+        """旧的兜底路径：按 ``\\n\\n`` 拆段、page_number=0。"""
+        blocks: List[TextBlock] = []
+        reading_order = 0
+        for paragraph in markdown.split("\n\n"):
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+
+            block_type = "paragraph"
+            heading_level: Optional[int] = None
+
+            heading_match = re.match(r"^(#{1,6})\s+(.+)", paragraph)
+            if heading_match:
+                block_type = "heading"
+                heading_level = len(heading_match.group(1))
+                paragraph = heading_match.group(2)
+
+            if re.match(r"^\s*[-*+]\s", paragraph) or re.match(
+                r"^\s*\d+\.\s", paragraph
+            ):
+                block_type = "list_item"
+
+            blocks.append(
+                TextBlock(
+                    text=paragraph,
+                    page_number=0,
+                    block_type=block_type,
+                    heading_level=heading_level,
+                    reading_order=reading_order,
+                )
+            )
+            reading_order += 1
+        return blocks
 
 
 @register_tool("text_extraction.pypdf")

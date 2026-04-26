@@ -124,23 +124,34 @@ class BuiltinAssembler(PDFToolBase):
                         )
                     )
 
-            # 2. 按 page_number + y 位置排序（bbox y0 优先，回退到 reading_order）
-            def _sort_key(elem: _ContentElement) -> Tuple[int, float]:
-                page = elem.page_number
-                y_pos: Optional[float] = None
+            # 2. 四级稳定排序：page → y0 → x0 → reading_order
+            #    - page：0-based 页码，前序 Stage 已在边界归一化
+            #    - y0：bbox 顶部纵坐标（TopLeft 坐标系），缺失时退化到 reading_order * 100
+            #    - x0：bbox 左侧横坐标，作为多列布局列序兜底（先左列后右列）
+            #    - reading_order：稳定序兜底，保证同坐标元素遵循 Stage 内部序
+            def _sort_key(
+                elem: _ContentElement,
+            ) -> Tuple[int, float, float, int]:
+                page = elem.page_number if elem.page_number is not None else 0
+                page = max(0, page)  # 防御：避免负页码排到首页之前
+                bbox: Optional[Tuple[float, float, float, float]] = None
                 if elem.image and elem.image.bbox:
-                    y_pos = elem.image.bbox[1]
+                    bbox = elem.image.bbox
                 elif elem.block and elem.block.bbox:
-                    y_pos = elem.block.bbox[1]
+                    bbox = elem.block.bbox
                 elif elem.table and elem.table.bbox:
-                    y_pos = elem.table.bbox[1]
+                    bbox = elem.table.bbox
                 elif elem.formula and elem.formula.bbox:
-                    y_pos = elem.formula.bbox[1]
+                    bbox = elem.formula.bbox
                 elif elem.code_block and elem.code_block.bbox:
-                    y_pos = elem.code_block.bbox[1]
-                if y_pos is None:
+                    bbox = elem.code_block.bbox
+                if bbox is not None:
+                    y_pos = float(bbox[1])
+                    x_pos = float(bbox[0])
+                else:
                     y_pos = elem.reading_order * 100.0
-                return (page, y_pos)
+                    x_pos = 0.0
+                return (page, y_pos, x_pos, elem.reading_order)
 
             elements.sort(key=_sort_key)
 
