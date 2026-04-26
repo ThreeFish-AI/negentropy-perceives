@@ -7,6 +7,10 @@ from pydantic import Field
 from ..ops.pdf import parse_pdf_to_markdown as _parse_pdf
 from ..ops.pdf import parse_pdfs_to_markdown as _parse_pdfs
 from ..models import BatchPDFResponse, PDFResponse
+from ._image_resources import (
+    register_batch_pdf_response_images,
+    register_pdf_response_images,
+)
 from ._registry import PDFMethod, PDFOutputFormat, app
 
 
@@ -109,7 +113,7 @@ async def parse_pdf_to_markdown(
     Returns:
         PDFResponse with parsed content, metadata, and asset statistics.
     """
-    return await _parse_pdf(
+    response = await _parse_pdf(
         pdf_source=pdf_source,
         method=method,
         include_metadata=include_metadata,
@@ -122,6 +126,7 @@ async def parse_pdf_to_markdown(
         enhanced_options=enhanced_options,
         timeout=timeout,
     )
+    return register_pdf_response_images(response)
 
 
 @app.tool()
@@ -228,7 +233,7 @@ async def parse_pdfs_to_markdown(
     Returns:
         BatchPDFResponse with batch results and comprehensive statistics.
     """
-    return await _parse_pdfs(
+    response = await _parse_pdfs(
         pdf_sources=pdf_sources,
         method=method,
         include_metadata=include_metadata,
@@ -241,3 +246,4 @@ async def parse_pdfs_to_markdown(
         enhanced_options=enhanced_options,
         timeout=timeout,
     )
+    return register_batch_pdf_response_images(response)

@@ -564,32 +564,6 @@ class NegentropyPerceivesSettings(BaseSettings):
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
     )
 
-    # ── PDF 图片资产打包（MCP 响应体） ────────────────────────
-    pdf_bundle_images_in_response: bool = Field(
-        default=True,
-        description=(
-            "是否在 MCP 响应体中内嵌图片 base64 载荷。"
-            "关闭后 `PDFResponse.image_assets` 恒为空列表，图片仍会落盘到 "
-            "output_dir/images/，仅客户端直传路径关闭。"
-        ),
-    )
-    pdf_image_max_base64_kb: int = Field(
-        default=2048,
-        ge=1,
-        description=(
-            "单张图片 base64 上限（KB）。超限时先以 JPEG q=75 重压缩；"
-            "仍超限则跳过该图（响应体中不出现，但磁盘文件不受影响）。"
-        ),
-    )
-    pdf_bundle_total_base64_mb: int = Field(
-        default=32,
-        ge=1,
-        description=(
-            "单次响应体图片 base64 总量上限（MB）。累计字节达阈值后"
-            "停止追加（按原顺序丢弃尾部），防止 MCP 帧超过传输上限。"
-        ),
-    )
-
     # ── 表格质量过滤（PyMuPDF find_tables 兜底启发式） ─────────
     pdf_table_quality_filter_enabled: bool = Field(
         default=True,

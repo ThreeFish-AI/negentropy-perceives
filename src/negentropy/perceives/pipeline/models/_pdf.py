@@ -460,33 +460,34 @@ class AssemblyOutput:
 
 
 # ---------------------------------------------------------------------------
-# MCP 响应资产：图片 base64 载荷
+# MCP 响应资产：图片落盘路径 + Resource URI 指针
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class ImageAsset:
-    """随 MCP 响应返回的图片资产（含 base64 载荷）。
+    """随 MCP 响应返回的图片资产指针。
 
     与 :class:`ExtractedImage` 的差别在于：``ExtractedImage`` 是 Stage 间流
-    转的富数据对象（含本地磁盘路径、分类、阅读顺序等），而 ``ImageAsset``
-    是面向 MCP 客户端的轻量序列化视图，只保留跨进程/跨网络传输必要的字段，
-    以控制响应体体积。
+    转的富数据对象（含分类、阅读顺序等），而 ``ImageAsset`` 是面向 MCP 客户
+    端的轻量序列化视图，仅保留客户端定位/拉取图片所需字段。
 
-    设计动机：原 ``PipelineResult`` 仅暴露 ``images_count`` 计数而无像素数据
-    透出到上层 MCP ``PDFResponse``，导致下游客户端无法直接获取图片。本类
-    补齐这一空缺，并在构造点加上体积/压缩护栏（见 ``convenience.py`` 内的
-    ``_build_image_assets``）。
+    传输策略：图片原字节由 :func:`_build_image_assets` 落盘到 ``image_path``；
+    Tool 层（``tools/pdf.py``）将其动态注册为 MCP Resource，``resource_uri``
+    用于跨主机客户端经 ``resources/read`` 拉取。响应体不再携带 base64 字节。
     """
 
     filename: str
     """文件名（如 ``img_p1_0.png``）。"""
 
     mime_type: str = "image/png"
-    """MIME 类型（压缩降级为 JPEG 时会被改写为 ``image/jpeg``）。"""
+    """MIME 类型。"""
 
-    base64_data: str = ""
-    """Base64 编码后的图片字节。"""
+    image_path: str = ""
+    """图片落盘后的绝对路径。"""
+
+    resource_uri: Optional[str] = None
+    """MCP Resource URI；由 tool 层动态注册后填回，未注册时为 None。"""
 
     width: Optional[int] = None
     """图片宽度（像素）。"""
@@ -499,9 +500,6 @@ class ImageAsset:
 
     page_number: Optional[int] = None
     """所在页码（从 0 开始）。"""
-
-    downscaled: bool = False
-    """是否因超过 ``pdf_image_max_base64_kb`` 阈值而走 JPEG q=75 重压缩。"""
 
 
 # ---------------------------------------------------------------------------
@@ -556,5 +554,7 @@ class PipelineResult:
     """额外元数据。"""
 
     image_assets: List[ImageAsset] = field(default_factory=list)
-    """图片资产列表（含 base64 载荷），随 MCP 响应透出。受配置项
-    ``pdf_bundle_images_in_response`` 门控；超阈值走 JPEG q=75 重压缩。"""
+    """图片资产指针列表（落盘路径 + 可选 MCP Resource URI），随 MCP 响应透出。
+    图片原字节由 ``_build_image_assets`` 落盘到 ``<output_dir>/images/``，
+    ``ImageAsset.image_path`` 即落盘绝对路径；``resource_uri`` 由 tool 层
+    动态注册 MCP Resource 后回填。"""
