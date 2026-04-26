@@ -765,7 +765,10 @@ class DoclingEngine:
 
         return code_blocks
 
-    # 视为正文文本的 Docling label 集合
+    # 视为正文文本的 Docling label 集合。
+    # 不包含 ``caption``：图/表标题由 ``ExtractedTable.caption`` /
+    # ``ExtractedImage.caption`` 在 ``assembly`` 阶段统一渲染，若再作为段落输出会
+    # 导致同一段标题文字在最终 Markdown 中出现两次。
     _TEXT_LABELS = frozenset(
         {
             "title",
@@ -774,20 +777,48 @@ class DoclingEngine:
             "text",
             "list_item",
             "footnote",
-            "caption",
         }
     )
 
-    def _extract_text_blocks(self, doc: Any) -> List[DoclingTextBlock]:
+    # 视为正文段落的 label 集合（用于「图内文字」剔除判定）。
+    # 仅这些标签会与图区域做空间重叠判定；标题/列表/脚注等结构化项即使坐标
+    # 落在图区域内也保留，避免误删 Docling 误标的内容。
+    _BODY_TEXT_LABELS_FOR_FIGURE_FILTER = frozenset({"text", "paragraph"})
+
+    def _extract_text_blocks(
+        self,
+        doc: Any,
+        figure_regions: Optional[List["FigureRegion"]] = None,
+    ) -> List[DoclingTextBlock]:
         """遍历 ``doc.iterate_items()`` 提取带页码与 bbox 的文本块。
 
         Docling 的 ``export_to_markdown()`` 是聚合输出，丢失了段落到页码的映射；
         而 ``iterate_items()`` 保留了每个 item 的 ``prov[0].page_no`` 与 ``bbox``，
         是实现「文本块按页排序」的唯一可靠路径。
+
+        Args:
+            doc: ``DoclingDocument`` 实例。
+            figure_regions: 已提取的图区域列表（可选）；若未传入则内部调用
+                ``_collect_figure_regions(doc)`` 计算。任何空间落在图区域内的
+                ``text``/``paragraph`` 段落都会被过滤掉，避免轴标签/图例/注释
+                等图内文字混入正文（与 ``_filter_figure_internal_texts`` 对
+                ``markdown`` 字符串的过滤等价）。
         """
         blocks: List[DoclingTextBlock] = []
         if not hasattr(doc, "iterate_items"):
             return blocks
+
+        from ..figure_text_filter import (
+            is_caption_text,
+            is_text_inside_figure,
+        )
+
+        if figure_regions is None:
+            figure_regions = self._collect_figure_regions(doc)
+
+        page_figures: Dict[int, List["FigureRegion"]] = {}
+        for region in figure_regions:
+            page_figures.setdefault(region.page_no, []).append(region)
 
         try:
             for item, _level in doc.iterate_items():
@@ -805,6 +836,21 @@ class DoclingEngine:
                     bbox = self._to_topleft_bbox(
                         getattr(prov[0], "bbox", None), doc, raw_page_no
                     )
+
+                # 图内文字过滤：仅对正文段落（text/paragraph）做重叠判定，
+                # 标题/列表/脚注等保留；显式标题文本（Figure N / 图 N）兜底保留。
+                if (
+                    bbox is not None
+                    and page_no is not None
+                    and label in self._BODY_TEXT_LABELS_FOR_FIGURE_FILTER
+                    and not is_caption_text(text)
+                ):
+                    regions_on_page = page_figures.get(page_no, [])
+                    if any(
+                        is_text_inside_figure(bbox, region.bbox)
+                        for region in regions_on_page
+                    ):
+                        continue
 
                 heading_level: Optional[int] = None
                 if label == "title":
@@ -972,6 +1018,11 @@ class DoclingEngine:
         Docling 的 ``BoundingBox`` 默认 ``coord_origin=BOTTOMLEFT``（y0 = 距页底距离），
         与 PyMuPDF / 项目其余路径使用的 TopLeft（y0 = 距页顶距离）相反。直接混用会
         导致 ``assembly`` 的 ``y0`` 排序键把 Docling 元素误排到 PyMuPDF 之后。
+
+        ``_extract_bbox_tuple`` 始终按 ``(l, t, r, b)`` 解包；BOTTOMLEFT 下 ``t > b``，
+        因此输入 ``y0 = t_BL``（距页底的「上边」距离，较大）、``y1 = b_BL``（较小）。
+        转换到 TopLeft 时上/下边对应 ``page_h - y0``、``page_h - y1``，保证输出
+        ``y0 < y1`` 满足 ``is_text_inside_figure`` 的交集判定前提。
         """
         bbox = DoclingEngine._extract_bbox_tuple(bbox_obj)
         if bbox is None:
@@ -985,7 +1036,7 @@ class DoclingEngine:
         if page_h is None or page_h <= 0:
             return bbox  # 缺页高时保留原值，由 reading_order 兜底排序
         x0, y0, x1, y1 = bbox
-        return (x0, page_h - y1, x1, page_h - y0)
+        return (x0, page_h - y0, x1, page_h - y1)
 
     # ------------------------------------------------------------------
     # 缓存管理

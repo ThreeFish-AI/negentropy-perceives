@@ -32,6 +32,14 @@
 - **`tests/integration/test_pdf_first_page_regression.py`（新）**：调用真实 `run_pdf_pipeline(2603.05344v3.pdf)`，断言「标题在前 500 字符内」「Abstract 在前 1500 字符内」「Introduction 在 Figure 1 之前」「标题在 'Overview of OPENBOX' 之前」。`@pytest.mark.slow` 隔离慢测；缺资产或缺 docling 时 skip。
 - **既有单测对齐**：`tests/unit/test_docling_engine.py` 与 `tests/unit/test_figure_text_filter.py` 关于 `page_no` 的断言更新到 0-based；新增 `_normalize_docling_page_no` 的边界用例。
 
+### 二次修复（Code Review 反馈）
+
+合入前的 Code Review 暴露了首版补丁的三处实现缺陷，再次修订：
+
+- **`_to_topleft_bbox` 的 BL→TL 转换 y0/y1 写反**：`_extract_bbox_tuple` 始终按 `(l, t, r, b)` 解包，BOTTOMLEFT 下 `t > b`，正确公式为 `(x0, page_h - y0, x1, page_h - y1)`，原写法 `(x0, page_h - y1, x1, page_h - y0)` 仍输出 `y0 > y1`（颠倒），会让 `figure_text_filter.is_text_inside_figure` 的 `iy1 <= iy0` 永远为真 → BL 数据下图内文字过滤完全失效。新增 `test_to_topleft_bbox_bottomleft_returns_canonical_topleft` / `test_to_topleft_bbox_topleft_passthrough` 覆盖。
+- **`caption` 不应进入 `_TEXT_LABELS`**：表格/图片标题已由 `ExtractedTable.caption` / `ExtractedImage.caption` 在 assembly 阶段渲染，再作为段落输出会让同一段标题在最终 Markdown 中出现两次。从 `_TEXT_LABELS` 移除 `caption`，新增 `test_extract_text_blocks_excludes_caption_label` 守护。
+- **`_extract_text_blocks` 绕过图内文字过滤**：原实现仅 `_filter_figure_internal_texts` 修改 `markdown` 字符串，新增的 `text_blocks` 路径不应用同一过滤，导致轴标签/图例/注释等图内文字重新混入正文。`_extract_text_blocks` 现接受可选 `figure_regions` 参数（不传则自行 `_collect_figure_regions`），对 `text` / `paragraph` 段落复用 `is_text_inside_figure` 剔除图区域命中条目，并通过 `is_caption_text` 兜底保留显式标题。新增 `test_extract_text_blocks_filters_figure_internal_text` 覆盖三种典型场景（图内、图外、显式标题）。
+
 ### 后续防范
 - 「跨 Stage 协调字段（页码/坐标系/单位）必须在边界归一化一次」是本类问题的通用原则。后续接入新的 PDF 引擎（Marker、Unstructured 等）时，必须在该引擎的 `_extract_*` 输出口完成 0-based 页码 + TopLeft bbox 的归一化，**不要**留给下游 Stage 再适配。
 - assembly 的排序键不应随手改动；任何跨 Stage 排序变更都应附带「跨页混排」的回归用例。`tests/integration/test_pdf_first_page_regression.py` 是该类回归的最小定式。

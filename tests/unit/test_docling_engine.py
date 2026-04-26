@@ -11,6 +11,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 from negentropy.perceives.pdf.docling_engine import (
     DoclingCodeBlock,
@@ -472,6 +473,132 @@ class TestDoclingResultExtraction:
     def test_normalize_docling_page_no_clamps_below_zero(self) -> None:
         """异常的 page_no=0 不应产出负数页码。"""
         assert DoclingEngine._normalize_docling_page_no(0) == 0
+
+    def test_to_topleft_bbox_bottomleft_returns_canonical_topleft(self) -> None:
+        """BOTTOMLEFT 输入应翻转为标准 TopLeft 元组（``y0 < y1``）。
+
+        ``_extract_bbox_tuple`` 始终按 ``(l, t, r, b)`` 解包；BOTTOMLEFT 下
+        ``t > b``，转换后 ``y0`` 必须是「上边距页顶」（小），``y1`` 必须是
+        「下边距页顶」（大），否则 ``figure_text_filter.is_text_inside_figure``
+        的相交判定会全部失效。
+        """
+        bbox_obj = MagicMock(
+            spec=["l", "t", "r", "b", "coord_origin"],
+            l=10.0,
+            t=750.0,  # BL: 上边距页底，靠近页顶
+            r=200.0,
+            b=700.0,  # BL: 下边距页底，仍靠近页顶但小于 t
+            coord_origin="CoordOrigin.BOTTOMLEFT",
+        )
+        page_obj = MagicMock(spec=["size"])
+        page_obj.size = MagicMock(spec=["height"], height=800.0)
+        doc = MagicMock(spec=["pages"])
+        doc.pages = {1: page_obj}
+
+        result = DoclingEngine._to_topleft_bbox(bbox_obj, doc, raw_page_no=1)
+        assert result is not None
+        x0, y0, x1, y1 = result
+        assert (x0, x1) == (10.0, 200.0)
+        # 上边在 TopLeft 中靠近 0；下边稍下；y0 必须 < y1
+        assert y0 < y1, f"BOTTOMLEFT 应翻转为 y0 < y1，实际 ({y0}, {y1})"
+        assert y0 == pytest.approx(50.0)  # page_h - t = 800 - 750
+        assert y1 == pytest.approx(100.0)  # page_h - b = 800 - 700
+
+    def test_to_topleft_bbox_topleft_passthrough(self) -> None:
+        """TOPLEFT 输入应原样返回（``y0 < y1`` 已成立）。"""
+        bbox_obj = MagicMock(
+            spec=["l", "t", "r", "b", "coord_origin"],
+            l=10.0,
+            t=50.0,
+            r=200.0,
+            b=100.0,
+            coord_origin="CoordOrigin.TOPLEFT",
+        )
+        result = DoclingEngine._to_topleft_bbox(bbox_obj, doc=None, raw_page_no=1)
+        assert result == (10.0, 50.0, 200.0, 100.0)
+
+    def test_extract_text_blocks_excludes_caption_label(self) -> None:
+        """``caption`` 不应进入 ``text_blocks``，避免与表格/图标题双倍渲染。"""
+        engine = DoclingEngine()
+
+        caption_item = MagicMock()
+        caption_item.label = "caption"
+        caption_item.text = "Figure 1: 实验结果对比"
+        caption_item.prov = []
+
+        paragraph_item = MagicMock()
+        paragraph_item.label = "paragraph"
+        paragraph_item.text = "正文段落 A。"
+        paragraph_item.prov = []
+
+        mock_doc = MagicMock()
+        mock_doc.iterate_items.return_value = [
+            (caption_item, 0),
+            (paragraph_item, 0),
+        ]
+        mock_doc.pictures = []
+
+        blocks = engine._extract_text_blocks(mock_doc)
+        labels = {b.label for b in blocks}
+        assert "caption" not in labels
+        assert any(b.text == "正文段落 A。" for b in blocks)
+
+    def test_extract_text_blocks_filters_figure_internal_text(self) -> None:
+        """落在图区域内的 ``text``/``paragraph`` 应被剔除（图内文字）。"""
+        from negentropy.perceives.pdf.figure_text_filter import FigureRegion
+
+        engine = DoclingEngine()
+
+        # 图内文字：bbox 完全在 figure region (50,50)-(300,300) 内
+        inside_item = MagicMock()
+        inside_item.label = "text"
+        inside_item.text = "x-axis label"
+        inside_prov = MagicMock()
+        inside_prov.page_no = 1
+        inside_bbox = MagicMock(
+            spec=["l", "t", "r", "b"], l=100.0, t=120.0, r=180.0, b=140.0
+        )
+        inside_prov.bbox = inside_bbox
+        inside_item.prov = [inside_prov]
+
+        # 正文段落：完全在图区域外
+        outside_item = MagicMock()
+        outside_item.label = "paragraph"
+        outside_item.text = "正文段落 B。"
+        outside_prov = MagicMock()
+        outside_prov.page_no = 1
+        outside_bbox = MagicMock(
+            spec=["l", "t", "r", "b"], l=400.0, t=400.0, r=500.0, b=420.0
+        )
+        outside_prov.bbox = outside_bbox
+        outside_item.prov = [outside_prov]
+
+        # 显式标题：即使坐标落在图区域内也保留（兜底 Docling 漏标）
+        caption_like_item = MagicMock()
+        caption_like_item.label = "paragraph"
+        caption_like_item.text = "Figure 1: caption located inside region"
+        cl_prov = MagicMock()
+        cl_prov.page_no = 1
+        cl_bbox = MagicMock(
+            spec=["l", "t", "r", "b"], l=120.0, t=200.0, r=280.0, b=220.0
+        )
+        cl_prov.bbox = cl_bbox
+        caption_like_item.prov = [cl_prov]
+
+        mock_doc = MagicMock()
+        mock_doc.iterate_items.return_value = [
+            (inside_item, 0),
+            (outside_item, 0),
+            (caption_like_item, 0),
+        ]
+
+        figure_regions = [FigureRegion(page_no=0, bbox=(50.0, 50.0, 300.0, 300.0))]
+
+        blocks = engine._extract_text_blocks(mock_doc, figure_regions=figure_regions)
+        texts = {b.text for b in blocks}
+        assert "x-axis label" not in texts, "图内文字应被剔除"
+        assert "正文段落 B。" in texts, "图区域外的正文应保留"
+        assert any("Figure 1" in t for t in texts), "显式标题应兜底保留"
 
 
 # ============================================================
