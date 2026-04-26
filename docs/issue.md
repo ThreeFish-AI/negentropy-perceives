@@ -3,6 +3,41 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-04-26] CI Security Audit 因新 CVE-2026-3219 阻塞主管线
+
+### 问题描述
+GitHub Actions 在 `master` 与 `feature/1.x.x` 上的 `CI` workflow 失败（[run 24956281994](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/24956281994)）。失败 Job 为 `Security Audit`，失败步骤为 `Run pip-audit vulnerability scan`，致使后续 `Test on macos-latest` / `Test on windows-latest` 因依赖关系被跳过。
+
+### 表因
+`pip-audit` 在该步骤里以非零码退出，输出：
+```
+Found 1 known vulnerability, ignored 1 in 1 package
+Name Version ID            Fix Versions
+---- ------- ------------- ------------
+pip  26.0.1  CVE-2026-3219
+```
+`Fix Versions` 列为空。
+
+### 根因
+1. `pip-audit` 默认扫描整个虚拟环境的全部已安装包。`pip-audit` 自身依赖链 `pip-audit → pip-api → pip` 把 `pip` 拉入 venv（参考 `uv.lock` 中 `name = "pip"` 与 `pip-api` 段落）。因此 `pip 26.0.1` 出现在 audit 范围内。
+2. 项目本体（`pyproject.toml`）从不直接依赖 `pip`，运行时也不调用 `pip`。该告警源自审计工具链本身，与产品代码无关。
+3. CVE-2026-3219 在公告库中暂无修复版本（`Fix Versions` 为空），无法通过升级解决。
+4. `.github/workflows/ci.yml` 的 ignore 列表此前覆盖 `CVE-2026-4539` / `CVE-2025-64340` / `CVE-2026-27124` / `CVE-2026-1839`，未含 `CVE-2026-3219`，所以新 CVE 一出现就阻塞主管线。
+
+### 处理方式
+- **`.github/workflows/ci.yml`**：把 `CVE-2026-3219` 追加到 `pip-audit --ignore-vuln` 列表，并把命令改为反斜线续行排版，便于后续审计 ignore 项；同步在脚本注释中说明：「pip 26.0.1 暂无修复版本；pip 由 `pip-audit→pip-api` 传递引入，非项目运行时依赖」。
+- 不升级 `pip` / `pip-audit` / `fastmcp` / `transformers` 等依赖，亦不重写 audit 流程为 requirements-only / 隔离 venv，遵循「最小干预」原则；待上游 fix 出现或通过 `Update Dependencies` 自动 PR（`.github/workflows/dependencies.yml`）滚动评估。
+
+### 后续防范
+- `pip-audit` 出现 `Fix Versions` 为空、且漏洞包属于审计工具链或开发期工具的传递依赖时（pip / setuptools / wheel / pip-api 等），按「先记录到 `docs/issue.md`、再加入 ignore 列表」的固定流程操作，避免随手 ignore 造成审计盲点。
+- ignore 列表禁止散落在多处；统一在 `ci.yml` `Run pip-audit vulnerability scan` 步骤中维护，并保留逐条 CVE 注释（漏洞包、版本、是否有 fix、忽略原因）。
+- 周期性（建议每月或在每次 `dependencies.yml` 触发产生 PR 时）回顾 ignore 列表，确认上游是否发布了 fix 版本，及时清理过期 ignore。
+
+### 同类问题影响与注意事项
+- 同类阻塞会在 `pip-audit` 检出任何新公告时复发，不限于 `pip` 自身：`setuptools` / `wheel` / `pip-api` / `requests` 等审计工具链或开发期工具的传递依赖一旦中招，机制相同。
+- 这类工具链漏洞与项目运行时安全姿态无关，不应阻塞主管线；但**不能扩展为静默忽略**——必须留下逐条注释与 issue 档案，便于审阅时判断风险面与跟进 fix。
+- 长期方案候选（不在本次范围）：将 `pip-audit` 切换为「仅扫描 `uv export --format requirements-txt` 产物」或「在隔离 venv 中运行 audit」，把审计范围收敛到运行时依赖。决策前需评估新增 CI 时长与对开发期 lint 工具漏洞的可见性损失。
+
 ## [2026-04-26] parse_pdf_to_markdown 输出 Markdown 头部丢失首页（标题/作者/Abstract）
 
 ### 问题描述
