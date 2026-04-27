@@ -358,7 +358,7 @@ def get_device_for_docling(device_preference: Optional[str] = None) -> str:
         if getattr(_settings, "pdf_docling_force_cpu", False):
             logger.info("Docling 强制 CPU（pdf_docling_force_cpu=True）")
             return DeviceType.CPU.value
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001  # nosec B110 - 配置未就绪不阻塞设备探测
         pass
     import os as _os
 

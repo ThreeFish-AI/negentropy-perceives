@@ -245,7 +245,7 @@ class StageScheduler:
                             for d in done:
                                 try:
                                     n2, r2 = d.result()
-                                except Exception:  # noqa: BLE001
+                                except Exception:  # noqa: BLE001  # nosec B112 - grace 期任务失败不影响主流程
                                     continue
                                 if isinstance(r2, StageResult) and r2.success:
                                     r2.engine_used = n2
