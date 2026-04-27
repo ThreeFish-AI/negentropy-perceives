@@ -219,6 +219,14 @@ class StageScheduler:
             try:
                 tool_name, result = await coro
             except asyncio.CancelledError:
+                # 区分两种 CancelledError 来源：
+                # 1) 外层任务取消（如 task_timeout_seconds 兜底 / deadline_monotonic
+                #    触发的取消）→ cancelling() > 0，必须 raise 让取消传播；
+                # 2) 子任务被早胜路径主动 cancel 后又被 await 到（理论上 break
+                #    会先于此发生，留作防御）→ continue 跳过。
+                current = asyncio.current_task()
+                if current is not None and current.cancelling() > 0:
+                    raise
                 continue
             if isinstance(result, StageResult) and result.success:
                 result.engine_used = tool_name

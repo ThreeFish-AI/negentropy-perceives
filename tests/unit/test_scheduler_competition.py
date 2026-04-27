@@ -159,37 +159,95 @@ class TestCompetition:
 @pytest.mark.asyncio
 class TestTimeoutMultiplier:
     async def test_multiplier_applied_to_competition(self, monkeypatch) -> None:
-        """stage_timeout_multiplier=2.0 时 timeout 加倍。"""
+        """stage_timeout_multiplier=2.0 时 run_stage → _run_competition 的
+        timeout 应被放大为 base × mult，覆盖 scheduler.run_stage 中的传导路径。"""
         from negentropy.perceives.pipeline import scheduler as scheduler_mod
 
         monkeypatch.setattr(scheduler_mod, "_stage_timeout_multiplier", lambda: 2.0)
 
-        # 用一个会跑 0.15s 的 tool 配 0.1s 基础 timeout：
-        # mult=2.0 → effective=0.2s，工具跑 0.15s 应能完成
         sched = StageScheduler()
+        fake = _FakeTool("fake_for_mult", delay=0.01, success=True)
 
-        called_timeout = {}
+        # 绕过 registry：让 _resolve_tools 直接返回伪 tool，避免注册副作用
+        monkeypatch.setattr(sched, "_resolve_tools", lambda *a, **kw: [fake])
+
+        captured: dict = {}
         original_run = sched._run_competition
 
-        async def capturing_run(*args, **kwargs):
-            called_timeout["timeout"] = kwargs.get("timeout")
+        async def capturing_run(*args, **kwargs) -> Any:
+            captured["timeout"] = kwargs.get("timeout")
             return await original_run(*args, **kwargs)
 
-        sched._run_competition = capturing_run  # type: ignore[method-assign]
+        monkeypatch.setattr(sched, "_run_competition", capturing_run)
 
-        # _resolve_tools 需要从 registry 取，跳过它直接走 _run_competition
-        await sched.run_stage(
-            stage_name="test",
-            tool_configs=[],  # 空配置 → 走未启用分支返回失败
+        result = await sched.run_stage(
+            stage_name="test_mult",
+            tool_configs=[{"name": "fake_for_mult", "rank": 1, "enabled": True}],
             input_data={},
             competition_mode=True,
-            competition_config={"timeout": 0.1, "max_concurrent": 1},
+            competition_config={"timeout": 5.0, "max_concurrent": 1},
         )
 
-        # _resolve_tools 返回空 → 直接返回失败，不进 _run_competition
-        # 因此本测试不能验证 timeout 注入；改测倍率函数本身
-        from negentropy.perceives.pipeline.scheduler import (
-            _stage_timeout_multiplier,
+        assert result.success, result.error
+        # base=5.0, mult=2.0 → effective=10.0
+        assert captured.get("timeout") == 10.0, captured
+
+    async def test_multiplier_default_one(self, monkeypatch) -> None:
+        """默认倍率 1.0 时 timeout 透传不变。"""
+        from negentropy.perceives.pipeline import scheduler as scheduler_mod
+
+        monkeypatch.setattr(scheduler_mod, "_stage_timeout_multiplier", lambda: 1.0)
+
+        sched = StageScheduler()
+        fake = _FakeTool("fake_default_mult", delay=0.01, success=True)
+        monkeypatch.setattr(sched, "_resolve_tools", lambda *a, **kw: [fake])
+
+        captured: dict = {}
+        original_run = sched._run_competition
+
+        async def capturing_run(*args, **kwargs) -> Any:
+            captured["timeout"] = kwargs.get("timeout")
+            return await original_run(*args, **kwargs)
+
+        monkeypatch.setattr(sched, "_run_competition", capturing_run)
+
+        await sched.run_stage(
+            stage_name="test_default_mult",
+            tool_configs=[{"name": "fake_default_mult", "rank": 1, "enabled": True}],
+            input_data={},
+            competition_mode=True,
+            competition_config={"timeout": 7.0, "max_concurrent": 1},
         )
 
-        assert _stage_timeout_multiplier() == 2.0
+        assert captured.get("timeout") == 7.0
+
+
+@pytest.mark.asyncio
+class TestOuterCancellationPropagation:
+    async def test_outer_cancel_propagates_through_competition(self) -> None:
+        """外层任务取消应穿透 _run_competition：不被 except CancelledError 吞掉，
+        防止 task_timeout_seconds / deadline_monotonic 触发的取消被静默成普通迭代。"""
+        sched = StageScheduler()
+        slow_a = _FakeTool("slow_a", delay=10.0, success=True)
+        slow_b = _FakeTool("slow_b", delay=10.0, success=True)
+
+        async def runner() -> Any:
+            return await sched._run_competition(
+                stage_name="test_outer_cancel",
+                tools=[slow_a, slow_b],
+                input_data={},
+                max_concurrent=2,
+                timeout=30.0,
+            )
+
+        outer = asyncio.create_task(runner())
+        await asyncio.sleep(0.05)  # 让两个工具都开始 sleep
+        outer.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await outer
+
+        # 子工具也应该被 asyncio 协作取消
+        await asyncio.sleep(0.1)
+        assert slow_a.cancelled or not slow_a.completed
+        assert slow_b.cancelled or not slow_b.completed
