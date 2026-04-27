@@ -23,11 +23,22 @@ try:
     _QF_MIN_OCCUPANCY = float(_settings.pdf_table_quality_min_occupancy)
     _QF_MAX_WEAK_COLS_RATIO = float(_settings.pdf_table_quality_max_weak_cols_ratio)
     _QF_MIN_UNIQUE_CELLS = int(_settings.pdf_table_quality_min_unique_cells)
+    _QF_PROSE_ROWS_THRESHOLD = int(_settings.pdf_table_quality_prose_rows_threshold)
+    _QF_PROSE_COLS_MAX = int(_settings.pdf_table_quality_prose_cols_max)
+    _QF_PROSE_FRAGMENT_RATIO = float(_settings.pdf_table_quality_prose_fragment_ratio)
+    _QF_BYPASS_WITH_TITLE = bool(_settings.pdf_table_quality_bypass_with_title)
 except Exception:  # noqa: BLE001 - 配置系统未就绪时走保守默认，不阻塞导入
     _QF_ENABLED = True
     _QF_MIN_OCCUPANCY = 0.40
     _QF_MAX_WEAK_COLS_RATIO = 0.5
     _QF_MIN_UNIQUE_CELLS = 3
+    _QF_PROSE_ROWS_THRESHOLD = 50
+    _QF_PROSE_COLS_MAX = 3
+    _QF_PROSE_FRAGMENT_RATIO = 0.5
+    _QF_BYPASS_WITH_TITLE = True
+
+# 「Table N:」标题正则；在散文检测旁路时复用
+_TABLE_TITLE_BYPASS_RE = re.compile(r"^\s*(Table|表)\s*\d", re.IGNORECASE)
 
 # PyMuPDF imports for PDF processing
 try:
@@ -265,24 +276,32 @@ def _find_table_title_regions(
 
 def _table_quality_score(
     data: List[List[Any]],
+    title: Optional[str] = None,
 ) -> Tuple[bool, Dict[str, Any]]:
     """启发式表格质量评分。
 
     返回 ``(是否通过, 诊断指标)``。不依赖 PyMuPDF 的 ``row_count/col_count``，
-    而是直接基于 ``table.extract()`` 返回的二维矩阵做三项统计：
+    而是直接基于 ``table.extract()`` 返回的二维矩阵做三项结构统计 + 一项
+    散文检测：
 
     * ``occupancy``：非空单元格占比，低于
       ``pdf_table_quality_min_occupancy`` 视为空白率过高；
     * ``weak_cols``：每列非空率 < 40% 的列视为"弱列"，弱列数超过
       ``total_cols × pdf_table_quality_max_weak_cols_ratio`` 视为伪表格；
     * ``unique_cells``：去重后单元格种类数，≤
-      ``pdf_table_quality_min_unique_cells`` 视为页眉/重复行。
+      ``pdf_table_quality_min_unique_cells`` 视为页眉/重复行；
+    * ``prose_like_cells``：信号 a（行多列少）+ 信号 b（单词断裂率）
+      联合判定，但当 ``title`` 命中 "Table N:" 模式且
+      ``pdf_table_quality_bypass_with_title`` 为真时**仅旁路 prose 信号**，
+      其余结构信号仍生效。
 
     该函数只负责判别，不修改输入；诊断指标由调用侧决定是否记录到
     ``metadata.discarded_tables`` 以便事后排查。
 
     Args:
         data: ``table.extract()`` / ``merge_table_columns_and_rows`` 产物。
+        title: 候选表格上方/下方探测到的标题文本（如 ``"Table 3: ..."``）；
+            若命中 ``Table N`` 模式则跳过 prose 检测信号。
 
     Returns:
         ``(通过标记, 诊断字典)``；配置关闭时恒通过，诊断字典仍填充。
@@ -340,13 +359,22 @@ def _table_quality_score(
         return False, diag
 
     # 散文检测：判断表格是否为两端对齐段落被几何启发式误识别的产物。
+    # 当候选位于 "Table N:" 标题附近时（典型为学术论文真实表格），跳过该检测以
+    # 避免行多列少型数据表（参数对比、消融实验、配置清单）被信号 a 误杀。
+    has_table_title = bool(title and _TABLE_TITLE_BYPASS_RE.match(title))
+    if _QF_BYPASS_WITH_TITLE and has_table_title:
+        diag["prose_bypass"] = "table_title"
+        diag["reason"] = "pass"
+        return True, diag
+
     # 综合两个信号：(a) 高行列表比 + 少列 → 多行文本行；
     # (b) 相邻单元格间存在单词断裂（如 "Scaffoldi" | "ng"）。
     is_prose = False
-    # 信号 a：行数远大于列数且行数超过 20（整页文本行误识别）。
-    # 正常单页表格极少超过 20 行；整页对齐文本通常产生 30-50 行。
-    if rows > 20 and cols >= 2 and cols <= 5:
+    # 信号 a：行数远大于列数且列数极少（学术真实长表多在 4+ 列）。
+    # 阈值由配置驱动：默认 rows>50 + cols∈[2,3]，对正文段落仍敏感而不误杀长表。
+    if rows > _QF_PROSE_ROWS_THRESHOLD and cols >= 2 and cols <= _QF_PROSE_COLS_MAX:
         is_prose = True
+        diag["prose_signal"] = "a_rows_cols"
 
     if not is_prose and cols >= 2:
         # 信号 b：相邻单元格对中单词断裂的比例。
@@ -362,8 +390,10 @@ def _table_quality_score(
                 adj_pairs += 1
                 if left[-1].isalpha() and right[0].islower():
                     frag_pairs += 1
-        if adj_pairs > 0 and frag_pairs / adj_pairs > 0.3:
+        if adj_pairs > 0 and frag_pairs / adj_pairs > _QF_PROSE_FRAGMENT_RATIO:
             is_prose = True
+            diag["prose_signal"] = "b_fragment_ratio"
+            diag["fragment_ratio"] = round(frag_pairs / adj_pairs, 3)
 
     if is_prose:
         diag["reason"] = "prose_like_cells"
@@ -409,7 +439,7 @@ def _extract_single_table(
         if not merged_data or len(merged_data) < 2:
             return None
 
-        passed, diag = _table_quality_score(merged_data)
+        passed, diag = _table_quality_score(merged_data, title=title)
         if not passed:
             logger.info(
                 "表格质量过滤丢弃 title=%s page=%d diag=%s",
@@ -492,10 +522,16 @@ def _process_found_table(
         if not merged_data or len(merged_data) < 2:
             return None
 
-        passed, diag = _table_quality_score(merged_data)
+        # 优先探测 caption，使含 "Table N:" 标题的真实学术表格能旁路 prose 检测。
+        # caption 检测仅依赖 bbox + 邻近文本块，不读取 merged_data，故顺序无依赖。
+        bbox = tuple(table.bbox)
+        caption = detect_table_caption(text_blocks, bbox, tolerance=30.0)
+
+        passed, diag = _table_quality_score(merged_data, title=caption)
         if not passed:
             logger.info(
-                "表格质量过滤丢弃 page=%d idx=%d diag=%s",
+                "表格质量过滤丢弃 caption=%s page=%d idx=%d diag=%s",
+                caption,
                 page_num,
                 table_idx,
                 diag,
@@ -505,10 +541,6 @@ def _process_found_table(
         markdown_str = build_markdown_from_data(merged_data)
         if not markdown_str:
             return None
-
-        bbox = tuple(table.bbox)
-
-        caption = detect_table_caption(text_blocks, bbox, tolerance=30.0)
 
         table_id = generate_asset_id("table", page_num, table_idx)
 

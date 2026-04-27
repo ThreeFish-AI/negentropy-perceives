@@ -63,12 +63,17 @@ class TestPreinitTorchDevice:
                 os.environ.pop("PYTORCH_ENABLE_MPS_FALLBACK", None)
 
     def test_smoke_test_ok_sets_ready_one(self):
-        """smoke_test 成功时 NEGENTROPY_MPS_READY=1。"""
+        """smoke_test 成功时 NEGENTROPY_MPS_READY=1，并执行强化 first-touch（matmul）。"""
         fake_torch = MagicMock()
         fake_torch.__version__ = "2.5.0"
         fake_torch.backends.mps.is_built.return_value = True
         fake_torch.backends.mps.is_available.return_value = True
-        fake_torch.zeros.return_value = MagicMock()
+        # 强化 first-touch：randn(1024,1024) + matmul + sum 链路
+        pin_a = MagicMock(name="pin_a")
+        pin_b = MagicMock(name="pin_b")
+        pin_c = MagicMock(name="pin_c")
+        pin_a.__matmul__.return_value = pin_c
+        fake_torch.randn.side_effect = [pin_a, pin_b]
 
         real_import = __import__
 
@@ -83,7 +88,10 @@ class TestPreinitTorchDevice:
                 _preinit_torch_device(logger)
 
         assert os.environ.get("NEGENTROPY_MPS_READY") == "1"
-        fake_torch.zeros.assert_called_once_with(1, device="mps")
+        # 强化 first-touch：randn 被调用两次（pin_a/pin_b）
+        assert fake_torch.randn.call_count == 2
+        for call in fake_torch.randn.call_args_list:
+            assert call.kwargs.get("device") == "mps"
 
     def test_smoke_test_fail_sets_ready_zero(self):
         """smoke_test 失败（如 MPS OOM）时 NEGENTROPY_MPS_READY=0。"""
@@ -91,7 +99,8 @@ class TestPreinitTorchDevice:
         fake_torch.__version__ = "2.5.0"
         fake_torch.backends.mps.is_built.return_value = True
         fake_torch.backends.mps.is_available.return_value = False
-        fake_torch.zeros.side_effect = RuntimeError("MPS OOM")
+        # randn 失败模拟 first-touch 异常
+        fake_torch.randn.side_effect = RuntimeError("MPS OOM")
 
         real_import = __import__
 
@@ -126,8 +135,8 @@ class TestPreinitTorchDevice:
                 logger = logging.getLogger("test.preinit.notbuilt")
                 _preinit_torch_device(logger)
 
-        # 未 built 时不应调用 zeros
-        fake_torch.zeros.assert_not_called()
+        # 未 built 时不应执行 first-touch（randn）
+        fake_torch.randn.assert_not_called()
         assert os.environ.get("NEGENTROPY_MPS_READY") == "0"
 
     def test_non_darwin_skips_smoke_test(self):
@@ -149,7 +158,7 @@ class TestPreinitTorchDevice:
                 logger = logging.getLogger("test.preinit.linux")
                 _preinit_torch_device(logger)
 
-        fake_torch.zeros.assert_not_called()
+        fake_torch.randn.assert_not_called()
         assert os.environ.get("NEGENTROPY_MPS_READY") == "0"
 
 

@@ -268,14 +268,28 @@ def _preinit_torch_device(logger: logging.Logger) -> None:
     mps_ready = False
     if sys.platform == "darwin" and diag["mps_built"] is True:
         try:
-            _ = torch.zeros(1, device="mps")
-            # first-touch 成功后 is_available 可能会从 False 变为 True
+            # 强化 first-touch：分配 + 矩阵乘 + 保持引用，确保 MPS allocator
+            # 与 kernel cache 完整就绪。仅 first-touch 一次 zeros(1) 不足以让
+            # docling 内部 decide_device(MPS) → torch.backends.mps.is_available()
+            # 稳定返回 True：观察到 first-touch 后 MPS 状态偶发被回收。这里
+            # 通过保留模块级引用 _MPS_PIN 防止 tensor 被 GC，将 MPS 上下文
+            # 持续锁定在当前子进程生命周期内。
+            global _MPS_PIN  # 锚定 MPS 设备状态，避免被 GC 释放
+            pin_a = torch.randn(1024, 1024, device="mps")
+            pin_b = torch.randn(1024, 1024, device="mps")
+            pin_c = pin_a @ pin_b
+            try:
+                _ = float(pin_c.sum().to("cpu").item())
+            except Exception:  # nosec B110 - sum 失败不阻塞 first-touch
+                pass
+            _MPS_PIN = (pin_a, pin_b, pin_c)
             try:
                 if torch.backends.mps.is_available():
                     diag["mps_available_raw"] = True
             except Exception:  # nosec B110
                 pass
             diag["mps_smoke_test"] = "ok"
+            diag["mps_pin"] = "1024x1024_matmul_pinned"
             mps_ready = True
         except Exception as e:
             diag["mps_smoke_test"] = f"fail:{type(e).__name__}:{str(e)[:120]}"
@@ -285,6 +299,11 @@ def _preinit_torch_device(logger: logging.Logger) -> None:
     os.environ["NEGENTROPY_MPS_READY"] = "1" if mps_ready else "0"
     # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
     logger.warning("子进程 torch 诊断 %s", diag)
+
+
+# MPS first-touch 后保持张量引用，防止 GC 释放 MPS 设备上下文。
+# Docling/MinerU/Marker 调用 torch.backends.mps.is_available() 时依赖该状态。
+_MPS_PIN: Optional[Any] = None
 
 
 def worker_main(conn: Connection, engine_name: str) -> None:
@@ -415,6 +434,14 @@ def worker_main(conn: Connection, engine_name: str) -> None:
             if cache_key is not None:
                 cached_result = convert_cache.get(cache_key)
                 if cached_result is not None:
+                    # 命中可观测性：跨 Stage 复用率的关键监控点。命中条件为
+                    # 同一 (engine, fingerprint, page_range, embed_images, init_hash)。
+                    logger.warning(
+                        "convert cache hit engine=%s fingerprint=%s init_hash=%s",
+                        engine_name,
+                        cache_key[1] if len(cache_key) > 1 else "?",
+                        new_hash[:8],
+                    )
                     try:
                         conn.send(
                             {

@@ -10,12 +10,26 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, TypeVar
 
 from .base import Stage, StageResult, StageTool
 from .registry import get_tool
 
 logger = logging.getLogger(__name__)
+
+
+def _stage_timeout_multiplier() -> float:
+    """读取 PDF Stage 超时倍率；配置缺失或非法时回 1.0。"""
+    try:
+        from ..config import settings as _settings
+
+        mult = float(getattr(_settings, "pdf_stage_timeout_multiplier", 1.0))
+        if mult <= 0 or mult > 10:
+            return 1.0
+        return mult
+    except Exception:  # noqa: BLE001 - 配置异常不阻塞调度
+        return 1.0
+
 
 TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
@@ -72,14 +86,20 @@ class StageScheduler:
             return await self._run_fallback(stage_name, tools, input_data)
         else:
             comp = competition_config or {}
+            mult = _stage_timeout_multiplier()
+            base_timeout = float(comp.get("timeout", 120))
+            effective_timeout = base_timeout * mult
             return await self._run_competition(
                 stage_name,
                 tools,
                 input_data,
                 max_concurrent=comp.get("max_concurrent", 2),
-                timeout=comp.get("timeout", 120),
+                timeout=effective_timeout,
                 selector=selector,
                 judge=judge,
+                early_win_cancel=bool(comp.get("early_win_cancel", False)),
+                early_win_min_rank=int(comp.get("early_win_min_rank", 1)),
+                early_win_grace_seconds=float(comp.get("early_win_grace_seconds", 0.0)),
             )
 
     async def _run_fallback(
@@ -132,13 +152,31 @@ class StageScheduler:
         timeout: float = 120.0,
         selector: Optional[Callable] = None,
         judge: Optional[Any] = None,
+        early_win_cancel: bool = False,
+        early_win_min_rank: int = 1,
+        early_win_grace_seconds: float = 0.0,
     ) -> StageResult:
         """竞争模式：并行执行多个工具，择优。
 
         使用 ``asyncio.as_completed`` 按完成顺序收集结果，
         避免被慢引擎超时拖住整个 Stage。
+
+        当 ``early_win_cancel`` 启用时：rank 在 ``early_win_min_rank`` 内
+        （tools 列表已按 rank 升序，``early_win_min_rank=1`` 即仅当 tools[0]
+        胜出）的工具成功完成后，再为其余仍在跑的工具留 ``grace_seconds`` 缓冲
+        机会，超出缓冲后主动 ``task.cancel()`` 释放算力（取消会向下传导到
+        ``EngineWorkerPool``，触发 worker 的 SIGTERM→KILL 三段式）。
+
+        Args:
+            early_win_cancel: 启用早胜取消
+            early_win_min_rank: 1-based rank 上限；仅 rank ≤ 该值的工具胜出才触发
+            early_win_grace_seconds: 取消前的缓冲秒数；为 0 时立即取消
         """
         candidates = tools[:max_concurrent]
+        # tools 在 _resolve_tools 中已按 rank 升序排列；用名字集合标记 tier-1 即可
+        tier1_names: Set[str] = {
+            t.name for t in candidates[: max(1, early_win_min_rank)]
+        }
         logger.info(
             "Stage '%s' 竞争模式：并行运行 %d 个工具 [%s]",
             stage_name,
@@ -152,6 +190,10 @@ class StageScheduler:
                     tool.execute(input_data), timeout=timeout
                 )
                 return tool.name, result
+            except asyncio.CancelledError:
+                # 早胜取消路径：让取消信号向下传导到 EngineWorkerPool
+                logger.info("Stage '%s' 工具 '%s' 被早胜取消", stage_name, tool.name)
+                raise
             except asyncio.TimeoutError:
                 logger.warning(
                     "Stage '%s' 工具 '%s' 超时 (%.0fs)",
@@ -172,11 +214,55 @@ class StageScheduler:
         aws = [asyncio.create_task(_safe_execute(t)) for t in candidates]
 
         successful: List[StageResult] = []
+        cancel_triggered = False
         for coro in asyncio.as_completed(aws):
-            tool_name, result = await coro
+            try:
+                tool_name, result = await coro
+            except asyncio.CancelledError:
+                continue
             if isinstance(result, StageResult) and result.success:
                 result.engine_used = tool_name
                 successful.append(result)
+                if (
+                    early_win_cancel
+                    and not cancel_triggered
+                    and tool_name in tier1_names
+                ):
+                    cancel_triggered = True
+                    pending = [t for t in aws if not t.done()]
+                    if pending:
+                        if early_win_grace_seconds > 0:
+                            logger.info(
+                                "Stage '%s' tier-1 工具 '%s' 胜出，等待 %.1fs 缓冲后取消其余 %d 个工具",
+                                stage_name,
+                                tool_name,
+                                early_win_grace_seconds,
+                                len(pending),
+                            )
+                            done, still_pending = await asyncio.wait(
+                                pending, timeout=early_win_grace_seconds
+                            )
+                            for d in done:
+                                try:
+                                    n2, r2 = d.result()
+                                except Exception:  # noqa: BLE001
+                                    continue
+                                if isinstance(r2, StageResult) and r2.success:
+                                    r2.engine_used = n2
+                                    successful.append(r2)
+                            for t in still_pending:
+                                t.cancel()
+                        else:
+                            logger.info(
+                                "Stage '%s' tier-1 工具 '%s' 胜出，立即取消其余 %d 个工具",
+                                stage_name,
+                                tool_name,
+                                len(pending),
+                            )
+                            for t in pending:
+                                t.cancel()
+                    # 不再继续 as_completed 循环；剩余协程 cancel 后由 GC 回收
+                    break
 
         if not successful:
             return StageResult(

@@ -395,6 +395,40 @@ class EngineWorkerPool:
                 asyncio.create_task(worker.shutdown())
             return result
 
+    async def warmup(self, engine: str) -> bool:
+        """预热指定引擎的 worker：仅启动子进程 + ready 握手 + torch first-touch。
+
+        与 :meth:`run` 的差异：
+        - 不发送任何 RPC 请求，不递增 ``task_count``，不消耗 max_tasks 额度；
+        - inline / thread 模式直接 no-op 返回 True（无子进程开销）；
+        - 失败不抛出，仅返回 False 由调用侧决定是否重试。
+
+        典型用法：在 preprocessing/quick_scan 这类轻量 stage 期间，把
+        ~2-12s 的 spawn + torch import + MPS first-touch 开销移出
+        layout_analysis 的关键路径。
+
+        Returns:
+            True = worker 已就绪（或非 process 模式无需预热）；False = 预热失败
+        """
+        if self._closed:
+            return False
+        if self._isolation != "process":
+            return True
+
+        engine_lock = await self._get_engine_lock(engine)
+        async with engine_lock:
+            try:
+                worker = await self._ensure_worker(engine)
+                logger.info(
+                    "EngineWorker %s 预热完成 pid=%s（不计入 max_tasks）",
+                    engine,
+                    worker.pid,
+                )
+                return True
+            except Exception as e:  # noqa: BLE001 - 预热失败不阻塞主流程
+                logger.warning("EngineWorker %s 预热失败: %s", engine, e)
+                return False
+
     async def shutdown(self) -> None:
         """关停所有 worker（优雅 → 强杀兜底）。"""
         self._closed = True

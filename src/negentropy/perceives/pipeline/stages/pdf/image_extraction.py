@@ -29,9 +29,24 @@ from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
 
-# 每次 asyncio.gather 的最大并发页数；超过后会在 Semaphore 上等待。
-# 取 4 与 Pool 的 docling/mineru 竞争线一致，兼顾吞吐与内存占用。
+# 默认页级并发上限（与 Pool 的 docling/mineru 竞争线一致），保留为模块级常量
+# 兼容历史导入；运行时由 ``_resolve_concurrency()`` 从 settings 读取覆盖值。
 _IMAGE_EXTRACT_CONCURRENCY = 4
+
+
+def _resolve_concurrency() -> int:
+    """从配置读取页级并发上限，失败回退到 ``_IMAGE_EXTRACT_CONCURRENCY``。
+
+    M 系列大内存机型可上调以减少 18 张图 91s 的单线性瓶颈；
+    旧机型或 GPU 紧张场景可下调到 4 维持原行为。
+    """
+    try:
+        from ....config import settings as _settings
+
+        val = int(_settings.pdf_image_extraction_concurrency)
+        return max(1, val)
+    except Exception:  # noqa: BLE001 - 配置未就绪时不阻塞抽图
+        return _IMAGE_EXTRACT_CONCURRENCY
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +95,8 @@ class FitzImageExtractor(PDFToolBase):
                 start_page = max(0, input_data.page_range[0])
                 end_page = min(total_pages, input_data.page_range[1])
 
-            sem = asyncio.Semaphore(_IMAGE_EXTRACT_CONCURRENCY)
+            concurrency = _resolve_concurrency()
+            sem = asyncio.Semaphore(concurrency)
 
             async def _extract_one_page(
                 page_idx: int,
@@ -144,7 +160,7 @@ class FitzImageExtractor(PDFToolBase):
                 total_count=len(images),
                 metadata={
                     "engine": "pymupdf",
-                    "concurrency": _IMAGE_EXTRACT_CONCURRENCY,
+                    "concurrency": concurrency,
                     "page_count": max(0, end_page - start_page),
                 },
             )

@@ -32,6 +32,10 @@ def _restore_thresholds(monkeypatch):
     monkeypatch.setattr(table_mod, "_QF_MIN_OCCUPANCY", 0.40, raising=True)
     monkeypatch.setattr(table_mod, "_QF_MAX_WEAK_COLS_RATIO", 0.5, raising=True)
     monkeypatch.setattr(table_mod, "_QF_MIN_UNIQUE_CELLS", 3, raising=True)
+    monkeypatch.setattr(table_mod, "_QF_PROSE_ROWS_THRESHOLD", 50, raising=True)
+    monkeypatch.setattr(table_mod, "_QF_PROSE_COLS_MAX", 3, raising=True)
+    monkeypatch.setattr(table_mod, "_QF_PROSE_FRAGMENT_RATIO", 0.5, raising=True)
+    monkeypatch.setattr(table_mod, "_QF_BYPASS_WITH_TITLE", True, raising=True)
     yield
 
 
@@ -168,4 +172,71 @@ class TestThresholdOverride:
         ]
         passed, diag = _table_quality_score(data)
         assert passed is True
+        assert diag["reason"] == "pass"
+
+
+class TestProseDetection:
+    """散文检测信号 a/b 的去抑制：阈值与 title 旁路。"""
+
+    def test_signal_a_threshold_relaxed(self) -> None:
+        """rows=21 cols=3 不再触发 prose（旧阈值 rows>20 改为 rows>50）。"""
+        data: List[List[Any]] = [[f"r{i}c0", f"r{i}c1", f"r{i}c2"] for i in range(21)]
+        passed, diag = _table_quality_score(data)
+        assert passed is True, diag
+        assert diag["reason"] == "pass"
+
+    def test_signal_a_still_rejects_long_thin_text(self) -> None:
+        """rows=55 cols=3 仍触发 prose 信号 a（保护正文段落识别）。"""
+        data: List[List[Any]] = [
+            [f"col0_{i}", f"col1_{i}", f"col2_{i}"] for i in range(55)
+        ]
+        passed, diag = _table_quality_score(data)
+        assert passed is False, diag
+        assert diag["reason"] == "prose_like_cells"
+        assert diag.get("prose_signal") == "a_rows_cols"
+
+    def test_signal_a_skip_when_cols_above_max(self) -> None:
+        """rows=60 cols=4（超出 prose_cols_max=3）→ 不触发信号 a。"""
+        data: List[List[Any]] = [
+            [f"a{i}", f"b{i}", f"c{i}", f"d{i}"] for i in range(60)
+        ]
+        passed, diag = _table_quality_score(data)
+        assert passed is True, diag
+
+    def test_bypass_with_table_title(self) -> None:
+        """携带 'Table N:' 标题的候选跳过 prose 检测信号。"""
+        data: List[List[Any]] = [[f"r{i}c0", f"r{i}c1", f"r{i}c2"] for i in range(60)]
+        passed, diag = _table_quality_score(data, title="Table 2: parameters")
+        assert passed is True, diag
+        assert diag.get("prose_bypass") == "table_title"
+        assert diag["reason"] == "pass"
+
+    def test_bypass_disabled_still_rejects(self, monkeypatch) -> None:
+        """关闭 BYPASS_WITH_TITLE 后，标题不再旁路。"""
+        monkeypatch.setattr(table_mod, "_QF_BYPASS_WITH_TITLE", False)
+        data: List[List[Any]] = [[f"r{i}c0", f"r{i}c1", f"r{i}c2"] for i in range(60)]
+        passed, diag = _table_quality_score(data, title="Table 2: parameters")
+        assert passed is False
+        assert diag["reason"] == "prose_like_cells"
+
+    def test_signal_b_fragment_ratio_loosened(self) -> None:
+        """断裂率阈值由 0.3 → 0.5；旧逻辑 0.4 会拒，新逻辑通过。"""
+        # 构造 5 行 3 列 → cols<=3 进入信号 a 检测但 rows<=50 不命中；
+        # 测试信号 b：断裂率 ≈ 0.4
+        # 每行：相邻字母-小写连接 1 对（"Methodology"+"a") - 注意 cols 改为 4 避免信号 a
+        rows = []
+        for _ in range(5):
+            # 4 列：相邻列对 = 3 对/行；让其中 1 对断裂（≈ 0.33）
+            rows.append(["Methodologya", "ng_continuation", "X1Y2Z3", "DataValue"])
+        passed, diag = _table_quality_score(rows)
+        assert passed is True, diag
+        # 阈值 0.5 不被命中
+
+    def test_legitimate_long_table_still_passes(self) -> None:
+        """rows=60 cols=4 + 正常数据 → 仍通过（信号 a 不命中 cols>3）。"""
+        data: List[List[Any]] = []
+        for i in range(60):
+            data.append([f"item_{i}", f"value_{i}", f"unit{i}", f"note{i}"])
+        passed, diag = _table_quality_score(data)
+        assert passed is True, diag
         assert diag["reason"] == "pass"
