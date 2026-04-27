@@ -338,22 +338,38 @@ def get_hardware_info() -> HardwareInfo:
 def get_device_for_docling(device_preference: Optional[str] = None) -> str:
     """Get the device string compatible with Docling's AcceleratorDevice.
 
+    设备解析优先级：
+    1. ``settings.pdf_docling_force_cpu=True`` 或 env ``NEGENTROPY_DOCLING_FORCE_CPU=1``
+       → 强制 ``cpu``（用于诊断 / 回退稳定路径）
+    2. 显式 ``device_preference`` 且非 ``auto`` → 透传
+    3. ``auto`` → ``detect_device()`` 自动选择最优设备
+
     Args:
         device_preference: Optional device preference ('auto', 'cpu', 'cuda', 'mps', 'xpu')
                           If 'auto' or None, auto-detection is performed.
 
     Returns:
         str: Device string compatible with Docling's AcceleratorDevice enum
-
-    Example:
-        >>> device = get_device_for_docling('auto')
-        >>> print(device)
-        mps
-
-        >>> # Use with Docling
-        >>> from docling.datamodel.accelerator_options import AcceleratorOptions
-        >>> accelerator_options = AcceleratorOptions(device=device)
     """
+    # 强制 CPU 门控：配置开关 / 环境变量任意一个生效即返回 cpu
+    try:
+        from ...config import settings as _settings
+
+        if getattr(_settings, "pdf_docling_force_cpu", False):
+            logger.info("Docling 强制 CPU（pdf_docling_force_cpu=True）")
+            return DeviceType.CPU.value
+    except Exception:  # noqa: BLE001  # nosec B110 - 配置未就绪不阻塞设备探测
+        pass
+    import os as _os
+
+    if _os.environ.get("NEGENTROPY_DOCLING_FORCE_CPU", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        logger.info("Docling 强制 CPU（env NEGENTROPY_DOCLING_FORCE_CPU=1）")
+        return DeviceType.CPU.value
+
     if device_preference and device_preference.lower() != "auto":
         # Validate the preference
         valid_devices = {d.value for d in DeviceType}

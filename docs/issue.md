@@ -3,6 +3,57 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-04-27] parse_pdf_to_markdown 多 Stage 兜底退化与 Apple Silicon MPS 回退
+
+### 问题描述
+对 81 页 OPENDEV 论文执行 `parse_pdf_to_markdown` 时，10 个 Stage 中有 5 个发生「兜底退化」：
+
+- `layout_analysis`：docling/mineru/marker 三家重型引擎全部 120s 超时 → pymupdf 兜底胜出，失去 reading-order/heading-level 高质量产出；
+- `table_extraction`：docling 60s 超时；pymupdf 抽出候选后**70+ 页全部触发 `prose_like_cells` 过滤丢弃**，最终 markdown 表格数 = 0（论文实有 Table 1/2/3/6/8 等多张真实表格）；
+- `formula_extraction`：mineru / docling 双双 60s 超时，仅 `pymupdf_heuristic` 兜底；
+- `code_detection`：docling 30s 超时，仅 `algorithm_detector` 兜底；
+- `image_extraction`：pymupdf 91s 抽 18 张图（每页 5s），单引擎无并发竞争。
+
+总耗时 262s 但产出严重退化。日志同时显示 docling 子进程内 `MPS is not available in the system. Fall back to 'CPU'`，Apple M 系列 GPU 算力被弃用。
+
+### 表因
+- 各 Stage 默认 timeout（120/60/60/30s）对 81 页论文的重型模型推理过严；
+- `_table_quality_score` 的 prose 检测信号 a（rows>20 + cols∈[2,5]）误杀学术真实长表（行多列少型）；
+- docling 子进程冷启动后被 SIGTERM，跨 stage 重复 spawn 浪费 ~20s；
+- `_preinit_torch_device` 仅做 `torch.zeros(1, device="mps")` first-touch，张量被 GC 后 MPS 状态可能退化，docling 内部 `is_available()` 复查失败。
+
+### 根因
+1. **超时一刀切**：超时配置假设了「快速兜底胜出」的语义，但当 pymupdf 总能瞬完成时，重型引擎从未有机会胜出 → 竞态退化为 fallback；
+2. **无首胜取消**：scheduler `_run_competition` 用 `asyncio.as_completed` 永不主动 cancel，慢任务空转到 deadline 浪费算力；
+3. **跨 Stage 不复用**：layout/table/formula/code 四个 Stage 各自向 EngineWorkerPool 发送独立 docling.convert 调用，init_kwargs 不一致 → worker 子进程内 `_ConvertCache` 完全 miss；
+4. **MPS first-touch 不充分**：单 zeros(1) 的张量被 GC 后，docling 内部 `torch.backends.mps.is_available()` 判定 False；
+5. **prose_like_cells 偏置**：信号 a 的 `rows>20 + cols<=5` 条件与学术论文真实长表（参数对比 / 消融实验 / 配置清单）严重重叠。
+
+### 处理方式
+分七条正交战线，详见 commit 与 [docs/development.md](development.md)：
+
+1. **超时分级**：layout=360s / table=300s / formula=300s / code=120s；顶层 `task_timeout_seconds: 900`；新增 `pdf_stage_timeout_multiplier` 全局倍率；
+2. **早胜取消**：`StageScheduler._run_competition` 新增 `early_win_cancel/min_rank/grace_seconds` 参数；rank=1 工具胜出后 grace 期内取消其余候选；
+3. **跨 Stage 复用**：抽取 `pdf/engines/_docling_kwargs.py::build_docling_init_kwargs()` 帮助器，所有 4 个 docling stage 共享同一 init_kwargs hash → 子进程 `_ConvertCache` 命中节省 3-4 次完整推理；
+4. **MPS 强化 first-touch**：`_preinit_torch_device` 改为 randn(1024,1024) + matmul + 模块级 `_MPS_PIN` 锚定张量引用，防止 GC 释放 MPS 设备状态；新增 `pdf_docling_force_cpu` / env `NEGENTROPY_DOCLING_FORCE_CPU` 兜底回退；
+5. **prose 阈值放宽**：信号 a 阈值 rows>20→50、cols<=5→3；信号 b 断裂率 0.3→0.5；新增 `pdf_table_quality_bypass_with_title=true`，含 `Table N:` 标题的候选自动旁路 prose 检测；
+6. **引擎预热**：`EngineWorkerPool.warmup(engine)` 新方法 + `convenience.run_pdf_pipeline` 在 preprocessing/quick_scan 期间异步触发，把 ~2-12s 冷启动开销移出 layout_analysis 关键路径；
+7. **图像并发动态化**：`_resolve_concurrency()` 从 `pdf_image_extraction_concurrency` 读取（默认 8，M 系列芯片优化），保留 `_IMAGE_EXTRACT_CONCURRENCY=4` 兼容历史。
+
+### 后续防范
+- **预算上限**：`task_timeout_seconds=900` 顶层兜底，单任务永不超过 15 分钟；
+- **降级链**：每条战线独立可关闭（`early_win_cancel=false` / `pdf_docling_force_cpu=true` / `pdf_engine_warmup_enabled=false` / `pdf_table_quality_filter_enabled=false`），出问题可快速回退；
+- **可观测性**：scheduler 日志在早胜取消时显式打印 `tier-1 工具 X 胜出，立即/缓冲后取消其余 N 个`；worker 内 `_ConvertCache` 命中打印 `convert cache hit fingerprint=...`，便于验证跨 stage 复用率。
+- **测试**：`tests/unit/test_table_quality_filter.py`（新增 7 个 prose 用例）、`tests/unit/test_scheduler_competition.py`（新增 6 个竞态用例）、`tests/unit/test_engine_worker_warmup.py`（新增 7 个预热用例）、`tests/unit/test_docling_init_kwargs.py`（新增 4 个跨 Stage 哈希一致性用例）。
+
+### 同类问题影响与注意事项
+- **用户 yaml 不会自动同步**：`~/.negentropy/perceives.config.yaml` 中的 stage timeout 仍是旧值（120/60/30s）；用户可通过 `pdf_stage_timeout_multiplier=3.0` 在不改 yaml 的情况下放宽；新装机器从 `config.default.yaml` 直接拿到新默认。
+- **早胜取消默认仅 PDF Pipeline 启用**：webpage pipeline 未配置 `early_win_*` → 行为不变。
+- **MPS pin 张量保留 ~12MB 内存**：1024×1024 float32 共 ~4MB × 3 个 tensor，对 16GB+ 机器可忽略；如内存敏感可设 `pdf_docling_force_cpu=true` 跳过 MPS。
+- **docling 仍可能内部触发 CPU 回退**：当 docling 自身的 accelerator_utils 因其它原因（如 PyTorch 版本兼容性）判定 MPS 不可用时，`AcceleratorOptions(device=MPS)` 仍会被 docling 内部下调到 CPU，本次仅修复 first-touch 不充分导致的回退；其它原因需在 docling 上游解决。
+
+---
+
 ## [2026-04-26] parse_pdf_to_markdown 图片传输从 base64 切换为磁盘落盘 + MCP Resource URI
 
 ### 问题描述

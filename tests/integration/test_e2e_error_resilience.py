@@ -199,9 +199,15 @@ class TestErrorResilience:
                     "scrape_url",
                     side_effect=mock_scrape_with_resource_pressure,
                 ):
+                    # 使用 method="simple" 绕过 Pipeline auto 路径：Pipeline 会先
+                    # 尝试 aiohttp/playwright/selenium 真实网络抓取（在 CI 上无外网
+                    # 时每轮 ~15s × 11 轮即触达 pytest-timeout=300s），且这些工具不
+                    # 走 web_scraper.scrape_url 故 mock 失效。method="simple" 直接
+                    # 进入传统路径调用 mocked scrape_url，每轮毫秒级，验证内存压力下
+                    # 的资源恢复语义不依赖网络条件。
                     result = await convert_tool.fn(
                         url=f"https://test-site.com/page-{i}",
-                        method="auto",
+                        method="simple",
                         extract_main_content=True,
                         include_metadata=True,
                         custom_options=None,

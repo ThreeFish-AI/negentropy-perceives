@@ -440,9 +440,12 @@ class NegentropyPerceivesSettings(BaseSettings):
 
     # ── 任务级超时（PDF / Webpage 解析任务兜底） ─────────────────
     task_timeout_seconds: int = Field(
-        default=300,
+        default=900,
         ge=1,
-        description="单次解析任务（PDF/Webpage）默认超时秒数。可被 MCP 入参 timeout 覆盖。",
+        description=(
+            "单次解析任务（PDF/Webpage）默认超时秒数。15 分钟兜底覆盖大型 PDF "
+            "多 stage 竞态；可被 MCP 入参 timeout 或 yaml 覆盖。"
+        ),
     )
 
     # ── PDF 引擎进程池（取消传导 + 资源释放） ─────────────────────
@@ -596,6 +599,78 @@ class NegentropyPerceivesSettings(BaseSettings):
         ge=1,
         description=(
             "单元格不同值数量下限；所有单元格去重后 ≤ 该值判定为页眉/重复行伪表格。"
+        ),
+    )
+    pdf_table_quality_prose_rows_threshold: int = Field(
+        default=50,
+        ge=2,
+        description=(
+            "信号 a 触发阈值：行数 > 该值且列数在 prose_cols_max 内时判定为正文段落。"
+            "学术论文真实表格极少超过 50 行；调高可保护多行长表，调低更激进。"
+        ),
+    )
+    pdf_table_quality_prose_cols_max: int = Field(
+        default=3,
+        ge=1,
+        description=(
+            "信号 a 列数上限：列数 ≤ 该值时启用正文段落检测。"
+            "默认 3 仅对 2-3 列文本敏感；4-5 列更可能是真实数据表，跳过该信号。"
+        ),
+    )
+    pdf_table_quality_prose_fragment_ratio: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "信号 b 单词断裂率阈值：相邻单元格间字母-小写连接占比超过该值视为正文。"
+            "学术表格中相邻列的领域术语断裂率约 0.2-0.4，0.5 为安全上限。"
+        ),
+    )
+    pdf_table_quality_bypass_with_title: bool = Field(
+        default=True,
+        description=(
+            "对带有 'Table N: ...' 标题的候选跳过散文检测信号。"
+            "仅信号 a/b 被旁路；occupancy/weak_cols/uniqueness 三道结构过滤仍生效。"
+        ),
+    )
+
+    # ── PDF 阶段超时倍率（统一全局缩放，便于硬件慢机调试）────
+    pdf_stage_timeout_multiplier: float = Field(
+        default=1.0,
+        gt=0.0,
+        le=10.0,
+        description=(
+            "Pipeline 中各 Stage timeout 的全局倍率；>1 放宽，<1 收紧。"
+            "支持环境变量 NEGENTROPY_PERCEIVES_PDF_STAGE_TIMEOUT_MULTIPLIER 覆盖。"
+        ),
+    )
+
+    # ── 图片抽取并发度（PyMuPDF 单页非线程安全，按页协程级并发）──
+    pdf_image_extraction_concurrency: int = Field(
+        default=8,
+        ge=1,
+        le=32,
+        description=(
+            "image_extraction Stage 的页级 Semaphore 并发上限。"
+            "M 系列芯片大内存机型可适当上调以减少 18 张图 91s 的单线性瓶颈。"
+        ),
+    )
+
+    # ── Docling MPS 强制门控 ──────────────────────────────────
+    pdf_docling_force_cpu: bool = Field(
+        default=False,
+        description=(
+            "强制 Docling 在 CPU 上推理，跳过 MPS 注入。"
+            "用于诊断 MPS 兼容性问题或在 macOS 上回退到稳定路径。"
+        ),
+    )
+
+    # ── 引擎预热 ──────────────────────────────────────────────
+    pdf_engine_warmup_enabled: bool = Field(
+        default=True,
+        description=(
+            "在 preprocessing/quick_scan 期间异步预热 docling/mineru/marker worker，"
+            "把 ~2-12s 冷启动开销移出 layout_analysis 关键路径。"
         ),
     )
 

@@ -312,6 +312,65 @@ def _build_image_assets(
     return assets
 
 
+# ---------------------------------------------------------------------------
+# 引擎预热（消除 worker 冷启动时间窗）
+# ---------------------------------------------------------------------------
+
+
+def _kickoff_engine_warmup() -> None:
+    """异步触发 docling/mineru/marker worker 预热。
+
+    与 :func:`run_pdf_pipeline` 主流程**完全解耦**：
+    - 不阻塞 caller，不抛异常；任何失败仅记录 DEBUG/WARN；
+    - 仅在引擎被 ``settings.{docling|mineru|marker}_enabled`` 启用时预热；
+    - 进程隔离非 ``process`` 时直接跳过。
+
+    时间窗：preprocessing(~62ms) + quick_scan(~86ms) ≈ 150ms，足以让 spawn
+    + torch import + MPS first-touch 在主流水线前完成（实测 docling worker
+    冷启动 ~10s 在 layout_analysis 关键路径外完成，即可减少首 stage 等待）。
+    """
+    if not getattr(settings, "pdf_engine_warmup_enabled", True):
+        return
+
+    try:
+        import asyncio as _asyncio
+
+        from ..infra.engine_worker import get_engine_pool
+    except Exception as e:  # noqa: BLE001
+        logger.debug("引擎预热模块导入失败，跳过: %s", e)
+        return
+
+    try:
+        pool = get_engine_pool()
+    except Exception as e:  # noqa: BLE001
+        logger.debug("EngineWorkerPool 不可用，跳过预热: %s", e)
+        return
+
+    if getattr(pool, "isolation", "process") != "process":
+        return
+
+    engines: List[str] = []
+    if getattr(settings, "docling_enabled", True):
+        engines.append("docling")
+    if getattr(settings, "mineru_enabled", True):
+        engines.append("mineru")
+    if getattr(settings, "marker_enabled", True):
+        engines.append("marker")
+
+    if not engines:
+        return
+
+    try:
+        loop = _asyncio.get_running_loop()
+    except RuntimeError:
+        # 同步调用上下文（如测试），无事件循环时静默跳过
+        return
+
+    for engine in engines:
+        loop.create_task(pool.warmup(engine))
+    logger.info("引擎预热已触发 engines=%s", engines)
+
+
 async def run_pdf_pipeline(
     source: str,
     page_range: Optional[tuple[int, int]] = None,
@@ -362,6 +421,11 @@ async def run_pdf_pipeline(
         pipeline_name="pdf",
         input_builders=_PDF_INPUT_BUILDERS,
     )
+
+    # 引擎预热：将 docling/mineru/marker 的 spawn + torch import + MPS first-touch
+    # 开销并行移出 layout_analysis 关键路径，恰好叠加 preprocessing/quick_scan
+    # 的 < 200ms 时间窗。配置 `pdf.engine_warmup_enabled: false` 可关闭。
+    _kickoff_engine_warmup()
 
     input_data = PreprocessingInput(
         source=source,

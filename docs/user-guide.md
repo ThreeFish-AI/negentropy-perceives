@@ -502,6 +502,14 @@ async with NegentropyPerceivesClient(
 | `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MIN_OCCUPANCY`    | `float`| `0.40`  | `[0.0, 1.0]`                    | 非空单元格占比下限；低于则判定伪表格                             |
 | `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MAX_WEAK_COLS_RATIO` | `float` | `0.5` | `[0.0, 1.0]`                  | 弱列数占比上限（弱列 = 非空率 < 40% 的列）                       |
 | `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_MIN_UNIQUE_CELLS` | `int`  | `3`     | `>= 1`                          | 全表去重后单元格种类数下限；≤ 该值判定伪表格                     |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_PROSE_ROWS_THRESHOLD` | `int` | `50`  | `>= 2`                          | 信号 a 行数阈值；> 该值且列数 ≤ prose_cols_max 时判定为正文段落  |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_PROSE_COLS_MAX`   | `int`  | `3`     | `>= 1`                          | 信号 a 列数上限；列数 ≤ 该值时启用正文段落检测                   |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_PROSE_FRAGMENT_RATIO` | `float` | `0.5` | `[0.0, 1.0]`                | 信号 b 单词断裂率阈值；超过该值视为正文段落                       |
+| `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_BYPASS_WITH_TITLE` | `bool` | `true`  | -                              | 含 `Table N:` 标题的候选跳过 prose 检测信号                     |
+| `NEGENTROPY_PERCEIVES_PDF_STAGE_TIMEOUT_MULTIPLIER`       | `float`| `1.0`   | `(0.0, 10.0]`                   | Pipeline 各 Stage timeout 全局倍率；> 1 放宽，< 1 收紧           |
+| `NEGENTROPY_PERCEIVES_PDF_IMAGE_EXTRACTION_CONCURRENCY`   | `int`  | `8`     | `[1, 32]`                       | image_extraction Stage 的页级并发上限                            |
+| `NEGENTROPY_PERCEIVES_PDF_DOCLING_FORCE_CPU`              | `bool` | `false` | -                               | 强制 Docling 在 CPU 推理（诊断/MPS 兼容性回退）                  |
+| `NEGENTROPY_PERCEIVES_PDF_ENGINE_WARMUP_ENABLED`          | `bool` | `true`  | -                               | preprocessing/quick_scan 期间异步预热 docling/mineru/marker     |
 | `NEGENTROPY_PERCEIVES_PIPELINE`                           | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 配置验证规则

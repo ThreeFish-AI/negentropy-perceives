@@ -37,6 +37,16 @@ from negentropy.perceives.pipeline.stages.pdf.image_extraction import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _stable_concurrency(monkeypatch):
+    """统一固定并发度到默认 4，避免 settings 漂移影响断言。"""
+    monkeypatch.setattr(
+        "negentropy.perceives.pipeline.stages.pdf.image_extraction._resolve_concurrency",
+        lambda: _IMAGE_EXTRACT_CONCURRENCY,
+    )
+    yield
+
+
 # ── 测试替身 ────────────────────────────────────────────────────────────────
 
 
@@ -306,6 +316,62 @@ class TestFitzImageExtractorConcurrency:
 
         assert result.success is False
         assert "boom" in (result.error or "")
+
+
+class TestConcurrencyResolution:
+    """`_resolve_concurrency()` 与 settings 字段的契约。"""
+
+    def test_default_constant_preserved(self) -> None:
+        """模块级 ``_IMAGE_EXTRACT_CONCURRENCY`` 保持向后兼容默认值 4。"""
+        assert _IMAGE_EXTRACT_CONCURRENCY == 4
+
+    def test_resolve_reads_settings(self, monkeypatch) -> None:
+        """settings 中的 ``pdf_image_extraction_concurrency`` 会被读取。"""
+        # 移除 monkeypatch 的预设，恢复真实 _resolve_concurrency
+        monkeypatch.undo()
+
+        from negentropy.perceives import config as _config_mod
+        from negentropy.perceives.pipeline.stages.pdf import (
+            image_extraction as _img_mod,
+        )
+
+        # 注入 settings.pdf_image_extraction_concurrency = 16 → resolve 应返回 16
+        class _FakeSettings:
+            pdf_image_extraction_concurrency = 16
+
+        monkeypatch.setattr(_config_mod, "settings", _FakeSettings())
+        # 重新调用：_resolve_concurrency 内部 from-import 取最新 settings
+        assert _img_mod._resolve_concurrency() == 16
+
+    def test_resolve_falls_back_on_invalid(self, monkeypatch) -> None:
+        """settings 字段缺失或异常时回落到 ``_IMAGE_EXTRACT_CONCURRENCY``。"""
+        monkeypatch.undo()
+        from negentropy.perceives import config as _config_mod
+        from negentropy.perceives.pipeline.stages.pdf import (
+            image_extraction as _img_mod,
+        )
+
+        class _BrokenSettings:
+            @property
+            def pdf_image_extraction_concurrency(self):
+                raise AttributeError("missing")
+
+        monkeypatch.setattr(_config_mod, "settings", _BrokenSettings())
+        assert _img_mod._resolve_concurrency() == _IMAGE_EXTRACT_CONCURRENCY
+
+    def test_resolve_clamps_to_at_least_one(self, monkeypatch) -> None:
+        """配置值 0 / 负数会被夹到 1，避免 Semaphore(0) 死锁。"""
+        monkeypatch.undo()
+        from negentropy.perceives import config as _config_mod
+        from negentropy.perceives.pipeline.stages.pdf import (
+            image_extraction as _img_mod,
+        )
+
+        class _ZeroSettings:
+            pdf_image_extraction_concurrency = 0
+
+        monkeypatch.setattr(_config_mod, "settings", _ZeroSettings())
+        assert _img_mod._resolve_concurrency() == 1
 
 
 class TestFitzImageExtractorContracts:
