@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import base64
 import importlib
-import io
 import logging
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -199,7 +199,7 @@ def _log_pdf_engines_summary_once() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 图片 base64 资产构造（MCP 响应透出）
+# 图片资产落盘（MCP 响应透出 image_path 指针）
 # ---------------------------------------------------------------------------
 
 
@@ -229,112 +229,86 @@ def _read_image_bytes(img: ExtractedImage) -> Optional[bytes]:
     return None
 
 
-def _downscale_to_jpeg(raw: bytes, *, quality: int = 75) -> Optional[bytes]:
-    """将图片字节以 JPEG q=75 重压缩；失败返回 ``None``。
+def _resolve_images_dir(
+    output_dir: Optional[str],
+    pdf_stem: Optional[str],
+) -> Path:
+    """解析图片导出目录。
 
-    超大图的兜底路径：PNG/WebP 等无损格式或未压缩位图转 JPEG 后通常可压到
-    1/5~1/10，确保单图不会独占响应体预算。Pillow 未安装时直接失败，保持
-    不改变原字节的回退逻辑（由调用方决定是否跳过）。
+    优先级：
+    1. 用户显式指定的 ``output_dir`` → ``<output_dir>/images/``；
+    2. 否则回退到 ``<cwd>/output/<pdf_stem>/images/``，与 S9 ``BuiltinBundler``
+       的目录约定保持一致（单一事实源）。
     """
-    try:
-        from PIL import Image  # type: ignore
-    except ImportError:
-        logger.warning("Pillow 未安装，跳过超大图重压缩")
-        return None
-
-    try:
-        with Image.open(io.BytesIO(raw)) as im:
-            # 统一转 RGB：RGBA/P/LA 等模式无法直接存 JPEG（OSError）；且
-            # `convert` 返回新 Image 而非 ImageFile，显式另赋变量避免类型收窄冲突。
-            converted = im if im.mode in ("RGB", "L") else im.convert("RGB")
-            buf = io.BytesIO()
-            converted.save(buf, format="JPEG", quality=quality, optimize=True)
-            return buf.getvalue()
-    except Exception as e:  # noqa: BLE001 - PIL 异常类型繁多，统一降级
-        logger.warning("JPEG 重压缩失败: %s", e)
-        return None
+    if output_dir:
+        base_dir = Path(output_dir)
+    else:
+        base_dir = Path.cwd() / "output" / (pdf_stem or "document")
+    return base_dir / "images"
 
 
 def _build_image_assets(
     image_output: Optional[ImageExtractionOutput],
+    *,
+    output_dir: Optional[str] = None,
+    pdf_stem: Optional[str] = None,
 ) -> List[ImageAsset]:
-    """从 ImageExtractionOutput 构造供 MCP 响应透出的 ``ImageAsset`` 列表。
+    """把图片原字节落盘，构造供 MCP 响应透出的 ``ImageAsset`` 指针列表。
 
-    三道护栏（均由 :class:`NegentropyPerceivesSettings` 配置）：
-    1. ``pdf_bundle_images_in_response``：关闭则直接返回空列表；
-    2. ``pdf_image_max_base64_kb``：单图 base64 超限时走 JPEG q=75 重压缩，
-       若仍超限则直接丢弃该图（记录 WARN）；
-    3. ``pdf_bundle_total_base64_mb``：累计字节超阈值后停止追加（保序丢弃尾部）。
+    传输策略：图片原字节写入 ``<output_dir>/images/<filename>``；响应中只
+    携带 ``filename`` 与 ``image_path``。MCP Resource URI 由 tool 层在拿到
+    本函数返回值后动态注册，回填 ``resource_uri`` 字段。
 
-    失败策略：任何单图异常仅跳过本图，不影响整体流水线成功。
+    若同一文件已落盘（``ExtractedImage.local_path`` 与目标路径一致或源已存在），
+    优先 ``shutil.copy2`` 复制以避免无谓的解码—编码—写盘往返。
+
+    失败策略：单图 IO 异常仅跳过本图，不影响整体流水线成功。
     """
     if image_output is None or not image_output.images:
         return []
-    if not settings.pdf_bundle_images_in_response:
+
+    images_dir = _resolve_images_dir(output_dir, pdf_stem)
+    try:
+        images_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.warning("无法创建图片导出目录 %s: %s", images_dir, e)
         return []
 
-    per_image_limit = settings.pdf_image_max_base64_kb * 1024
-    total_limit = settings.pdf_bundle_total_base64_mb * 1024 * 1024
-
     assets: List[ImageAsset] = []
-    total_bytes = 0
-    dropped_oversize = 0
-    dropped_total_cap = 0
-
     for img in image_output.images:
-        raw = _read_image_bytes(img)
-        if raw is None:
-            continue
-
-        downscaled = False
-        mime = img.mime_type or "image/png"
-        filename = img.filename
-
-        if len(raw) > per_image_limit:
-            re_encoded = _downscale_to_jpeg(raw)
-            if re_encoded is not None and len(re_encoded) <= per_image_limit:
-                raw = re_encoded
-                mime = "image/jpeg"
-                # 原扩展名可能是 .png/.webp，此处只替换 MIME 与 filename 后缀，
-                # 避免客户端按扩展名判断时与实际字节不一致
-                stem = Path(filename).stem
-                filename = f"{stem}.jpg"
-                downscaled = True
-            else:
-                dropped_oversize += 1
-                logger.warning(
-                    "图片 %s 超过单图上限 %dKB 且重压缩无效，已跳过",
-                    img.filename,
-                    settings.pdf_image_max_base64_kb,
-                )
-                continue
-
-        if total_bytes + len(raw) > total_limit:
-            dropped_total_cap += 1
+        dest = images_dir / img.filename
+        try:
+            written = False
+            if img.local_path:
+                src = Path(img.local_path)
+                if src.exists():
+                    if src.resolve() != dest.resolve():
+                        shutil.copy2(src, dest)
+                    written = True
+            if not written:
+                raw = _read_image_bytes(img)
+                if raw is None:
+                    continue
+                dest.write_bytes(raw)
+        except OSError as e:
+            logger.warning("图片 %s 落盘失败，跳过: %s", img.filename, e)
             continue
 
         assets.append(
             ImageAsset(
-                filename=filename,
-                mime_type=mime,
-                base64_data=base64.b64encode(raw).decode("ascii"),
+                filename=img.filename,
+                mime_type=img.mime_type or "image/png",
+                image_path=str(dest.resolve()),
+                resource_uri=None,
                 width=img.width,
                 height=img.height,
                 caption=img.caption,
                 page_number=img.page_number,
-                downscaled=downscaled,
             )
         )
-        total_bytes += len(raw)
 
-    if dropped_oversize or dropped_total_cap:
-        logger.info(
-            "图片资产打包：收录=%d 超单图限=%d 超总量限=%d 总字节=%d",
-            len(assets),
-            dropped_oversize,
-            dropped_total_cap,
-            total_bytes,
-        )
+    if assets:
+        logger.info("图片资产落盘：收录=%d 目录=%s", len(assets), images_dir)
     return assets
 
 
@@ -471,7 +445,15 @@ async def run_pdf_pipeline(
                 for k, v in stage_results.items()
             },
             metadata=assembly_output.metadata,
-            image_assets=_build_image_assets(image_output_typed),
+            image_assets=_build_image_assets(
+                image_output_typed,
+                output_dir=output_dir,
+                pdf_stem=(
+                    preprocessing_output.local_path.stem
+                    if isinstance(preprocessing_output, PreprocessingOutput)
+                    else None
+                ),
+            ),
         )
 
     # 降级：如果没有 assembly 输出，尝试从 text_output 构建

@@ -68,25 +68,29 @@ class BatchMarkdownResponse(BaseModel):
 
 
 class ImageAssetModel(BaseModel):
-    """PDF 响应中内嵌的图片资产（base64 载荷）。
+    """PDF 响应中的图片资产指针（仅承载落盘路径与 MCP Resource URI）。
 
     与 :class:`negentropy.perceives.pipeline.models.ImageAsset` 配对的
     Pydantic 视图：前者用于内部流水线，后者用于对外 MCP 响应的序列化与校验。
     字段保持一一对应。
+
+    传输策略：图片字节落盘到 ``image_path``；同时由 tool 层动态注册为 MCP
+    Resource，``resource_uri`` 供跨主机客户端经 ``resources/read`` 拉取。
+    响应体不再携带 base64 字节。
     """
 
     filename: str = Field(..., description="文件名（如 img_p1_0.png）")
     mime_type: str = Field(default="image/png", description="MIME 类型")
-    base64_data: str = Field(..., description="Base64 编码后的图片字节")
+    image_path: str = Field(..., description="图片落盘后的绝对路径")
+    resource_uri: Optional[str] = Field(
+        default=None,
+        description="MCP Resource URI（perceives://pdf/<job_id>/<filename>），跨主机场景下经 resources/read 拉取",
+    )
     width: Optional[int] = Field(default=None, description="图片宽度（像素）")
     height: Optional[int] = Field(default=None, description="图片高度（像素）")
     caption: Optional[str] = Field(default=None, description="图片说明文字")
     page_number: Optional[int] = Field(
         default=None, description="所在页码（从 0 开始）"
-    )
-    downscaled: bool = Field(
-        default=False,
-        description="是否经过 JPEG q=75 重压缩（超过单图 base64 阈值时触发）",
     )
 
 
@@ -108,8 +112,9 @@ class PDFResponse(BaseModel):
     image_assets: Optional[List[ImageAssetModel]] = Field(
         default=None,
         description=(
-            "随响应透出的图片 base64 资产列表。"
-            "受配置项 pdf_bundle_images_in_response 门控；关闭或无图时为 None。"
+            "随响应透出的图片资产指针列表（filename + image_path + resource_uri）。"
+            "图片原字节落盘到 image_path；同时由 tool 层动态注册为 MCP Resource，"
+            "客户端可通过 resource_uri 经 resources/read 跨主机拉取。无图时为 None。"
         ),
     )
     orchestration_info: Optional[Dict[str, Any]] = Field(

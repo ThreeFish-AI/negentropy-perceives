@@ -3,6 +3,37 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-04-26] parse_pdf_to_markdown 图片传输从 base64 切换为磁盘落盘 + MCP Resource URI
+
+### 问题描述
+`parse_pdf_to_markdown` 把图片以 base64 字符串嵌入 MCP 响应体（`PDFResponse.image_assets[*].base64_data`），默认上限 32MB。响应体冗长导致 MCP 客户端/日志无法快速预览内容，且跨主机场景下 base64 字符串并非高效的文件传输手段。
+
+### 表因
+设计之初为补齐"Pipeline 只返回 `images_count` 而无像素数据"的缺口，选择了 base64 内嵌 + 三道护栏（开关门控、单图重压缩、总量上限）。但响应体内嵌大体积 base64 违背了 MCP 协议"结构化 JSON + 独立资源"的设计理念。
+
+### 根因
+1. MCP 协议原生支持 Resources（`resources/read`）用于二进制文件跨主机传输，但项目未利用该能力。
+2. 现有 S9 资源打包 Stage 已把图片落盘到 `<output_dir>/images/`，但落盘路径未透出到响应。
+3. FastMCP 3.2.4 提供 `FileResource` + `app.add_resource()` 动态注册 API，支持按需读盘返回字节，但项目未集成。
+
+### 处理方式（Breaking Change）
+- **数据模型**：`ImageAssetModel` / `ImageAsset` 移除 `base64_data`、`downscaled` 字段；新增 `image_path`（落盘绝对路径，必填）与 `resource_uri`（MCP Resource URI，由 tool 层注册后回填）。
+- **落盘逻辑**：`_build_image_assets` 重写为"原字节写盘 → 返回指针"；删除 `_downscale_to_jpeg` 及三个 base64 护栏配置项。
+- **MCP Resource 注册**：`tools/_image_resources.py` 新增 `register_pdf_response_images` / `register_batch_pdf_response_images`，为每个图片注册 `perceives://pdf/<job_id>/<filename>` URI 的 `FileResource`，客户端通过 `resources/read` 跨主机拉取。
+- **配置清理**：`config.py` 删除 `pdf_bundle_images_in_response` / `pdf_image_max_base64_kb` / `pdf_bundle_total_base64_mb`。
+
+### 后续防范
+- 跨主机客户端迁移路径：读 `image_path`（共享卷）或调 `resources/read(resource_uri)`。
+- MCP Resource 生命周期：驻留 server 进程内存，重启失效；磁盘文件由用户管理 `output_dir`。
+- 若大量解析造成内存累积，后续可叠加 job_id LRU 清理。
+
+### 同类问题影响与注意事项
+- **Breaking Change**：客户端代码如读取 `base64_data` 或 `downscaled` 字段将报错。需改为读取 `image_path` 或 `resource_uri`。
+- `docs/user-guide.md` 已移除三个已删除的环境变量说明。
+- `tests/unit/test_asset_bundling_base64.py` 已重写为 `test_asset_bundling_disk_export.py`。
+
+---
+
 ## [2026-04-26] CI Security Audit 因新 CVE-2026-3219 阻塞主管线
 
 ### 问题描述

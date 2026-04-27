@@ -111,6 +111,8 @@ async def parse_pdf_to_markdown(
                         # 将 pipeline 层的 dataclass ImageAsset 映射为响应层
                         # 的 Pydantic ImageAssetModel；空列表统一回落为 None，
                         # 以便客户端用 `is None` 判断“无图片 vs 有图但未透出”。
+                        # resource_uri 在此处保持为 None，由 tools 层在 wrapper
+                        # 出口动态注册 MCP Resource 后回填。
                         image_assets_out = None
                         raw_assets = getattr(pipeline_result, "image_assets", None)
                         if raw_assets:
@@ -118,12 +120,12 @@ async def parse_pdf_to_markdown(
                                 ImageAssetModel(
                                     filename=a.filename,
                                     mime_type=a.mime_type,
-                                    base64_data=a.base64_data,
+                                    image_path=a.image_path,
+                                    resource_uri=a.resource_uri,
                                     width=a.width,
                                     height=a.height,
                                     caption=a.caption,
                                     page_number=a.page_number,
-                                    downscaled=a.downscaled,
                                 )
                                 for a in raw_assets
                             ]
