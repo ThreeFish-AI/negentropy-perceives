@@ -297,6 +297,19 @@ def _preinit_torch_device(logger: logging.Logger) -> None:
         diag["mps_smoke_test"] = "skip:mps_not_built"
 
     os.environ["NEGENTROPY_MPS_READY"] = "1" if mps_ready else "0"
+
+    # Monkey-patch torch.backends.mps.is_available：first-touch 成功后，
+    # 将 is_available 锁定为 True，确保 docling 内部
+    # accelerator_utils.decide_device()（被 layout_model / table_structure_model /
+    # code_formula_model 等 6+ 处调用）稳定识别 MPS。
+    #
+    # 必要性：spawn 子进程内 MPS allocator 状态不稳定，first-touch 后
+    # is_available() 仍可能在模型加载等内存密集操作期间返回 False；
+    # docling decide_device 在 76-80 行检测到 False 后直接回退 CPU。
+    # 既然 first-touch + smoke_test 已确认 MPS 可用，可以安全地锁定判定结果。
+    if mps_ready:
+        torch.backends.mps.is_available = lambda: True  # type: ignore[assignment]
+
     # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
     logger.warning("子进程 torch 诊断 %s", diag)
 

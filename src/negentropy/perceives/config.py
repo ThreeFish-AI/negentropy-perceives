@@ -92,7 +92,8 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
     合并规则：
     - 标量值：override 覆盖 base
     - 嵌套字典：递归合并（非整体替换）
-    - 列表值：override 完整替换 base
+    - 列表值：override 完整替换 base（pipeline.*.stages 通过
+      :func:`_merge_named_list` 单独处理，参见 :func:`_prepare_user_yaml`）
     - override 中值为 None 的键：跳过（保留 base 原值）
 
     Args:
@@ -109,6 +110,74 @@ def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]
         elif value is not None:
             result[key] = value
     return result
+
+
+def _merge_named_list(
+    base: list,
+    override: list,
+    key: str = "name",
+) -> list:
+    """按 ``key`` 字段匹配合并两个对象列表。
+
+    用于 :func:`_prepare_user_yaml` 对 ``pipeline.*.stages`` 数组执行
+    按 ``name`` 匹配的智能合并，防止用户 config 的旧 stages 数组完全
+    覆盖默认 config 中新增的 ``competition`` 字段（如 ``timeout`` 增大、
+    ``early_win_cancel`` 等）。
+
+    合并策略：
+    1. 用户 config 中的 stage 按 ``name`` 与默认 stage 匹配并递归合并
+       （保留用户显式设置的值，补充默认中新增的字段）
+    2. 默认 config 中有但用户 config 中没有的 stage，追加到结果
+    3. 用户 config 中新增的 stage（默认中无）也包含
+
+    Args:
+        base: 默认 config 的 stages 列表（低优先级）
+        override: 用户 config 的 stages 列表（高优先级）
+        key: 匹配字段名，默认 ``name``
+
+    Returns:
+        合并后的 stages 列表
+    """
+    base_by_name: Dict[str, Dict[str, Any]] = {
+        item[key]: item for item in base if isinstance(item, dict) and key in item
+    }
+    result: list = []
+    seen: set = set()
+
+    for item in override:
+        if not isinstance(item, dict) or key not in item:
+            result.append(item)
+            continue
+        name = item[key]
+        if name in base_by_name:
+            merged = deep_merge(base_by_name[name], item)
+            result.append(merged)
+        else:
+            result.append(item)
+        seen.add(name)
+
+    for item in base:
+        if isinstance(item, dict) and key in item:
+            name = item[key]
+            if name not in seen:
+                result.append(item)
+
+    return result
+
+
+def _get_stages(data: Dict[str, Any], pipeline_name: str) -> Optional[list]:
+    """从配置字典中安全提取 pipeline stages 数组。"""
+    try:
+        return data.get("pipeline", {}).get(pipeline_name, {}).get("stages")
+    except (AttributeError, TypeError):
+        return None
+
+
+def _set_stages(data: Dict[str, Any], pipeline_name: str, stages: list) -> None:
+    """将合并后的 stages 写回配置字典。"""
+    pipeline = data.setdefault("pipeline", {})
+    pipe_cfg = pipeline.setdefault(pipeline_name, {})
+    pipe_cfg["stages"] = stages
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +311,16 @@ def _prepare_user_yaml(
 
     # 深度合并：用户配置仅覆盖差异项，非全文替换
     merged = deep_merge(bundled_dict, user_dict)
+
+    # pipeline stages 数组需要按 name 智能合并而非整体替换。
+    # deep_merge 对列表执行整体替换，会导致用户 config 的旧 stages 数组
+    # 丢失默认 config 中新增的字段（如 timeout 增大、early_win_cancel 等）。
+    for pipeline_name in ("pdf", "webpage"):
+        base_stages = _get_stages(bundled_dict, pipeline_name)
+        user_stages = _get_stages(user_dict, pipeline_name)
+        if base_stages is not None and user_stages is not None:
+            merged_stages = _merge_named_list(base_stages, user_stages)
+            _set_stages(merged, pipeline_name, merged_stages)
     # 嵌套 YAML 展平为扁平键（兼容层级化与扁平配置格式）
     merged = _flatten_nested_yaml(merged)
     _user_yaml_data = merged
