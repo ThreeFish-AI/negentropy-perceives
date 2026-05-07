@@ -3,6 +3,59 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-07] Code Review Action 因 CLAUDE.md symlink 生成错误评论
+
+### 问题描述
+
+PR [#152](https://github.com/ThreeFish-AI/negentropy-perceives/pull/152) 的 `Code Review` workflow 结论为成功，但 `Run Claude PR review` step 失败并由 `github-actions` 留下两条 diff 评论：
+
+- [run 25491086039](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491086039)
+- [run 25491508383](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491508383)
+
+评论内容为 `Claude encountered an error`，属于 action 级异常提示，不是代码审查发现。
+
+### 表因
+
+日志显示：
+
+```text
+Restoring .claude, .mcp.json, .claude.json, .gitmodules, .ripgreprc, CLAUDE.md, CLAUDE.local.md, .husky from origin/feature/1.x.x (PR head is untrusted)
+Action failed with error: ENOENT: no such file or directory, symlink
+Internal error: directory mismatch for directory ".../anthropics/claude-code-action/v1/tsconfig.json"
+```
+
+### 根因
+
+1. 仓库根目录的 [CLAUDE.md](../CLAUDE.md) 是指向 [AGENTS.md](../AGENTS.md) 的 symlink，用于避免双份 Agent 指令造成 SSoT 分裂。
+2. `anthropics/claude-code-action@v1` 在 `pull_request` 场景会先快照 PR 侧的敏感启动配置，再删除并从 base 分支恢复可信版本，以防 PR 修改 `.mcp.json` / `.claude/` / `CLAUDE.md` 注入启动行为。
+3. 该 action 当前对 PR 侧 `CLAUDE.md` symlink 的快照路径存在兼容性问题，导致审查 step 提前失败；workflow 用 `continue-on-error: true` 包住该 step，因此 overall check 仍为 success，但 sticky comment 会污染 PR 讨论。
+
+### 处理方式
+
+在 [.github/workflows/review.yml](../.github/workflows/review.yml) 的 `Run Claude PR review` 前增加 `Prepare Claude trusted config restore` step：
+
+```bash
+if [ -L CLAUDE.md ]; then
+  rm CLAUDE.md
+fi
+```
+
+该删除只发生在 GitHub Actions checkout 工作区，不修改仓库内容；随后 `claude-code-action` 仍会从 `origin/feature/1.x.x` 恢复 base 侧可信 `CLAUDE.md`，保持安全模型不变。
+
+### 后续防范
+
+- 保留 `CLAUDE.md -> AGENTS.md` symlink，避免复制 Agent 指令造成 SSoT 分裂。
+- 若后续 `claude-code-action` 修复 symlink 快照 bug，可移除此 workaround。
+- 不要把 `continue-on-error` 去掉；自动审查属于辅助反馈，不能阻塞主 CI。
+
+### 同类问题影响与注意事项
+
+- 任何被 action 视为 sensitive path 的 symlink（`.claude`、`.mcp.json`、`CLAUDE.md` 等）都可能触发同类问题。
+- workaround 必须放在 action 调用前；放在 action 后只会清理结果，无法避免 sticky error comment。
+- 该问题与 PR 业务代码无关；排查时需区分 “workflow success 但 action step failure” 与真正 CI failed check。
+
+---
+
 ## [2026-05-07] CI Security Audit 因 pip / python-multipart 新 CVE 阻塞
 
 ### 问题描述

@@ -33,6 +33,16 @@ jobs:
           echo "## 跳过自动审查" >> "$GITHUB_STEP_SUMMARY"
           echo "未配置 \`ANTHROPIC_API_KEY\`，本次 PR 自动审查未执行。" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Prepare Claude trusted config restore
+        if: env.HAS_ANTHROPIC_API_KEY == 'true'
+        run: |
+          # claude-code-action 会在 PR 场景把 CLAUDE.md 等启动配置从 base 分支恢复；
+          # 当前 base 中 CLAUDE.md 是 symlink，action 在快照 PR 侧 symlink 时会触发 ENOENT。
+          # 先移除 checkout 中的 symlink，让 action 跳过 PR 侧快照并自行恢复 base 侧可信版本。
+          if [ -L CLAUDE.md ]; then
+            rm CLAUDE.md
+          fi
+
       - name: Run Claude PR review
         id: claude-pr-review
         if: env.HAS_ANTHROPIC_API_KEY == 'true'
