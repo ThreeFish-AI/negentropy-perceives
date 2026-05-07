@@ -189,7 +189,10 @@ pipeline:
             enabled: true
         competition_mode: false
 
-      # S2: 版面分析与阅读顺序（不稳定，建议竞争模式）
+      # S2: 版面分析与阅读顺序
+      # 默认走降级模式：仅运行 rank=1 docling 取得最佳质量（reading-order/heading-level 最准），
+      # rank=2/3/4 作为 fallback 兜底。如需启用 4 引擎竞争 + LLM 评审择优（资源开销更高），
+      # 改为 competition_mode: true，下方 competition: 子配置即时生效。
       - name: layout_analysis
         description: "检测文档物理布局结构，确定正确阅读顺序"
         input_from: preprocessing
@@ -206,9 +209,9 @@ pipeline:
           - name: pymupdf
             rank: 4
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 4 引擎竞争
         competition:
-          # 候选工具 4 个，放开至与候选数一致，避免 rank 靠后工具（marker/pymupdf）被硬截断
+          # 候选工具 4 个，启用竞争时生效；fallback 模式下不读取
           max_concurrent: 4
           timeout: 360 # 81 页论文 docling/mineru/marker 实测 ~150-250s；旧 120s 一刀切超时
           early_win_cancel: true # rank=1 工具胜出后取消其余，释放 CPU/GPU
@@ -231,7 +234,11 @@ pipeline:
             enabled: true
         competition_mode: false
 
-      # S4: 表格识别与提取（不稳定，建议竞争模式）
+      # S4: 表格识别与提取
+      # 默认走降级模式：仅运行 rank=1 docling（TableFormer 结构化识别最准），
+      # camelot/pdfplumber/pymupdf 作为 fallback。docling 的 init_kwargs 与 layout 对齐，
+      # 单跑模式下仍命中 worker 子进程内 _ConvertCache，节省一次完整推理。
+      # 如需启用竞争，改 competition_mode: true。
       - name: table_extraction
         description: "结构化表格识别与 Markdown 表格生成"
         input_from: preprocessing
@@ -248,16 +255,19 @@ pipeline:
           - name: pymupdf
             rank: 4
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 4 引擎竞争
         competition:
-          # 候选工具 4 个，放开至与候选数一致
+          # 候选工具 4 个，启用竞争时生效；fallback 模式下不读取
           max_concurrent: 4
           timeout: 300 # docling table-structure 模型对 81 页 PDF 需 ~120-200s
           early_win_cancel: true
           early_win_min_rank: 1
           early_win_grace_seconds: 5
 
-      # S5: 数学公式提取（不稳定，建议竞争模式）
+      # S5: 数学公式提取
+      # 默认走降级模式：仅运行 rank=1 mineru（LaTeX 转换保真度最高），
+      # docling/pymupdf_heuristic 作为 fallback。mineru 模型独立于 docling，不复用缓存。
+      # 如需启用竞争，改 competition_mode: true。
       - name: formula_extraction
         description: "数学公式检测与 LaTeX 转换"
         input_from: preprocessing
@@ -271,9 +281,9 @@ pipeline:
           - name: pymupdf_heuristic
             rank: 3
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 3 引擎竞争
         competition:
-          # 候选工具 3 个，放开至与候选数一致
+          # 候选工具 3 个，启用竞争时生效；fallback 模式下不读取
           max_concurrent: 3
           timeout: 300 # mineru / docling 公式模型对 81 页 PDF 需 ~150-250s
           early_win_cancel: true
@@ -290,7 +300,11 @@ pipeline:
             enabled: true
         competition_mode: false
 
-      # S7: 代码块识别（不稳定，建议竞争模式）
+      # S7: 代码块识别
+      # 默认走降级模式：仅运行 rank=1 docling（CodeFormula 代码块检测最准），
+      # algorithm_detector 启发式作为 fallback。docling 的 init_kwargs 与 layout/table 对齐，
+      # 单跑模式下仍命中 worker 子进程内 _ConvertCache。
+      # 如需启用竞争，改 competition_mode: true。
       - name: code_detection
         description: "代码块识别与编程语言推断"
         input_from: preprocessing
@@ -301,7 +315,7 @@ pipeline:
           - name: algorithm_detector
             rank: 2
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 2 引擎竞争
         competition:
           max_concurrent: 2
           timeout: 120 # docling code block 检测 ~30-60s；放宽到 120s 容忍长文档
@@ -368,7 +382,10 @@ pipeline:
             enabled: true
         competition_mode: false
 
-      # S4: 主内容区域识别（不稳定，建议竞争模式）
+      # S4: 主内容区域识别
+      # 默认走降级模式：仅运行 rank=1 trafilatura（主流博客/学术文章主内容定位最优），
+      # readability/beautifulsoup_heuristic 作为 fallback。
+      # 如需启用竞争，改 competition_mode: true。
       - name: main_content_extraction
         description: "识别并提取主要文章内容，移除导航栏/广告/侧边栏"
         tools:
@@ -381,7 +398,7 @@ pipeline:
           - name: beautifulsoup_heuristic
             rank: 3
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 3 引擎竞争
         competition:
           max_concurrent: 2
           timeout: 30
@@ -431,7 +448,10 @@ pipeline:
             enabled: true
         competition_mode: false
 
-      # S10: Markdown 转换（中等不稳定，建议竞争模式）
+      # S10: Markdown 转换
+      # 默认走降级模式：仅运行 rank=1 markitdown（Microsoft 维护，标准 HTML→MD 最稳定），
+      # html2text 作为 fallback。
+      # 如需启用竞争，改 competition_mode: true。
       - name: markdown_conversion
         description: "将清洗后的 HTML 转换为 Markdown"
         tools:
@@ -441,7 +461,7 @@ pipeline:
           - name: html2text
             rank: 2
             enabled: true
-        competition_mode: true
+        competition_mode: false # 默认降级；改 true 启用 2 引擎竞争
         competition:
           max_concurrent: 2
           timeout: 30

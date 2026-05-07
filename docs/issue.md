@@ -3,6 +3,62 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-07] 默认配置下竞态 Stage 降级为单一最佳引擎
+
+### 问题描述
+
+`config.default.yaml` 中 6 个 Stage（PDF `layout_analysis` / `table_extraction` / `formula_extraction` / `code_detection`，WebPage `main_content_extraction` / `markdown_conversion`）默认 `competition_mode: true`，每次解析都并发运行 2~4 个引擎抢占式竞争。在 [2026-04-27] 七战线（超时分级 + 早胜取消 + 跨 stage 缓存 + MPS 强化 + prose 阈值放宽 + 引擎预热 + 图像并发动态化）落地后，rank=1 引擎在常态负载（学术论文、博客、技术文档）已稳定胜出，多引擎竞争退化为「等首胜 + grace 5s 取消」的无效空转：占用大量 CPU/GPU/内存却几乎从未改变最终结果，并把 5s grace 等待延伸到尾部延迟。
+
+### 表因
+
+- 6 个 Stage 的 `competition_mode` 初始默认值为 `true`
+- 早胜取消 + LLM 评审等机制是「在多引擎竞争存在的前提下」的优化，不能取消多引擎并跑本身的资源代价
+
+### 根因
+
+1. 项目早期缺乏验证数据，把「AI 感知 stage 不稳定」作为先验默认开启竞态，作为对未知质量风险的兜底
+2. [2026-04-27] 七战线已让 rank=1 在 81 页论文等代表性负载稳定胜出（docling/mineru 实测产出与最优结果一致），多引擎竞争对最终质量的边际收益≈0
+3. 跨 stage docling `_ConvertCache` 让 layout/table/code 单跑 docling 仍能命中缓存（仅一次完整推理），不再依赖竞争模式来「顺带 warm 缓存」
+4. fallback 路径（`scheduler._run_fallback`）无 stage 级 `wait_for` 硬切，rank=1 引擎可充分跑满 `task_timeout_seconds=900s` 顶层预算，「单引擎跑透」满足质量诉求
+5. 资源占用与尾部延迟（grace 5s）都是默认开启竞态的成本，常态场景下不应让所有用户为小概率边缘情况埋单
+
+### 处理方式
+
+最小干预：仅改 YAML 与文档，调度器/缓存/LLM 评审代码零改动。
+
+1. **`src/negentropy/perceives/config.default.yaml`**（6 处）：`competition_mode: true` → `false`，每处加内联注释说明默认行为 + opt-in 路径；`competition:` 子配置块（`max_concurrent` / `timeout` / `early_win_*`）原样保留，用户改单行 `competition_mode: true` 即时复活完整竞争能力
+2. **`docs/framework.md`**：「两种执行模式」段落前增补默认行为元说明；mermaid 图中 `⚡ 竞争` 改为 `⚡ 可竞争`；PDF/WebPage Stage 表格的「模式」列改为 `降级（默认）/ 竞争（opt-in）`
+3. **`docs/user-guide.md`**：调整「启用四大 PDF 引擎」段落措辞，新增「切换运行模式」小节，举例 YAML 覆写单个 Stage 的 `competition_mode`，并提示超大 PDF 可上调 `task_timeout_seconds`
+4. **`CHANGELOG.md`**：Unreleased / 📦 变更段新增 BREAKING 条目（默认行为变更 + 动机三条 + 回退路径）
+
+各 Stage 默认 rank=1 引擎：
+
+| 阶段 | 最佳引擎 | 关键依据 |
+|------|---------|---------|
+| PDF `layout_analysis` | docling | reading-order / heading-level 最准确 |
+| PDF `table_extraction` | docling | TableFormer 结构化识别；与 layout 共享 `_ConvertCache` |
+| PDF `formula_extraction` | mineru | LaTeX 转换保真度最高 |
+| PDF `code_detection` | docling | CodeFormula 代码块检测；与 layout/table 共享 `_ConvertCache` |
+| WebPage `main_content_extraction` | trafilatura | 学术/博客主内容定位行业基线 |
+| WebPage `markdown_conversion` | markitdown | Microsoft 维护，标准 HTML→MD 最稳定 |
+
+### 后续防范
+
+- 行为变更属于 BREAKING（默认行为变更，非 API 破坏），需在 PR / CHANGELOG 显式提示，便于用户感知
+- 不引入 `pdf_competition_default_enabled` 等全局开关——避免 SSoT 与 YAML 真相分裂
+- 早胜取消、LLM 评审、跨 stage 缓存代码全保留，对应单测（`tests/unit/test_scheduler_competition.py` 等）继续守护 opt-in 路径
+- 用户已显式写 `competition_mode: true` 的旧 YAML 经深度合并不受影响；新装机器从默认 YAML 直接拿到新行为
+
+### 同类问题影响与注意事项
+
+- **`pdf_stage_timeout_multiplier` 在 fallback 模式下不生效**：`scheduler._run_fallback` 不读 `competition.timeout`，因此 stage 倍率仅在用户启用竞争时复活；超大 PDF 单跑接近 `task_timeout_seconds=900s` 上限时，应通过 MCP 入参 `timeout=1800` 或 YAML 覆写 `task_timeout_seconds` 提高顶层预算，而非调 `pdf_stage_timeout_multiplier`
+- **跨 stage docling 缓存仍生效**：`pdf/engines/_docling_kwargs.py::build_docling_init_kwargs()` 让 layout/table/code 三个 Stage 单跑 docling 时共享同一 hash → worker 内 `_ConvertCache` 命中，节省 2 次完整推理（≈300s）。该机制对单引擎模式更重要——不要在 follow-up 中误删
+- **rank ≥ 2 工具保持 enabled=true**：作为 fallback 兜底链（与 S3 `text_extraction` rank 1/2/3 设计一致），rank=1 失败时 `_run_fallback` 顺序尝试，不会突然 stage 失败
+- **`pdf_engine_warmup_enabled=true` 仍预热全部引擎**：默认改为单引擎后，预热 rank≥2 的 marker 等会浪费 ~200ms 时间窗，作为 follow-up 优化项（不在本次范围）
+- **opt-in 路径完整保留**：`competition:` 子配置（`max_concurrent` / `timeout` / `early_win_*` / LLM 评审）原样未改，改 YAML 单行 `competition_mode: true` 即恢复，用户无需重写参数
+
+---
+
 ## [2026-04-27] parse_pdf_to_markdown 多 Stage 兜底退化与 Apple Silicon MPS 回退
 
 ### 问题描述
