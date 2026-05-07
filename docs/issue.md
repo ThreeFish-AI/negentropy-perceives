@@ -3,6 +3,64 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-07] Docling CodeFormulaV2 在 Apple Silicon MPS 下静默回退 CPU
+
+### 问题描述
+
+PDF Pipeline 日志显示 Docling worker 子进程内 PyTorch MPS 已可用：
+
+```text
+子进程 torch 诊断 {'torch_version': '2.10.0', 'mps_built': True, 'mps_available_raw': True, 'mps_smoke_test': 'ok'}
+```
+
+但随后仍出现：
+
+```text
+engine_worker.docling.utils.accelerator_utils: MPS is not available in the system. Fall back to 'CPU'
+```
+
+用户期望 Apple M 系列芯片在该阶段使用 GPU，而不是静默降级到 CPU。
+
+### 表因
+
+最小复现显示 Docling 默认 `CodeFormulaV2` 的 `AUTO_INLINE` 路径先识别到 `device=mps`，但该 preset 没有 MLX 导出，随后退到 Transformers；Docling 的 Transformers code/formula engine 支持设备列表不含 MPS，于是把 MPS 从可用设备中移除并打印 CPU fallback 日志。
+
+### 根因
+
+1. PyTorch MPS 本身可用；问题不在 `torch.backends.mps.is_available()`，而在 Docling 子模型的 `supported_devices` 约束<sup>[[1]](#ref-pytorch-mps)</sup>。
+2. Docling Model Catalog 标注 `codeformulav2` 支持 Transformers、不支持 MLX；`granite_docling` 同时支持 Transformers 与 MLX<sup>[[2]](#ref-docling-model-catalog)</sup>。
+3. Docling 讨论区也确认旧 formula enrichment 路径会因兼容性排除 MPS，使用 CPU/CUDA 或禁用该功能<sup>[[3]](#ref-docling-formula-mps)</sup>。
+4. 依赖层面存在二阶约束：`docling[vlm] -> mlx-vlm -> transformers>=5.1`，而 `marker-pdf==1.10.2` 依赖 `transformers<5.0`；不能把 MLX VLM 作为核心依赖与 Marker 同装。uv 官方建议用 `tool.uv.conflicts` 声明互斥 extras<sup>[[4]](#ref-uv-conflicts)</sup>。
+
+### 处理方式
+
+- **Docling MPS 策略**：`DoclingEngine` 在 `device=mps` 且 `pdf.docling_mps_enrichment=granite_mlx` 时，将 `code_formula_options` 切换为 `CodeFormulaVlmOptions.from_preset("granite_docling", engine_options=MlxVlmEngineOptions())`。
+- **显式失败**：若策略要求 `granite_mlx` 但环境缺少 `mlx-vlm`，抛出 `DoclingMpsMlxUnavailableError`，提示执行 `uv sync --python 3.13 --extra docling-mlx`，不再让 Docling 静默 CPU。
+- **回退开关**：新增 `pdf.docling_mps_enrichment`，默认 `granite_mlx`；设置为 `disable` 时关闭 Docling code/formula enrichment，让 MinerU/后处理兜底。
+- **依赖建模**：新增 `docling-mlx` extra，并在 [pyproject.toml](../pyproject.toml) 中声明它与 `marker` / `all-engines` 冲突；保留 Marker 单独 extra 可用。
+- **预热复用运行时路径**：`perceives prefetch-models --engines docling` 改为调用 `DoclingEngine()._get_converter()`，覆盖 Granite Docling MLX 模型预热。
+
+### 后续防范
+
+- Apple Silicon 上需要同时使用 Docling MLX 与 Marker 时，不能放在同一 venv；应拆环境或关闭 `pdf.docling_mps_enrichment`。
+- TableFormer 是独立边界：Docling 官方目录标注 TableFormer 支持 CPU/CUDA/XPU，并说明 MPS 因性能问题被禁用；本次只消除 code/formula enrichment 的 CPU fallback，不承诺完整 Docling PDF pipeline 零 CPU。
+- 所有本地验证命令必须固定 `--python 3.13`；项目已将 `requires-python` 收敛为 `>=3.13,<3.14`，避免 `onnxruntime` 与 VLM 依赖在 Python 3.14 split 上不可解。
+
+### 同类问题影响与注意事项
+
+- 看到 `accelerator_utils: MPS is not available` 时，必须先看前一行是否有 `Removing MPS from available devices because it is not in supported_devices`；若有，根因是模型支持矩阵，不是硬件探测。
+- 新增 Docling 子模型时必须把“模型 preset / runtime engine / supported_devices / optional dependency conflicts”作为一个整体评审，避免只改 `AcceleratorOptions(device=MPS)` 造成虚假 GPU 配置。
+
+<a id="ref-pytorch-mps"></a>[1] PyTorch Contributors, "MPS backend," *PyTorch Documentation*, 2026. [Online]. Available: https://docs.pytorch.org/docs/stable/notes/mps
+
+<a id="ref-docling-model-catalog"></a>[2] Docling Project, "Model Catalog," *Docling Documentation*, 2026. [Online]. Available: https://docling-project.github.io/docling/usage/model_catalog/
+
+<a id="ref-docling-formula-mps"></a>[3] Docling Project, "Using MPS Accelerator with formula enrichment falls back to default CPU," *GitHub Discussions*, 2025. [Online]. Available: https://github.com/docling-project/docling/discussions/2505
+
+<a id="ref-uv-conflicts"></a>[4] Astral Software, "Resolution: conflicts," *uv Documentation*, 2026. [Online]. Available: https://docs.astral.sh/uv/concepts/resolution/
+
+---
+
 ## [2026-05-07] Code Review Action 因 CLAUDE.md symlink 生成错误评论
 
 ### 问题描述

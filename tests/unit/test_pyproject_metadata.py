@@ -31,7 +31,10 @@ def _find_dependency_versions(raw: str, package: str) -> set[str]:
         stripped = line.strip()
         if stripped.startswith("#"):
             continue
-        match = re.search(rf"{re.escape(package)}([><=!]+[\d.]+)", stripped)
+        match = re.search(
+            rf"{re.escape(package)}(?:\[[^\]]+\])?([><=!]+[\d.]+)",
+            stripped,
+        )
         if match:
             versions.add(match.group(1))
     return versions

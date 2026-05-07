@@ -4,7 +4,7 @@
 对未安装的引擎优雅跳过，对已下载模型幂等（HuggingFace 缓存自动去重）。
 
 触发下载的最小动作（零推理）：
-- docling : ``DocumentConverter(format_options={...})`` — 参考 ``engines/docling.py``
+- docling : ``DoclingEngine()._get_converter()`` — 复用运行时硬件策略与模型选择
 - marker  : ``from marker.models import create_model_dict; create_model_dict()``
 - mineru  : ``subprocess.run(["mineru-models-download", "-s", <source>, "-m", "all"])``
 
@@ -159,33 +159,26 @@ class _SkipEngine(Exception):
 
 
 def _prefetch_docling() -> str:
-    """触发 Docling 布局/表格模型下载（不跑推理）。
+    """触发 Docling 布局/表格/code-formula 模型下载（不跑推理）。
 
-    仅实例化 ``DocumentConverter``：首次构造会拉取所需模型到 HF 缓存。
+    直接复用 ``DoclingEngine`` 的 converter 初始化路径，确保 Apple Silicon
+    下 ``granite_docling + MLX`` 的 code/formula enrichment 模型也被覆盖。
     """
     try:
-        from docling.datamodel.base_models import InputFormat  # type: ignore[import-untyped]
-        from docling.datamodel.pipeline_options import (  # type: ignore[import-untyped]
-            PdfPipelineOptions,
-        )
-        from docling.document_converter import (  # type: ignore[import-untyped]
-            DocumentConverter,
-            PdfFormatOption,
-        )
+        from ...pdf.engines.docling import DoclingEngine
     except ImportError as exc:
         raise _SkipEngine(
-            f"docling 未安装（{exc}）；安装：uv sync --extra docling"
+            f"docling 未安装（{exc}）；安装：uv sync --python 3.13"
         ) from exc
 
-    pipeline_options = PdfPipelineOptions()
-    pipeline_options.do_table_structure = True
-    # 构造即触发首次模型下载（已缓存则直接命中）
-    DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
-    )
-    return "layout + table-structure 模型已就绪"
+    try:
+        engine = DoclingEngine()
+        engine._get_converter()
+    except ImportError as exc:
+        raise _SkipEngine(
+            f"docling 未安装（{exc}）；安装：uv sync --python 3.13"
+        ) from exc
+    return "layout + table-structure + code/formula 模型已就绪"
 
 
 def _prefetch_marker() -> str:

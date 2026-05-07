@@ -18,7 +18,7 @@ name = "negentropy-perceives"
 version = "0.2.0a3"
 description = "A commercial-grade MCP Server built on FastMCP, offering robust capabilities to read, extract, and localize (into Markdown) content from web pages and PDFs with both text and images. It is purpose-built for long-term deployment in enterprise environments."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 authors = [{ name = "ThreeFish-AI", email = "threefish.ai@gmail.com" }]
 license = "MIT"
 keywords = ["mcp", "web-crawler", "pdf", "markdown"]
@@ -27,7 +27,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
@@ -71,6 +70,9 @@ mineru = [
 ]
 marker = [
     "marker-pdf>=1.10.2",
+]
+docling-mlx = [
+    "docling[vlm]>=2.89.0",
 ]
 all-engines = [
     "docling>=2.89.0",
@@ -190,6 +192,16 @@ ignore_missing_imports = true
 # Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
 # lxml>=6.1.0：修复 CVE-2026-41066（间接依赖）
 override-dependencies = ["pillow>=12.2.0", "lxml>=6.1.0"]
+conflicts = [
+    [
+        { extra = "docling-mlx" },
+        { extra = "marker" },
+    ],
+    [
+        { extra = "docling-mlx" },
+        { extra = "all-engines" },
+    ],
+]
 
 [dependency-groups]
 dev = [

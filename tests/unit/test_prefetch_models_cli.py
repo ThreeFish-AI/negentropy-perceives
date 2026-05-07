@@ -203,6 +203,23 @@ def test_prefetch_docling_missing_module_skips(monkeypatch: pytest.MonkeyPatch):
         pm._prefetch_docling()
 
 
+def test_prefetch_docling_uses_runtime_converter(monkeypatch: pytest.MonkeyPatch):
+    """docling 预热应复用 DoclingEngine 初始化路径，覆盖 MPS/MLX 策略。"""
+    from negentropy.perceives.pdf.engines.docling import DoclingEngine
+
+    called = {"count": 0}
+
+    def _fake_get_converter(self):  # noqa: ANN001
+        called["count"] += 1
+        return object()
+
+    monkeypatch.setattr(DoclingEngine, "_get_converter", _fake_get_converter)
+
+    note = pm._prefetch_docling()
+    assert called["count"] == 1
+    assert "code/formula" in note
+
+
 def test_prefetch_mineru_missing_binary_skips(monkeypatch: pytest.MonkeyPatch):
     """mineru 导入成功但 CLI 缺失 → _SkipEngine。"""
     import sys
