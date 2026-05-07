@@ -153,9 +153,11 @@ graph TD
 
 ### 两种执行模式
 
-**降级模式**（`competition_mode=false`）：按工具 rank 顺序逐个尝试，首个可用即用。适用于稳定 Stage（预处理、文本提取、图片提取等）。
+**降级模式**（`competition_mode=false`）：按工具 rank 顺序逐个尝试，首个可用即用。fallback 路径无 stage 级硬切（仅由顶层 `task_timeout_seconds` 兜底），rank=1 引擎可充分跑满。适用于稳定 Stage（预处理、文本提取、图片提取等），亦为 AI 感知 Stage 的**默认模式**。
 
-**竞争模式**（`competition_mode=true`）：并行执行多个候选工具（上限 `max_concurrent`），从成功结果中择优返回。适用于不稳定的 AI 感知 Stage（版面分析、表格识别、公式提取、代码检测等）。
+**竞争模式**（`competition_mode=true`）：并行执行多个候选工具（上限 `max_concurrent`），从成功结果中择优返回（含 LLM 评审 + rank=1 早胜取消 + 跨 stage docling 缓存）。适用于追求多视图融合或可靠性兜底的高质量场景；资源开销显著高于降级模式。
+
+> **默认行为说明（自 2026-05）**：原本启用竞争模式的 6 个 Stage（PDF S2/S4/S5/S7、WebPage S4/S10）已默认切换为降级模式，仅运行各 Stage 的 rank=1 最佳引擎以减少资源开销。跨 stage docling `_ConvertCache` 在单引擎下仍生效（layout 跑过 docling 后 table/code 命中）。竞争完整能力（`competition:` 子配置、早胜取消、LLM 评审）原样保留，可在 YAML 中将对应 Stage 的 `competition_mode` 改回 `true` 启用。详见 [`docs/issue.md`](issue.md) [2026-05-07] 决策条目。
 
 ```mermaid
 graph LR
@@ -183,18 +185,18 @@ graph LR
 
 ### PDF Pipeline（S0 - S9）
 
-PDF 转 Markdown 管线包含 10 个 Stage，其中 S3 - S7 为并行组（通过 `asyncio.gather` 并发执行）：
+PDF 转 Markdown 管线包含 10 个 Stage，其中 S3 - S7 为并行组（通过 `asyncio.gather` 并发执行）。`⚡` 标记表示该 Stage 支持竞争模式（默认走降级，仅 rank=1 单跑；用户可改 YAML `competition_mode: true` 启用 `⚡` 多引擎竞争）：
 
 ```mermaid
 graph TD
     S0["S0 预处理<br/>pymupdf"] --> S1["S1 文档扫描<br/>pymupdf"]
-    S1 --> S2["S2 版面分析<br/>docling/mineru/marker/pymupdf<br/>⚡ 竞争"]
+    S1 --> S2["S2 版面分析<br/>docling/mineru/marker/pymupdf<br/>⚡ 可竞争"]
     S2 --> S3["S3 文本提取<br/>pymupdf/docling/pypdf"]
 
-    S2 --> S4["S4 表格提取<br/>docling/camelot/pdfplumber/pymupdf<br/>⚡ 竞争"]
-    S2 --> S5["S5 公式提取<br/>mineru/docling/pymupdf_heuristic<br/>⚡ 竞争"]
+    S2 --> S4["S4 表格提取<br/>docling/camelot/pdfplumber/pymupdf<br/>⚡ 可竞争"]
+    S2 --> S5["S5 公式提取<br/>mineru/docling/pymupdf_heuristic<br/>⚡ 可竞争"]
     S2 --> S6["S6 图片提取<br/>pymupdf"]
-    S2 --> S7["S7 代码检测<br/>docling/algorithm_detector<br/>⚡ 竞争"]
+    S2 --> S7["S7 代码检测<br/>docling/algorithm_detector<br/>⚡ 可竞争"]
 
     S3 --> S8["S8 组装<br/>builtin_assembler"]
     S4 --> S8
@@ -215,18 +217,18 @@ graph TD
     style S9 fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
 ```
 
-| Stage | 名称     | 描述                                                     | 模式 |
-| ----- | -------- | -------------------------------------------------------- | ---- |
-| S0    | 预处理   | PDF 源验证、下载、格式检测与页面范围解析                 | 降级 |
-| S1    | 文档扫描 | 轻量级文档特征分析（页数、表格、公式、图片、布局复杂度） | 降级 |
-| S2    | 版面分析 | 检测文档物理布局结构，确定正确阅读顺序                   | 竞争 |
-| S3    | 文本提取 | 从各文本区域提取纯文本，保留段落结构与标题层级           | 降级 |
-| S4    | 表格提取 | 结构化表格识别与 Markdown 表格生成                       | 竞争 |
-| S5    | 公式提取 | 数学公式检测与 LaTeX 转换                                | 竞争 |
-| S6    | 图片提取 | 图片提取、分类与 caption 生成                            | 降级 |
-| S7    | 代码检测 | 代码块识别与编程语言推断                                 | 竞争 |
-| S8    | 组装     | 将各 Stage 产出按阅读顺序组装为 Markdown                 | 降级 |
-| S9    | 资源打包 | 整理提取的资源文件，生成最终输出包                       | 降级 |
+| Stage | 名称     | 描述                                                     | 模式                       |
+| ----- | -------- | -------------------------------------------------------- | -------------------------- |
+| S0    | 预处理   | PDF 源验证、下载、格式检测与页面范围解析                 | 降级                       |
+| S1    | 文档扫描 | 轻量级文档特征分析（页数、表格、公式、图片、布局复杂度） | 降级                       |
+| S2    | 版面分析 | 检测文档物理布局结构，确定正确阅读顺序                   | 降级（默认）/ 竞争（opt-in） |
+| S3    | 文本提取 | 从各文本区域提取纯文本，保留段落结构与标题层级           | 降级                       |
+| S4    | 表格提取 | 结构化表格识别与 Markdown 表格生成                       | 降级（默认）/ 竞争（opt-in） |
+| S5    | 公式提取 | 数学公式检测与 LaTeX 转换                                | 降级（默认）/ 竞争（opt-in） |
+| S6    | 图片提取 | 图片提取、分类与 caption 生成                            | 降级                       |
+| S7    | 代码检测 | 代码块识别与编程语言推断                                 | 降级（默认）/ 竞争（opt-in） |
+| S8    | 组装     | 将各 Stage 产出按阅读顺序组装为 Markdown                 | 降级                       |
+| S9    | 资源打包 | 整理提取的资源文件，生成最终输出包                       | 降级                       |
 
 ### WebPage Pipeline（S1 - S12）
 
@@ -236,7 +238,7 @@ WebPage 转 Markdown 管线包含 12 个 Stage，其中 S6 - S9 为并行组：
 graph TD
     WS1["S1 合规检查<br/>robotparser"] --> WS2["S2 网页获取<br/>aiohttp/playwright/selenium"]
     WS2 --> WS3["S3 反检测降级<br/>playwright_stealth/undetected_chromedriver"]
-    WS3 --> WS4["S4 主内容提取<br/>trafilatura/readability/bs4<br/>⚡ 竞争"]
+    WS3 --> WS4["S4 主内容提取<br/>trafilatura/readability/bs4<br/>⚡ 可竞争"]
     WS4 --> WS5["S5 HTML 清洗<br/>beautifulsoup"]
 
     WS5 --> WS6["S6 公式提取<br/>beautifulsoup_math"]
@@ -244,7 +246,7 @@ graph TD
     WS5 --> WS8["S8 表格提取<br/>beautifulsoup_table"]
     WS5 --> WS9["S9 图片提取<br/>beautifulsoup_image"]
 
-    WS6 --> WS10["S10 Markdown 转换<br/>markitdown/html2text<br/>⚡ 竞争"]
+    WS6 --> WS10["S10 Markdown 转换<br/>markitdown/html2text<br/>⚡ 可竞争"]
     WS7 --> WS10
     WS8 --> WS10
     WS9 --> WS10
@@ -265,20 +267,20 @@ graph TD
     style WS12 fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
 ```
 
-| Stage | 名称          | 描述                                             | 模式 |
-| ----- | ------------- | ------------------------------------------------ | ---- |
-| S1    | 合规检查      | 检查目标 URL 的 robots.txt 规则与基本合法性      | 降级 |
-| S2    | 网页获取      | HTTP 或浏览器抓取目标网页完整 HTML（三级降级链） | 降级 |
-| S3    | 反检测降级    | 使用隐身浏览器技术绕过反爬检测                   | 降级 |
-| S4    | 主内容提取    | 识别并提取主要文章内容，移除导航栏/广告/侧边栏   | 竞争 |
-| S5    | HTML 清洗     | 清理残余脚本/样式，保护数学和代码元素            | 降级 |
-| S6    | 公式提取      | 检测并提取页面中的数学公式，转换为 LaTeX         | 降级 |
-| S7    | 代码识别      | 识别 HTML 中的代码块，保留语法高亮信息           | 降级 |
-| S8    | 表格提取      | 提取 HTML 表格结构，生成 Markdown 表格           | 降级 |
-| S9    | 图片提取      | 提取页面图片信息，可选下载并嵌入                 | 降级 |
-| S10   | Markdown 转换 | 将清洗后的 HTML 转换为 Markdown                  | 竞争 |
-| S11   | 排版格式化    | 排版优化、段落间距归一化、表格对齐               | 降级 |
-| S12   | 资源打包      | 聚合处理结果，构建最终输出                       | 降级 |
+| Stage | 名称          | 描述                                             | 模式                       |
+| ----- | ------------- | ------------------------------------------------ | -------------------------- |
+| S1    | 合规检查      | 检查目标 URL 的 robots.txt 规则与基本合法性      | 降级                       |
+| S2    | 网页获取      | HTTP 或浏览器抓取目标网页完整 HTML（三级降级链） | 降级                       |
+| S3    | 反检测降级    | 使用隐身浏览器技术绕过反爬检测                   | 降级                       |
+| S4    | 主内容提取    | 识别并提取主要文章内容，移除导航栏/广告/侧边栏   | 降级（默认）/ 竞争（opt-in） |
+| S5    | HTML 清洗     | 清理残余脚本/样式，保护数学和代码元素            | 降级                       |
+| S6    | 公式提取      | 检测并提取页面中的数学公式，转换为 LaTeX         | 降级                       |
+| S7    | 代码识别      | 识别 HTML 中的代码块，保留语法高亮信息           | 降级                       |
+| S8    | 表格提取      | 提取 HTML 表格结构，生成 Markdown 表格           | 降级                       |
+| S9    | 图片提取      | 提取页面图片信息，可选下载并嵌入                 | 降级                       |
+| S10   | Markdown 转换 | 将清洗后的 HTML 转换为 Markdown                  | 降级（默认）/ 竞争（opt-in） |
+| S11   | 排版格式化    | 排版优化、段落间距归一化、表格对齐               | 降级                       |
+| S12   | 资源打包      | 聚合处理结果，构建最终输出                       | 降级                       |
 
 ### 配置驱动
 

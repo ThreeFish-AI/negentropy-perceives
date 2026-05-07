@@ -3,6 +3,169 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-07] Code Review Action 因 CLAUDE.md symlink 生成错误评论
+
+### 问题描述
+
+PR [#152](https://github.com/ThreeFish-AI/negentropy-perceives/pull/152) 的 `Code Review` workflow 结论为成功，但 `Run Claude PR review` step 失败并由 `github-actions` 留下两条 diff 评论：
+
+- [run 25491086039](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491086039)
+- [run 25491508383](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491508383)
+
+评论内容为 `Claude encountered an error`，属于 action 级异常提示，不是代码审查发现。
+
+修复 symlink 后，[run 25491978040](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491978040) 继续暴露第二个外部配置问题：`ANTHROPIC_API_KEY` secret 存在但被 Anthropic API 判定为 `Invalid API key`，同样会触发 sticky error comment。
+
+### 表因
+
+日志显示：
+
+```text
+Restoring .claude, .mcp.json, .claude.json, .gitmodules, .ripgreprc, CLAUDE.md, CLAUDE.local.md, .husky from origin/feature/1.x.x (PR head is untrusted)
+Action failed with error: ENOENT: no such file or directory, symlink
+Internal error: directory mismatch for directory ".../anthropics/claude-code-action/v1/tsconfig.json"
+```
+
+### 根因
+
+1. 仓库根目录的 [CLAUDE.md](../CLAUDE.md) 是指向 [AGENTS.md](../AGENTS.md) 的 symlink，用于避免双份 Agent 指令造成 SSoT 分裂。
+2. `anthropics/claude-code-action@v1` 在 `pull_request` 场景会先快照 PR 侧的敏感启动配置，再删除并从 base 分支恢复可信版本，以防 PR 修改 `.mcp.json` / `.claude/` / `CLAUDE.md` 注入启动行为。
+3. 该 action 当前对 PR 侧 `CLAUDE.md` symlink 的快照路径存在兼容性问题，导致审查 step 提前失败；workflow 用 `continue-on-error: true` 包住该 step，因此 overall check 仍为 success，但 sticky comment 会污染 PR 讨论。
+4. workflow 过去只检查 `ANTHROPIC_API_KEY` 是否非空，无法识别 secret 已过期、被撤销或填错；action 直到调用 SDK 才报 `Invalid API key` 并发布错误评论。
+
+### 处理方式
+
+在 [.github/workflows/review.yml](../.github/workflows/review.yml) 的 `Run Claude PR review` 前增加两段防护：
+
+1. `Validate Anthropic API key`：调用 Anthropic `/v1/models` 做认证预检，仅当 HTTP 200 时继续执行 Claude action；否则写 Step Summary 并跳过自动审查，避免 action 发布 sticky error comment。
+2. `Prepare Claude trusted config restore`：处理 `CLAUDE.md` symlink 快照问题。
+
+```bash
+if [ -L CLAUDE.md ]; then
+  rm CLAUDE.md
+fi
+```
+
+该删除只发生在 GitHub Actions checkout 工作区，不修改仓库内容；随后 `claude-code-action` 仍会从 `origin/feature/1.x.x` 恢复 base 侧可信 `CLAUDE.md`，保持安全模型不变。
+
+### 后续防范
+
+- 保留 `CLAUDE.md -> AGENTS.md` symlink，避免复制 Agent 指令造成 SSoT 分裂。
+- 若后续 `claude-code-action` 修复 symlink 快照 bug，可移除此 workaround。
+- `ANTHROPIC_API_KEY` 预检失败时应更新 GitHub Secret，而不是在代码中 hardcode key 或关闭自动审查 workflow。
+- 不要把 `continue-on-error` 去掉；自动审查属于辅助反馈，不能阻塞主 CI。
+
+### 同类问题影响与注意事项
+
+- 任何被 action 视为 sensitive path 的 symlink（`.claude`、`.mcp.json`、`CLAUDE.md` 等）都可能触发同类问题。
+- workaround 必须放在 action 调用前；放在 action 后只会清理结果，无法避免 sticky error comment。
+- 该问题与 PR 业务代码无关；排查时需区分 “workflow success 但 action step failure” 与真正 CI failed check。
+
+---
+
+## [2026-05-07] CI Security Audit 因 pip / python-multipart 新 CVE 阻塞
+
+### 问题描述
+
+PR [#152](https://github.com/ThreeFish-AI/negentropy-perceives/pull/152) 的 GitHub Actions `Security Audit` Job 失败（[run 25491086046](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491086046)）。`bandit` 静态扫描通过，失败点集中在 `pip-audit` 依赖漏洞扫描。
+
+### 表因
+
+`pip-audit` 输出：
+
+```text
+Found 2 known vulnerabilities, ignored 2 in 2 packages
+Name             Version ID             Fix Versions
+---------------- ------- -------------- ------------
+pip              26.0.1  CVE-2026-6357  26.1
+python-multipart 0.0.26  CVE-2026-42561 0.0.27
+```
+
+### 根因
+
+1. `uv.lock` 锁定了 `pip==26.0.1`，该包由 `pip-audit -> pip-api -> pip` 工具链传递引入；`pip-audit` 默认扫描整个 venv，因此开发期审计工具链也进入漏洞面。
+2. `python-multipart==0.0.26` 由 `mcp` / `mineru` 等依赖传递引入，属于项目运行时依赖图的一部分。
+3. 两个 CVE 均已有修复版本（`pip>=26.1`、`python-multipart>=0.0.27`），不符合“暂无修复版本才加入 ignore”的例外条件。
+
+### 处理方式
+
+最小依赖升级：仅执行 `uv lock --upgrade-package pip --upgrade-package python-multipart`，更新 [uv.lock](../uv.lock) 中两个受影响包：
+
+- `pip 26.0.1 -> 26.1.1`
+- `python-multipart 0.0.26 -> 0.0.27`
+
+同步清理 [.github/workflows/ci.yml](../.github/workflows/ci.yml) 中过期的 `CVE-2026-3219` ignore 项；该漏洞已随 `pip` 升级脱离当前锁文件，不应继续作为静默豁免保留。
+
+### 后续防范
+
+- `pip-audit` 新增漏洞时先区分“有修复版本”与“暂无修复或大版本跳升需兼容评估”：有修复版本优先小步升级 lock；只有无法安全升级时才进入集中 ignore 列表。
+- 对 `pip` / `setuptools` / `wheel` / `pip-api` 这类审计工具链传递依赖，若已有修复版本，也应优先升级，避免把工具链漏洞长期沉淀为 CI 例外。
+- 每次修改 `pip-audit --ignore-vuln` 列表时，必须同步检查是否存在已被 lock 升级覆盖的过期 ignore。
+
+### 同类问题影响与注意事项
+
+- `python-multipart` 是运行时依赖图的一部分，不能按“审计工具链自带依赖”处理；有修复版本时应升级而不是 ignore。
+- `uv lock --upgrade-package` 可能连带更新求解器选出的其他包，提交前必须核对 `git diff uv.lock`，确认 blast radius 没有超出目标包。
+- 若未来切换为 `uv export --format requirements-txt` 后再审计，工具链传递依赖（如 `pip`）是否还进入扫描范围会变化，需要同步更新本档案与 CI 注释。
+
+---
+
+## [2026-05-07] 默认配置下竞态 Stage 降级为单一最佳引擎
+
+### 问题描述
+
+`config.default.yaml` 中 6 个 Stage（PDF `layout_analysis` / `table_extraction` / `formula_extraction` / `code_detection`，WebPage `main_content_extraction` / `markdown_conversion`）默认 `competition_mode: true`，每次解析都并发运行 2~4 个引擎抢占式竞争。在 [2026-04-27] 七战线（超时分级 + 早胜取消 + 跨 stage 缓存 + MPS 强化 + prose 阈值放宽 + 引擎预热 + 图像并发动态化）落地后，rank=1 引擎在常态负载（学术论文、博客、技术文档）已稳定胜出，多引擎竞争退化为「等首胜 + grace 5s 取消」的无效空转：占用大量 CPU/GPU/内存却几乎从未改变最终结果，并把 5s grace 等待延伸到尾部延迟。
+
+### 表因
+
+- 6 个 Stage 的 `competition_mode` 初始默认值为 `true`
+- 早胜取消 + LLM 评审等机制是「在多引擎竞争存在的前提下」的优化，不能取消多引擎并跑本身的资源代价
+
+### 根因
+
+1. 项目早期缺乏验证数据，把「AI 感知 stage 不稳定」作为先验默认开启竞态，作为对未知质量风险的兜底
+2. [2026-04-27] 七战线已让 rank=1 在 81 页论文等代表性负载稳定胜出（docling/mineru 实测产出与最优结果一致），多引擎竞争对最终质量的边际收益≈0
+3. 跨 stage docling `_ConvertCache` 让 layout/table/code 单跑 docling 仍能命中缓存（仅一次完整推理），不再依赖竞争模式来「顺带 warm 缓存」
+4. fallback 路径（`scheduler._run_fallback`）无 stage 级 `wait_for` 硬切，rank=1 引擎可充分跑满 `task_timeout_seconds=900s` 顶层预算，「单引擎跑透」满足质量诉求
+5. 资源占用与尾部延迟（grace 5s）都是默认开启竞态的成本，常态场景下不应让所有用户为小概率边缘情况埋单
+
+### 处理方式
+
+最小干预：仅改 YAML 与文档，调度器/缓存/LLM 评审代码零改动。
+
+1. **`src/negentropy/perceives/config.default.yaml`**（6 处）：`competition_mode: true` → `false`，每处加内联注释说明默认行为 + opt-in 路径；`competition:` 子配置块（`max_concurrent` / `timeout` / `early_win_*`）原样保留，用户改单行 `competition_mode: true` 即时复活完整竞争能力
+2. **`docs/framework.md`**：「两种执行模式」段落前增补默认行为元说明；mermaid 图中 `⚡ 竞争` 改为 `⚡ 可竞争`；PDF/WebPage Stage 表格的「模式」列改为 `降级（默认）/ 竞争（opt-in）`
+3. **`docs/user-guide.md`**：调整「启用四大 PDF 引擎」段落措辞，新增「切换运行模式」小节，举例 YAML 覆写单个 Stage 的 `competition_mode`，并提示超大 PDF 可上调 `task_timeout_seconds`
+4. **`CHANGELOG.md`**：Unreleased / 📦 变更段新增 BREAKING 条目（默认行为变更 + 动机三条 + 回退路径）
+
+各 Stage 默认 rank=1 引擎：
+
+| 阶段 | 最佳引擎 | 关键依据 |
+|------|---------|---------|
+| PDF `layout_analysis` | docling | reading-order / heading-level 最准确 |
+| PDF `table_extraction` | docling | TableFormer 结构化识别；与 layout 共享 `_ConvertCache` |
+| PDF `formula_extraction` | mineru | LaTeX 转换保真度最高 |
+| PDF `code_detection` | docling | CodeFormula 代码块检测；与 layout/table 共享 `_ConvertCache` |
+| WebPage `main_content_extraction` | trafilatura | 学术/博客主内容定位行业基线 |
+| WebPage `markdown_conversion` | markitdown | Microsoft 维护，标准 HTML→MD 最稳定 |
+
+### 后续防范
+
+- 行为变更属于 BREAKING（默认行为变更，非 API 破坏），需在 PR / CHANGELOG 显式提示，便于用户感知
+- 不引入 `pdf_competition_default_enabled` 等全局开关——避免 SSoT 与 YAML 真相分裂
+- 早胜取消、LLM 评审、跨 stage 缓存代码全保留，对应单测（`tests/unit/test_scheduler_competition.py` 等）继续守护 opt-in 路径
+- 用户已显式写 `competition_mode: true` 的旧 YAML 经深度合并不受影响；新装机器从默认 YAML 直接拿到新行为
+
+### 同类问题影响与注意事项
+
+- **`pdf_stage_timeout_multiplier` 在 fallback 模式下不生效**：`scheduler._run_fallback` 不读 `competition.timeout`，因此 stage 倍率仅在用户启用竞争时复活；超大 PDF 单跑接近 `task_timeout_seconds=900s` 上限时，应通过 MCP 入参 `timeout=1800` 或 YAML 覆写 `task_timeout_seconds` 提高顶层预算，而非调 `pdf_stage_timeout_multiplier`
+- **跨 stage docling 缓存仍生效**：`pdf/engines/_docling_kwargs.py::build_docling_init_kwargs()` 让 layout/table/code 三个 Stage 单跑 docling 时共享同一 hash → worker 内 `_ConvertCache` 命中，节省 2 次完整推理（≈300s）。该机制对单引擎模式更重要——不要在 follow-up 中误删
+- **rank ≥ 2 工具保持 enabled=true**：作为 fallback 兜底链（与 S3 `text_extraction` rank 1/2/3 设计一致），rank=1 失败时 `_run_fallback` 顺序尝试，不会突然 stage 失败
+- **`pdf_engine_warmup_enabled=true` 仍预热全部引擎**：默认改为单引擎后，预热 rank≥2 的 marker 等会浪费 ~200ms 时间窗，作为 follow-up 优化项（不在本次范围）
+- **opt-in 路径完整保留**：`competition:` 子配置（`max_concurrent` / `timeout` / `early_win_*` / LLM 评审）原样未改，改 YAML 单行 `competition_mode: true` 即恢复，用户无需重写参数
+
+---
+
 ## [2026-04-27] parse_pdf_to_markdown 多 Stage 兜底退化与 Apple Silicon MPS 回退
 
 ### 问题描述
