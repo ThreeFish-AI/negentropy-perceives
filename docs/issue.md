@@ -14,6 +14,8 @@ PR [#152](https://github.com/ThreeFish-AI/negentropy-perceives/pull/152) 的 `Co
 
 评论内容为 `Claude encountered an error`，属于 action 级异常提示，不是代码审查发现。
 
+修复 symlink 后，[run 25491978040](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491978040) 继续暴露第二个外部配置问题：`ANTHROPIC_API_KEY` secret 存在但被 Anthropic API 判定为 `Invalid API key`，同样会触发 sticky error comment。
+
 ### 表因
 
 日志显示：
@@ -29,10 +31,14 @@ Internal error: directory mismatch for directory ".../anthropics/claude-code-act
 1. 仓库根目录的 [CLAUDE.md](../CLAUDE.md) 是指向 [AGENTS.md](../AGENTS.md) 的 symlink，用于避免双份 Agent 指令造成 SSoT 分裂。
 2. `anthropics/claude-code-action@v1` 在 `pull_request` 场景会先快照 PR 侧的敏感启动配置，再删除并从 base 分支恢复可信版本，以防 PR 修改 `.mcp.json` / `.claude/` / `CLAUDE.md` 注入启动行为。
 3. 该 action 当前对 PR 侧 `CLAUDE.md` symlink 的快照路径存在兼容性问题，导致审查 step 提前失败；workflow 用 `continue-on-error: true` 包住该 step，因此 overall check 仍为 success，但 sticky comment 会污染 PR 讨论。
+4. workflow 过去只检查 `ANTHROPIC_API_KEY` 是否非空，无法识别 secret 已过期、被撤销或填错；action 直到调用 SDK 才报 `Invalid API key` 并发布错误评论。
 
 ### 处理方式
 
-在 [.github/workflows/review.yml](../.github/workflows/review.yml) 的 `Run Claude PR review` 前增加 `Prepare Claude trusted config restore` step：
+在 [.github/workflows/review.yml](../.github/workflows/review.yml) 的 `Run Claude PR review` 前增加两段防护：
+
+1. `Validate Anthropic API key`：调用 Anthropic `/v1/models` 做认证预检，仅当 HTTP 200 时继续执行 Claude action；否则写 Step Summary 并跳过自动审查，避免 action 发布 sticky error comment。
+2. `Prepare Claude trusted config restore`：处理 `CLAUDE.md` symlink 快照问题。
 
 ```bash
 if [ -L CLAUDE.md ]; then
@@ -46,6 +52,7 @@ fi
 
 - 保留 `CLAUDE.md -> AGENTS.md` symlink，避免复制 Agent 指令造成 SSoT 分裂。
 - 若后续 `claude-code-action` 修复 symlink 快照 bug，可移除此 workaround。
+- `ANTHROPIC_API_KEY` 预检失败时应更新 GitHub Secret，而不是在代码中 hardcode key 或关闭自动审查 workflow。
 - 不要把 `continue-on-error` 去掉；自动审查属于辅助反馈，不能阻塞主 CI。
 
 ### 同类问题影响与注意事项
