@@ -3,6 +3,53 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-07] CI Security Audit 因 pip / python-multipart 新 CVE 阻塞
+
+### 问题描述
+
+PR [#152](https://github.com/ThreeFish-AI/negentropy-perceives/pull/152) 的 GitHub Actions `Security Audit` Job 失败（[run 25491086046](https://github.com/ThreeFish-AI/negentropy-perceives/actions/runs/25491086046)）。`bandit` 静态扫描通过，失败点集中在 `pip-audit` 依赖漏洞扫描。
+
+### 表因
+
+`pip-audit` 输出：
+
+```text
+Found 2 known vulnerabilities, ignored 2 in 2 packages
+Name             Version ID             Fix Versions
+---------------- ------- -------------- ------------
+pip              26.0.1  CVE-2026-6357  26.1
+python-multipart 0.0.26  CVE-2026-42561 0.0.27
+```
+
+### 根因
+
+1. `uv.lock` 锁定了 `pip==26.0.1`，该包由 `pip-audit -> pip-api -> pip` 工具链传递引入；`pip-audit` 默认扫描整个 venv，因此开发期审计工具链也进入漏洞面。
+2. `python-multipart==0.0.26` 由 `mcp` / `mineru` 等依赖传递引入，属于项目运行时依赖图的一部分。
+3. 两个 CVE 均已有修复版本（`pip>=26.1`、`python-multipart>=0.0.27`），不符合“暂无修复版本才加入 ignore”的例外条件。
+
+### 处理方式
+
+最小依赖升级：仅执行 `uv lock --upgrade-package pip --upgrade-package python-multipart`，更新 [uv.lock](../uv.lock) 中两个受影响包：
+
+- `pip 26.0.1 -> 26.1.1`
+- `python-multipart 0.0.26 -> 0.0.27`
+
+同步清理 [.github/workflows/ci.yml](../.github/workflows/ci.yml) 中过期的 `CVE-2026-3219` ignore 项；该漏洞已随 `pip` 升级脱离当前锁文件，不应继续作为静默豁免保留。
+
+### 后续防范
+
+- `pip-audit` 新增漏洞时先区分“有修复版本”与“暂无修复或大版本跳升需兼容评估”：有修复版本优先小步升级 lock；只有无法安全升级时才进入集中 ignore 列表。
+- 对 `pip` / `setuptools` / `wheel` / `pip-api` 这类审计工具链传递依赖，若已有修复版本，也应优先升级，避免把工具链漏洞长期沉淀为 CI 例外。
+- 每次修改 `pip-audit --ignore-vuln` 列表时，必须同步检查是否存在已被 lock 升级覆盖的过期 ignore。
+
+### 同类问题影响与注意事项
+
+- `python-multipart` 是运行时依赖图的一部分，不能按“审计工具链自带依赖”处理；有修复版本时应升级而不是 ignore。
+- `uv lock --upgrade-package` 可能连带更新求解器选出的其他包，提交前必须核对 `git diff uv.lock`，确认 blast radius 没有超出目标包。
+- 若未来切换为 `uv export --format requirements-txt` 后再审计，工具链传递依赖（如 `pip`）是否还进入扫描范围会变化，需要同步更新本档案与 CI 注释。
+
+---
+
 ## [2026-05-07] 默认配置下竞态 Stage 降级为单一最佳引擎
 
 ### 问题描述
