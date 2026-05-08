@@ -423,18 +423,32 @@ class TestGPUDeviceVerification:
         )
 
     @pytest.mark.integration
-    def test_mps_formula_enrichment_disabled(self, gpu_docling_engine) -> None:
-        """MPS 设备下，formula enrichment 应被自动禁用。
+    def test_mps_formula_enrichment_policy(self, gpu_docling_engine) -> None:
+        """MPS 设备下，formula enrichment 策略取决于 mlx-vlm 可用性。
 
-        参考: device_config.py._apply_mps_constraints()
+        mlx-vlm 已安装时保留 formula enrichment（granite_docling + MLX），
+        未安装时保持上游 MPS 禁用。
         """
+        from importlib.util import find_spec
+
         device_config = gpu_docling_engine._resolve_device_config()
         if device_config.device_type == DeviceType.MPS:
-            assert device_config.do_formula_enrichment is False, (
-                "MPS 下 formula enrichment 应被禁用"
-            )
+            mlx_available = find_spec("mlx_vlm") is not None
+            if mlx_available:
+                assert device_config.do_formula_enrichment is True, (
+                    "MPS + mlx-vlm 可用时 formula enrichment 应保留"
+                )
+                assert "granite_docling + MLX" in device_config.adjustments.get(
+                    "formula_enrichment", ""
+                )
+            else:
+                assert device_config.do_formula_enrichment is False, (
+                    "MPS + mlx-vlm 不可用时 formula enrichment 应保持上游禁用"
+                )
             assert "formula_enrichment" in device_config.adjustments
-            logger.info("MPS formula enrichment 降级验证通过")
+            logger.info(
+                "MPS formula enrichment 策略验证通过 (mlx_vlm=%s)", mlx_available
+            )
         else:
             pytest.skip(f"非 MPS 设备 ({device_config.device_type.value})，跳过此验证")
 

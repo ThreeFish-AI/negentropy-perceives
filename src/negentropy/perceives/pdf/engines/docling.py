@@ -200,14 +200,22 @@ class DoclingEngine:
                 self._device_config.device == "mps"
                 and self._mps_enrichment_policy() == "granite_mlx"
             ):
-                # Docling 默认 CodeFormulaV2 在 MPS 下会转入 Transformers，
-                # 而该 engine 不支持 MPS，进而静默回 CPU。granite_docling
-                # 有 MLX 导出，可保留 code/formula enrichment 的 GPU 路径。
-                self._device_config.do_formula_enrichment = requested_formula_enrichment
-                self._device_config.adjustments["formula_enrichment"] = (
-                    "MPS 使用 granite_docling + MLX 承载 code/formula enrichment，"
-                    "避免 CodeFormulaV2 Transformers 路径回退 CPU"
-                )
+                if find_spec("mlx_vlm") is not None:
+                    # Docling 默认 CodeFormulaV2 在 MPS 下会转入 Transformers，
+                    # 而该 engine 不支持 MPS，进而静默回 CPU。granite_docling
+                    # 有 MLX 导出，可保留 code/formula enrichment 的 GPU 路径。
+                    self._device_config.do_formula_enrichment = (
+                        requested_formula_enrichment
+                    )
+                    self._device_config.adjustments["formula_enrichment"] = (
+                        "MPS 使用 granite_docling + MLX 承载 code/formula enrichment，"
+                        "避免 CodeFormulaV2 Transformers 路径回退 CPU"
+                    )
+                else:
+                    self._device_config.adjustments["formula_enrichment"] = (
+                        "MPS 策略 granite_mlx 但 mlx-vlm 未安装，"
+                        "formula enrichment 保持上游 MPS 禁用"
+                    )
             # 回写降级后的配置以保持一致性
             self._enable_formula_enrichment = self._device_config.do_formula_enrichment
         return self._device_config
