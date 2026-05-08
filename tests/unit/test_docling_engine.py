@@ -8,6 +8,7 @@
 - Caption 提取多层降级验证
 """
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -779,6 +780,50 @@ class TestDoclingEngineCacheManagement:
         DoclingEngine._converters["test_key"] = "dummy"
         DoclingEngine.reset_cache()
         assert len(DoclingEngine._converters) == 0
+
+
+# ============================================================
+# 故障边界
+# ============================================================
+class TestDoclingEngineFailureModes:
+    """验证 Docling 初始化/转换故障的 fail-fast 与降级边界。"""
+
+    def test_mps_mlx_unavailable_error_propagates_from_converter_init(self) -> None:
+        """MLX 依赖缺失属于配置错误，应显式抛出而不是返回 None。"""
+        engine = DoclingEngine(device="mps")
+
+        with (
+            patch.object(DoclingEngine, "is_available", return_value=True),
+            patch.object(
+                engine,
+                "_get_converter",
+                side_effect=DoclingMpsMlxUnavailableError("mlx-vlm missing"),
+            ),
+        ):
+            with pytest.raises(DoclingMpsMlxUnavailableError):
+                engine.convert("/fake.pdf")
+
+    def test_converter_init_runtime_error_returns_none_for_engine_fallback(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """非策略性 converter 初始化异常应保留历史容错，交由上层引擎降级。"""
+        engine = DoclingEngine(device="cpu")
+
+        with (
+            patch.object(DoclingEngine, "is_available", return_value=True),
+            patch.object(
+                engine,
+                "_get_converter",
+                side_effect=RuntimeError("pickle failed"),
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = engine.convert("/fake.pdf")
+
+        assert result is None
+        assert "Docling 转换失败" in caplog.text
+        assert "pickle failed" in caplog.text
 
 
 # ============================================================

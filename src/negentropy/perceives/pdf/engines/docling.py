@@ -218,7 +218,7 @@ class DoclingEngine:
             from ...config import settings
 
             return str(getattr(settings, "pdf_docling_mps_enrichment", "granite_mlx"))
-        except Exception:  # noqa: BLE001  # nosec B110 - 配置未就绪时使用安全默认
+        except (ImportError, AttributeError):
             return "granite_mlx"
 
     # ------------------------------------------------------------------
@@ -498,9 +498,12 @@ class DoclingEngine:
                 metadata=metadata,
                 page_count=page_count,
             )
+        except DoclingMpsMlxUnavailableError:
+            raise
         except Exception as e:
-            if isinstance(e, DoclingMpsMlxUnavailableError):
-                raise
+            # 非策略性 Docling 初始化/转换故障保持历史容错：返回 None，
+            # 让上层调度继续尝试 MinerU/Marker/PyMuPDF。MLX 依赖缺失则已由
+            # DoclingMpsMlxUnavailableError 显式 fail-fast，避免静默 CPU fallback。
             logger.warning("Docling 转换失败: %s", e)
             return None
 
