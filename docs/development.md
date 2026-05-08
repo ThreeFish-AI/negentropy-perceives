@@ -47,19 +47,22 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone <repository-url>
 cd negentropy-perceives
 
-# 同步依赖
-uv sync
+# 同步依赖（项目运行时固定 Python 3.13）
+uv sync --python 3.13
 
 # 安装开发依赖
-uv sync --group dev
+uv sync --python 3.13 --group dev
 
-# 启用全部四大 PDF 引擎（Docling / MinerU / Marker / PyMuPDF）参与 layout/table/formula 竞争
-uv sync --extra all-engines
+# 启用非 MLX 的 PDF 引擎集合（Docling / MinerU / Marker / PyMuPDF）
+uv sync --python 3.13 --extra all-engines
 
 # 或按需单独启用
-uv sync --extra docling
-uv sync --extra mineru
-uv sync --extra marker
+uv sync --python 3.13 --extra mineru
+uv sync --python 3.13 --extra marker
+
+# Apple Silicon 上启用 Docling code/formula 的 Granite Docling + MLX 路径
+# 注意：docling-mlx 与 marker/all-engines 互斥（transformers 主版本冲突）
+uv sync --python 3.13 --extra docling-mlx
 
 # 初始化用户配置（首次运行时自动生成，也可手动执行）
 uv run negentropy-perceives --init-config
@@ -71,6 +74,11 @@ uv run playwright install chromium
 > **引擎可用性**：`docling_enabled` / `mineru_enabled` / `marker_enabled` 默认均为 `true`，
 > 实际是否参与调度由运行时 `is_available()` 检测（包是否可 import）决定——未安装的引擎
 > 会被自动跳过，PDF 管线首次调用时会打印 `[PDF engines]` 汇总一次，方便确认生效状态。
+>
+> **Apple Silicon GPU**：Docling 默认 `CodeFormulaV2` 在 MPS 下会进入不支持 MPS 的
+> Transformers code/formula 路径并回退 CPU。需要保留 code/formula enrichment 的 GPU
+> 处理时，使用 `--extra docling-mlx`；若必须同时启用 Marker，请在配置中设置
+> `pdf.docling_mps_enrichment: disable`，让代码/公式能力交给其它引擎或后处理兜底。
 
 #### 模型预热（推荐）
 
@@ -80,13 +88,13 @@ MCP 请求被 ~1.35GB Marker Layout 模型下载阻塞而触发 `Stage 'layout_a
 
 ```bash
 # 预下载 Docling + Marker + MinerU 所需的全部模型到本地缓存（幂等）
-uv run perceives prefetch-models
+uv run --python 3.13 perceives prefetch-models
 
 # 仅预热部分引擎
-uv run perceives prefetch-models --engines docling,marker
+uv run --python 3.13 perceives prefetch-models --engines docling,marker
 
 # 指定 HuggingFace 缓存目录（CI / 共享缓存场景）
-uv run perceives prefetch-models --hf-home /shared/hf-cache
+uv run --python 3.13 perceives prefetch-models --hf-home /shared/hf-cache
 ```
 
 命令会对未安装的引擎输出 `skipped` 并给出 extras 安装提示，不会中断其它引擎；

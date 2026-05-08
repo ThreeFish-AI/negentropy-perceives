@@ -735,12 +735,20 @@ class NegentropyPerceivesSettings(BaseSettings):
         ),
     )
 
-    # ── Docling MPS 强制门控 ──────────────────────────────────
+    # ── Docling MPS 策略 ──────────────────────────────────────
     pdf_docling_force_cpu: bool = Field(
         default=False,
         description=(
             "强制 Docling 在 CPU 上推理，跳过 MPS 注入。"
             "用于诊断 MPS 兼容性问题或在 macOS 上回退到稳定路径。"
+        ),
+    )
+    pdf_docling_mps_enrichment: Literal["granite_mlx", "disable"] = Field(
+        default="granite_mlx",
+        description=(
+            "Apple Silicon MPS 下 Docling code/formula enrichment 策略："
+            "granite_mlx 使用 Granite Docling + MLX，避免 CodeFormulaV2 退回 CPU；"
+            "disable 关闭 Docling code/formula enrichment，使用其它引擎/后处理兜底。"
         ),
     )
 
@@ -850,6 +858,7 @@ class NegentropyPerceivesSettings(BaseSettings):
             "ocr_batch_size": self.accelerator_ocr_batch_size,
             "layout_batch_size": self.accelerator_layout_batch_size,
             "table_batch_size": self.accelerator_table_batch_size,
+            "mps_enrichment": self.pdf_docling_mps_enrichment,
         }
 
 

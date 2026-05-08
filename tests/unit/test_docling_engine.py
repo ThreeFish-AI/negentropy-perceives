@@ -8,11 +8,14 @@
 - Caption 提取多层降级验证
 """
 
+import logging
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from negentropy.perceives.pdf.engines.docling import DoclingMpsMlxUnavailableError
 from negentropy.perceives.pdf.docling_engine import (
     DoclingCodeBlock,
     DoclingConversionResult,
@@ -189,6 +192,136 @@ class TestDoclingEngineConfigKey:
         e_cpu = DoclingEngine(device="cpu")
         e_mps = DoclingEngine(device="mps")
         assert e_cpu._config_key() != e_mps._config_key()
+
+
+# ============================================================
+# Apple Silicon MPS code/formula enrichment 策略
+# ============================================================
+class TestDoclingMpsEnrichmentPolicy:
+    """验证 MPS 下 Docling code/formula 子模型不再静默回 CPU。"""
+
+    def test_mps_granite_mlx_restores_formula_enrichment(self) -> None:
+        """granite_mlx 策略 + mlx_vlm 可用时应保留 formula enrichment。"""
+        fake_cfg = SimpleNamespace(
+            device="mps",
+            do_formula_enrichment=False,
+            adjustments={},
+            cache_key_segment="dev=mps",
+            ocr_batch_size=8,
+            layout_batch_size=8,
+            table_batch_size=4,
+        )
+        engine = DoclingEngine(device="mps", enable_formula_enrichment=True)
+
+        with (
+            patch(
+                "negentropy.perceives.pdf.hardware.device_config.resolve_device_config",
+                return_value=fake_cfg,
+            ),
+            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
+            patch(
+                "negentropy.perceives.pdf.engines.docling.find_spec",
+                return_value=object(),
+            ),
+        ):
+            cfg = engine._resolve_device_config()
+
+        assert cfg.do_formula_enrichment is True
+        assert engine._enable_formula_enrichment is True
+        assert "granite_docling + MLX" in cfg.adjustments["formula_enrichment"]
+
+    def test_mps_granite_mlx_without_mlx_vlm_keeps_disabled(self) -> None:
+        """granite_mlx 策略但 mlx_vlm 不可用时，保持上游 MPS 禁用。"""
+        fake_cfg = SimpleNamespace(
+            device="mps",
+            do_formula_enrichment=False,
+            adjustments={},
+            cache_key_segment="dev=mps",
+            ocr_batch_size=8,
+            layout_batch_size=8,
+            table_batch_size=4,
+        )
+        engine = DoclingEngine(device="mps", enable_formula_enrichment=True)
+
+        with (
+            patch(
+                "negentropy.perceives.pdf.hardware.device_config.resolve_device_config",
+                return_value=fake_cfg,
+            ),
+            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
+            patch(
+                "negentropy.perceives.pdf.engines.docling.find_spec",
+                return_value=None,
+            ),
+        ):
+            cfg = engine._resolve_device_config()
+
+        assert cfg.do_formula_enrichment is False
+        assert engine._enable_formula_enrichment is False
+        assert "mlx-vlm 未安装" in cfg.adjustments["formula_enrichment"]
+
+    def test_mps_disable_policy_turns_off_code_formula(self) -> None:
+        """disable 策略应关闭 Docling code/formula enrichment。"""
+        engine = DoclingEngine(device="mps")
+        pipeline_options = MagicMock()
+        pipeline_options.do_code_enrichment = True
+        pipeline_options.do_formula_enrichment = True
+
+        with patch.object(engine, "_mps_enrichment_policy", return_value="disable"):
+            preset, runtime = engine._configure_mps_code_formula_options(
+                pipeline_options
+            )
+
+        assert (preset, runtime) == ("disabled", "none")
+        assert pipeline_options.do_code_enrichment is False
+        assert pipeline_options.do_formula_enrichment is False
+
+    def test_mps_granite_mlx_requires_mlx_vlm(self) -> None:
+        """缺少 mlx-vlm 时应显式失败，不能让 Docling 静默 CPU fallback。"""
+        engine = DoclingEngine(device="mps")
+        pipeline_options = MagicMock()
+
+        with (
+            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
+            patch(
+                "negentropy.perceives.pdf.engines.docling.find_spec",
+                return_value=None,
+            ),
+        ):
+            with pytest.raises(DoclingMpsMlxUnavailableError):
+                engine._configure_mps_code_formula_options(pipeline_options)
+
+    def test_mps_granite_mlx_sets_docling_options(self) -> None:
+        """granite_mlx 策略应设置 Granite Docling preset 与 MLX engine。"""
+        engine = DoclingEngine(device="mps")
+        pipeline_options = MagicMock()
+
+        with (
+            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
+            patch(
+                "negentropy.perceives.pdf.engines.docling.find_spec",
+                return_value=object(),
+            ),
+            patch(
+                "docling.datamodel.vlm_engine_options.MlxVlmEngineOptions",
+                return_value="mlx-options",
+            ) as mock_mlx_options,
+            patch(
+                "docling.datamodel.pipeline_options.CodeFormulaVlmOptions.from_preset",
+                return_value="code-formula-options",
+            ) as mock_from_preset,
+        ):
+            preset, runtime = engine._configure_mps_code_formula_options(
+                pipeline_options
+            )
+
+        assert (preset, runtime) == ("granite_docling", "mlx")
+        mock_mlx_options.assert_called_once_with()
+        mock_from_preset.assert_called_once_with(
+            "granite_docling",
+            engine_options="mlx-options",
+        )
+        assert pipeline_options.code_formula_options == "code-formula-options"
 
 
 # ============================================================
@@ -681,6 +814,50 @@ class TestDoclingEngineCacheManagement:
         DoclingEngine._converters["test_key"] = "dummy"
         DoclingEngine.reset_cache()
         assert len(DoclingEngine._converters) == 0
+
+
+# ============================================================
+# 故障边界
+# ============================================================
+class TestDoclingEngineFailureModes:
+    """验证 Docling 初始化/转换故障的 fail-fast 与降级边界。"""
+
+    def test_mps_mlx_unavailable_error_propagates_from_converter_init(self) -> None:
+        """MLX 依赖缺失属于配置错误，应显式抛出而不是返回 None。"""
+        engine = DoclingEngine(device="mps")
+
+        with (
+            patch.object(DoclingEngine, "is_available", return_value=True),
+            patch.object(
+                engine,
+                "_get_converter",
+                side_effect=DoclingMpsMlxUnavailableError("mlx-vlm missing"),
+            ),
+        ):
+            with pytest.raises(DoclingMpsMlxUnavailableError):
+                engine.convert("/fake.pdf")
+
+    def test_converter_init_runtime_error_returns_none_for_engine_fallback(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """非策略性 converter 初始化异常应保留历史容错，交由上层引擎降级。"""
+        engine = DoclingEngine(device="cpu")
+
+        with (
+            patch.object(DoclingEngine, "is_available", return_value=True),
+            patch.object(
+                engine,
+                "_get_converter",
+                side_effect=RuntimeError("pickle failed"),
+            ),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = engine.convert("/fake.pdf")
+
+        assert result is None
+        assert "Docling 转换失败" in caplog.text
+        assert "pickle failed" in caplog.text
 
 
 # ============================================================

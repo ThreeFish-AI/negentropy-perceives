@@ -12,6 +12,7 @@ PyMuPDF 路径。
 import logging
 import re
 from dataclasses import dataclass, field
+from importlib.util import find_spec
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
     from ..figure_text_filter import FigureRegion
 
 logger = logging.getLogger(__name__)
+
+
+class DoclingMpsMlxUnavailableError(RuntimeError):
+    """Apple Silicon MPS 策略要求 MLX，但运行环境缺少 mlx-vlm。"""
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +185,7 @@ class DoclingEngine:
         if self._device_config is None:
             from ..hardware.device_config import resolve_device_config
 
+            requested_formula_enrichment = self._enable_formula_enrichment
             self._device_config = resolve_device_config(
                 device_preference=self._device,
                 num_threads=self._num_threads,
@@ -190,9 +196,38 @@ class DoclingEngine:
                 layout_batch_size_override=self._layout_batch_size,
                 table_batch_size_override=self._table_batch_size,
             )
+            if (
+                self._device_config.device == "mps"
+                and self._mps_enrichment_policy() == "granite_mlx"
+            ):
+                if find_spec("mlx_vlm") is not None:
+                    # Docling 默认 CodeFormulaV2 在 MPS 下会转入 Transformers，
+                    # 而该 engine 不支持 MPS，进而静默回 CPU。granite_docling
+                    # 有 MLX 导出，可保留 code/formula enrichment 的 GPU 路径。
+                    self._device_config.do_formula_enrichment = (
+                        requested_formula_enrichment
+                    )
+                    self._device_config.adjustments["formula_enrichment"] = (
+                        "MPS 使用 granite_docling + MLX 承载 code/formula enrichment，"
+                        "避免 CodeFormulaV2 Transformers 路径回退 CPU"
+                    )
+                else:
+                    self._device_config.adjustments["formula_enrichment"] = (
+                        "MPS 策略 granite_mlx 但 mlx-vlm 未安装，"
+                        "formula enrichment 保持上游 MPS 禁用"
+                    )
             # 回写降级后的配置以保持一致性
             self._enable_formula_enrichment = self._device_config.do_formula_enrichment
         return self._device_config
+
+    def _mps_enrichment_policy(self) -> str:
+        """读取 Apple Silicon MPS 下 Docling code/formula enrichment 策略。"""
+        try:
+            from ...config import settings
+
+            return str(getattr(settings, "pdf_docling_mps_enrichment", "granite_mlx"))
+        except (ImportError, AttributeError):
+            return "granite_mlx"
 
     # ------------------------------------------------------------------
     # 配置签名（用于 converter 缓存键）
@@ -207,12 +242,56 @@ class DoclingEngine:
             f"|pic={self._enable_picture_images}"
             f"|ocr={self._enable_ocr}"
             f"|scale={self._images_scale}"
+            f"|mps_enrich={self._mps_enrichment_policy() if device_cfg.device == 'mps' else 'default'}"
             f"|{device_cfg.cache_key_segment}"
         )
 
     # ------------------------------------------------------------------
     # Converter 延迟初始化
     # ------------------------------------------------------------------
+
+    def _configure_mps_code_formula_options(
+        self,
+        pipeline_options: Any,
+    ) -> Tuple[str, str]:
+        """按 MPS enrichment 策略配置 Docling code/formula 子模型。
+
+        Returns:
+            ``(preset, engine)``，用于日志与测试观测。
+        """
+        policy = self._mps_enrichment_policy()
+        if policy == "disable":
+            pipeline_options.do_code_enrichment = False
+            pipeline_options.do_formula_enrichment = False
+            logger.info(
+                "Docling MPS code/formula enrichment 已禁用；"
+                "TableFormer MPS 仍由 Docling 上游禁用，表格结构可能使用 CPU"
+            )
+            return ("disabled", "none")
+
+        if find_spec("mlx_vlm") is None:
+            raise DoclingMpsMlxUnavailableError(
+                "Apple Silicon MPS 下配置为 pdf.docling_mps_enrichment=granite_mlx，"
+                "但当前环境未安装 mlx-vlm；请执行 `uv sync --python 3.13` "
+                "或 `uv sync --python 3.13 --extra docling-mlx`。"
+            )
+
+        from docling.datamodel.pipeline_options import (  # type: ignore[import-untyped]
+            CodeFormulaVlmOptions,
+        )
+        from docling.datamodel.vlm_engine_options import (  # type: ignore[import-untyped]
+            MlxVlmEngineOptions,
+        )
+
+        pipeline_options.code_formula_options = CodeFormulaVlmOptions.from_preset(
+            "granite_docling",
+            engine_options=MlxVlmEngineOptions(),
+        )
+        logger.info(
+            "Docling MPS code/formula enrichment 使用 preset=granite_docling engine=mlx；"
+            "TableFormer MPS 仍由 Docling 上游禁用，表格结构可能使用 CPU"
+        )
+        return ("granite_docling", "mlx")
 
     def _get_converter(self) -> Any:
         """延迟初始化并返回 DocumentConverter 实例（含硬件加速）。"""
@@ -241,6 +320,13 @@ class DoclingEngine:
 
         # 禁用非必要的页面图像生成以节省内存
         pipeline_options.generate_page_images = False
+
+        code_formula_preset = "default"
+        code_formula_engine = "auto_inline"
+        if device_cfg.device == "mps":
+            code_formula_preset, code_formula_engine = (
+                self._configure_mps_code_formula_options(pipeline_options)
+            )
 
         # GPU 批处理吞吐优化
         if hasattr(pipeline_options, "ocr_batch_size"):
@@ -307,9 +393,12 @@ class DoclingEngine:
         )
         DoclingEngine._converters[key] = converter
         logger.info(
-            "Docling DocumentConverter 初始化完成 (config=%s, device=%s)",
+            "Docling DocumentConverter 初始化完成 "
+            "(config=%s, device=%s, code_formula_preset=%s, code_formula_engine=%s)",
             key,
             device_cfg.device,
+            code_formula_preset,
+            code_formula_engine,
         )
         return converter
 
@@ -417,7 +506,12 @@ class DoclingEngine:
                 metadata=metadata,
                 page_count=page_count,
             )
+        except DoclingMpsMlxUnavailableError:
+            raise
         except Exception as e:
+            # 非策略性 Docling 初始化/转换故障保持历史容错：返回 None，
+            # 让上层调度继续尝试 MinerU/Marker/PyMuPDF。MLX 依赖缺失则已由
+            # DoclingMpsMlxUnavailableError 显式 fail-fast，避免静默 CPU fallback。
             logger.warning("Docling 转换失败: %s", e)
             return None
 

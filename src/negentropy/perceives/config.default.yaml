@@ -155,6 +155,7 @@ pdf:
   image_extraction_concurrency: 8 # M 系列芯片大内存机型支持更高并发
   # ── Docling 强制 CPU（诊断/回退）─────────────────────────────
   docling_force_cpu: false # true 时跳过 MPS 注入，强制 CPU 推理
+  docling_mps_enrichment: granite_mlx # Apple Silicon MPS 下 code/formula：granite_mlx / disable
   # ── 引擎预热（消除 worker 冷启动）────────────────────────────
   engine_warmup_enabled: true # preprocessing/quick_scan 期间异步预热 docling/mineru/marker
 

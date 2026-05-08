@@ -913,6 +913,32 @@ class TestMultiEngineConfigIntegration:
         assert ds["ocr_batch_size"] == 2
         assert ds["layout_batch_size"] == 10
         assert ds["table_batch_size"] == 15
+        assert ds["mps_enrichment"] == "granite_mlx"
+
+    def test_docling_mps_enrichment_default(self):
+        """Apple Silicon MPS 下 Docling enrichment 默认使用 Granite MLX。"""
+        config = NegentropyPerceivesSettings()
+        assert config.pdf_docling_mps_enrichment == "granite_mlx"
+
+    def test_docling_mps_enrichment_valid_values(self):
+        """Docling MPS enrichment 策略合法值。"""
+        for policy in ("granite_mlx", "disable"):
+            config = NegentropyPerceivesSettings(pdf_docling_mps_enrichment=policy)
+            assert config.pdf_docling_mps_enrichment == policy
+
+    def test_docling_mps_enrichment_env_override(self):
+        """环境变量可关闭 MPS code/formula enrichment。"""
+        with patch.dict(
+            os.environ,
+            {"NEGENTROPY_PERCEIVES_PDF_DOCLING_MPS_ENRICHMENT": "disable"},
+        ):
+            config = NegentropyPerceivesSettings()
+            assert config.pdf_docling_mps_enrichment == "disable"
+
+    def test_docling_mps_enrichment_invalid_value(self):
+        """未知策略应被 Pydantic 拒绝，避免静默落到 CPU。"""
+        with pytest.raises(ValidationError):
+            NegentropyPerceivesSettings(pdf_docling_mps_enrichment="auto")
 
 
 # ============================================================
