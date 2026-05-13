@@ -315,7 +315,7 @@ class MinerUEngine:
             return self._normalize_output(output_dir, pdf_path)
 
         except ImportError as e:
-            logger.debug("MinerU Python API 导入失败: %s", e)
+            logger.debug("MinerU Python API 不可用（v3.x 已移除 pdf_parse）: %s", e)
             return None
         except Exception as e:
             logger.warning("MinerU Python API 转换失败: %s", e)
@@ -332,8 +332,8 @@ class MinerUEngine:
         调用命令格式：
             ``mineru -p <input> -o <output_dir> -b <backend>``
 
-        可选页码范围：
-            ``mineru -p <input> -o <output_dir> -b <backend> --start_page_id N --end_page_id N``
+        可选页码范围（MinerU v3.x）：
+            ``mineru -p <input> -o <output_dir> -b <backend> --start N --end N``
         """
         backend = self._resolve_device()
 
@@ -347,10 +347,10 @@ class MinerUEngine:
             backend,
         ]
 
-        # 页码范围参数
+        # 页码范围参数（MinerU v3.x 使用 --start / --end）
         if page_range is not None:
-            cmd.extend(["--start_page_id", str(page_range[0])])
-            cmd.extend(["--end_page_id", str(page_range[1])])
+            cmd.extend(["--start", str(page_range[0])])
+            cmd.extend(["--end", str(page_range[1])])
 
         logger.info("MinerU CLI 调用: %s", " ".join(cmd))
 
@@ -366,7 +366,7 @@ class MinerUEngine:
                 logger.warning(
                     "MinerU CLI 执行失败 (exit_code=%d): %s",
                     result.returncode,
-                    result.stderr[:500] if result.stderr else "无错误输出",
+                    result.stderr[:1000] if result.stderr else "无错误输出",
                 )
                 return None
 

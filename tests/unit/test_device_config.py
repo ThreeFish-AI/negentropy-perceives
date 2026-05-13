@@ -168,9 +168,35 @@ class TestComputeGPUBatchSizes:
 class TestMPSConstraints:
     """验证 Apple Silicon MPS 限制处理。"""
 
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_mlx_vlm_available",
+        return_value=True,
+    )
     @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
-    def test_mps_disables_formula_enrichment(self, mock_hw: Mock) -> None:
-        """MPS 应主动禁用 formula enrichment。"""
+    def test_mps_formula_enrichment_with_mlx(
+        self, mock_hw: Mock, _mock_mlx: Mock
+    ) -> None:
+        """MPS + mlx_vlm 可用时应保留 formula enrichment。"""
+        mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
+        config = DoclingDeviceConfig(
+            device="mps",
+            device_type=DeviceType.MPS,
+            do_formula_enrichment=True,
+        )
+        _apply_mps_constraints(config)
+        assert config.do_formula_enrichment is True
+        assert "formula_enrichment" in config.adjustments
+        assert "mlx_vlm" in config.adjustments["formula_enrichment"]
+
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_mlx_vlm_available",
+        return_value=False,
+    )
+    @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
+    def test_mps_disables_formula_without_mlx(
+        self, mock_hw: Mock, _mock_mlx: Mock
+    ) -> None:
+        """MPS + mlx_vlm 不可用时应禁用 formula enrichment。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
         config = DoclingDeviceConfig(
             device="mps",
@@ -373,19 +399,27 @@ class TestResolveDeviceConfig:
         assert config.use_flash_attention is False
         assert config.ocr_batch_size == 4  # CPU 默认值
 
+    @patch(
+        "negentropy.perceives.pdf.hardware.device_config._check_mlx_vlm_available",
+        return_value=True,
+    )
     @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
     @patch(
         "negentropy.perceives.pdf.hardware.device_config.get_device_for_docling",
         return_value="mps",
     )
-    def test_mps_applies_constraints(self, _mock_dev: object, mock_hw: Mock) -> None:
+    def test_mps_applies_constraints(
+        self, _mock_dev: object, mock_hw: Mock, _mock_mlx: Mock
+    ) -> None:
         """MPS 设备应自动应用限制。"""
         mock_hw.return_value = _mock_hardware_info(24.0, DeviceType.MPS)
         config = resolve_device_config(device_preference="mps", enable_formula=True)
         assert config.device == "mps"
         assert config.device_type == DeviceType.MPS
-        assert config.do_formula_enrichment is False
+        # mlx_vlm 可用时 formula enrichment 应保留
+        assert config.do_formula_enrichment is True
         assert "formula_enrichment" in config.adjustments
+        assert "mlx_vlm" in config.adjustments["formula_enrichment"]
         assert config.ocr_batch_size > 4  # GPU batch size 优化
 
     @patch("negentropy.perceives.pdf.hardware.detection.get_cached_hardware_info")
