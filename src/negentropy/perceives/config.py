@@ -625,7 +625,7 @@ class NegentropyPerceivesSettings(BaseSettings):
     )
     mineru_backend: str = Field(
         default="auto",
-        description="MinerU 后端：auto（优先 MLX on Apple Silicon）/ pipeline / vlm",
+        description="MinerU 后端：auto（触发自动检测，不直接传递）/ pipeline / vlm-auto-engine",
     )
 
     # ── Marker PDF 引擎 ──────────────────────────────────────
