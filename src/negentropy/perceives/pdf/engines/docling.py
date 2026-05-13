@@ -270,11 +270,14 @@ class DoclingEngine:
             return ("disabled", "none")
 
         if find_spec("mlx_vlm") is None:
-            raise DoclingMpsMlxUnavailableError(
+            logger.warning(
                 "Apple Silicon MPS 下配置为 pdf.docling_mps_enrichment=granite_mlx，"
-                "但当前环境未安装 mlx-vlm；请执行 `uv sync --python 3.13` "
-                "或 `uv sync --python 3.13 --extra docling-mlx`。"
+                "但当前环境未安装 mlx-vlm；code/formula enrichment 已禁用。"
+                "请执行 `uv sync --python 3.13` 以启用。"
             )
+            pipeline_options.do_code_enrichment = False
+            pipeline_options.do_formula_enrichment = False
+            return ("disabled", "none")
 
         from docling.datamodel.pipeline_options import (  # type: ignore[import-untyped]
             CodeFormulaVlmOptions,
@@ -506,12 +509,7 @@ class DoclingEngine:
                 metadata=metadata,
                 page_count=page_count,
             )
-        except DoclingMpsMlxUnavailableError:
-            raise
         except Exception as e:
-            # 非策略性 Docling 初始化/转换故障保持历史容错：返回 None，
-            # 让上层调度继续尝试 MinerU/Marker/PyMuPDF。MLX 依赖缺失则已由
-            # DoclingMpsMlxUnavailableError 显式 fail-fast，避免静默 CPU fallback。
             logger.warning("Docling 转换失败: %s", e)
             return None
 
