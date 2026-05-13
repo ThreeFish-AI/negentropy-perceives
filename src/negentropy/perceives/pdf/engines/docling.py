@@ -23,6 +23,24 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# OpenCV 兼容性补丁
+# ---------------------------------------------------------------------------
+
+# opencv-python-headless 等精简构建可能缺少 cv2.setNumThreads()。
+# docling_ibm_models.tableformer 在模块顶层调用 cv2.setNumThreads(0)，
+# 触发 AttributeError 导致整个 Docling 路径失败（回退 PyMuPDF）。
+# 此处预先注入 no-op 以确保安全。
+try:
+    import cv2
+
+    if not hasattr(cv2, "setNumThreads"):
+        cv2.setNumThreads = lambda n: None  # type: ignore[assignment]
+        logger.debug("cv2.setNumThreads 不存在，已注入 no-op 兼容补丁")
+except ImportError:
+    pass  # cv2 未安装时无需补丁
+
+
+# ---------------------------------------------------------------------------
 # 数据类：标准化 Docling 输出
 # ---------------------------------------------------------------------------
 
@@ -181,7 +199,6 @@ class DoclingEngine:
         if self._device_config is None:
             from ..hardware.device_config import resolve_device_config
 
-            requested_formula_enrichment = self._enable_formula_enrichment
             self._device_config = resolve_device_config(
                 device_preference=self._device,
                 num_threads=self._num_threads,
@@ -192,26 +209,16 @@ class DoclingEngine:
                 layout_batch_size_override=self._layout_batch_size,
                 table_batch_size_override=self._table_batch_size,
             )
+            # MPS enrichment 策略已在 device_config 层与 mlx_vlm 可用性
+            # 联合判定，此处仅记录最终状态
             if (
                 self._device_config.device == "mps"
-                and self._mps_enrichment_policy() == "granite_mlx"
+                and self._device_config.do_formula_enrichment
             ):
-                if find_spec("mlx_vlm") is not None:
-                    # Docling 默认 CodeFormulaV2 在 MPS 下会转入 Transformers，
-                    # 而该 engine 不支持 MPS，进而静默回 CPU。granite_docling
-                    # 有 MLX 导出，可保留 code/formula enrichment 的 GPU 路径。
-                    self._device_config.do_formula_enrichment = (
-                        requested_formula_enrichment
-                    )
-                    self._device_config.adjustments["formula_enrichment"] = (
-                        "MPS 使用 granite_docling + MLX 承载 code/formula enrichment，"
-                        "避免 CodeFormulaV2 Transformers 路径回退 CPU"
-                    )
-                else:
-                    self._device_config.adjustments["formula_enrichment"] = (
-                        "MPS 策略 granite_mlx 但 mlx-vlm 未安装，"
-                        "formula enrichment 保持上游 MPS 禁用"
-                    )
+                logger.info(
+                    "MPS formula enrichment 已保留（mlx_vlm 可用），"
+                    "将由 _configure_mps_code_formula_options 配置 granite_docling + MLX"
+                )
             # 回写降级后的配置以保持一致性
             self._enable_formula_enrichment = self._device_config.do_formula_enrichment
         return self._device_config

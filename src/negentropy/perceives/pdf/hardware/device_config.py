@@ -172,11 +172,20 @@ def _apply_mps_constraints(config: DoclingDeviceConfig) -> None:
     公式通过 Markdown 正则提取补偿（已有 ``_extract_formulas`` 实现）。
     """
     if config.do_formula_enrichment:
-        config.do_formula_enrichment = False
-        config.adjustments["formula_enrichment"] = (
-            "MPS 与 formula enrichment 不兼容，已禁用以保持 GPU 加速；"
-            "公式将通过 Markdown 正则提取替代"
-        )
+        # 优先检测 MLX VLM 可用性：若已安装，保留 formula enrichment，
+        # 由 DoclingEngine 层使用 granite_docling + MLX 承载；
+        # 否则主动禁用以避免 CodeFormulaV2 回退 CPU。
+        if _check_mlx_vlm_available():
+            config.adjustments["formula_enrichment"] = (
+                "MPS + mlx_vlm 可用，formula enrichment 保留；"
+                "将由 DoclingEngine 使用 granite_docling + MLX 承载"
+            )
+        else:
+            config.do_formula_enrichment = False
+            config.adjustments["formula_enrichment"] = (
+                "MPS 与 formula enrichment 不兼容且 mlx_vlm 未安装，"
+                "已禁用以保持 GPU 加速；公式将通过 Markdown 正则提取替代"
+            )
 
     config.use_flash_attention = False
 
@@ -346,4 +355,14 @@ def _check_flash_attention_available() -> bool:
 
         return True
     except ImportError:
+        return False
+
+
+def _check_mlx_vlm_available() -> bool:
+    """检测 mlx-vlm 是否已安装（Apple Silicon MLX 视觉语言模型）。"""
+    try:
+        from importlib.util import find_spec
+
+        return find_spec("mlx_vlm") is not None
+    except (ImportError, ValueError):
         return False

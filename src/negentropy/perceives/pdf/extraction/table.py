@@ -313,6 +313,29 @@ def _table_quality_score(
         return False, {"reason": "too_few_rows", "rows": rows}
     cols = max(len(r) for r in data)
     if cols < 2:
+        # 单列表格：经过 merge_table_columns_and_rows 合并后仅剩 1 列，
+        # 通常为多列 PyMuPDF 原始表中只有一列标题非空的情况。
+        # 只要行数足够（>= 3）且内容有意义（unique_cells > 3），
+        # 视为有效的列表/目录/编号内容保留。
+        if cols == 1 and rows >= 3:
+            non_empty_1 = sum(
+                1 for r in data if r and r[0] is not None and str(r[0]).strip()
+            )
+            unique_1 = len(
+                {
+                    str(r[0]).strip()
+                    for r in data
+                    if r and r[0] is not None and str(r[0]).strip()
+                }
+            )
+            if non_empty_1 >= 3 and unique_1 > 3:
+                return True, {
+                    "reason": "pass",
+                    "single_col_bypass": True,
+                    "rows": rows,
+                    "non_empty": non_empty_1,
+                    "unique": unique_1,
+                }
         return False, {"reason": "too_few_cols", "cols": cols}
 
     total_cells = rows * cols

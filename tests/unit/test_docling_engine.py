@@ -200,11 +200,16 @@ class TestDoclingMpsEnrichmentPolicy:
     """验证 MPS 下 Docling code/formula 子模型不再静默回 CPU。"""
 
     def test_mps_granite_mlx_restores_formula_enrichment(self) -> None:
-        """granite_mlx 策略 + mlx_vlm 可用时应保留 formula enrichment。"""
+        """MPS + mlx_vlm 可用时 device_config 层已保留 formula enrichment。"""
         fake_cfg = SimpleNamespace(
             device="mps",
-            do_formula_enrichment=False,
-            adjustments={},
+            do_formula_enrichment=True,
+            adjustments={
+                "formula_enrichment": (
+                    "MPS + mlx_vlm 可用，formula enrichment 保留；"
+                    "将由 DoclingEngine 使用 granite_docling + MLX 承载"
+                ),
+            },
             cache_key_segment="dev=mps",
             ocr_batch_size=8,
             layout_batch_size=8,
@@ -216,25 +221,25 @@ class TestDoclingMpsEnrichmentPolicy:
             patch(
                 "negentropy.perceives.pdf.hardware.device_config.resolve_device_config",
                 return_value=fake_cfg,
-            ),
-            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
-            patch(
-                "negentropy.perceives.pdf.engines.docling.find_spec",
-                return_value=object(),
             ),
         ):
             cfg = engine._resolve_device_config()
 
         assert cfg.do_formula_enrichment is True
         assert engine._enable_formula_enrichment is True
-        assert "granite_docling + MLX" in cfg.adjustments["formula_enrichment"]
+        assert "mlx_vlm" in cfg.adjustments["formula_enrichment"]
 
     def test_mps_granite_mlx_without_mlx_vlm_keeps_disabled(self) -> None:
-        """granite_mlx 策略但 mlx_vlm 不可用时，保持上游 MPS 禁用。"""
+        """device_config 层 mlx_vlm 不可用时已禁用，engine 层保持禁用状态。"""
         fake_cfg = SimpleNamespace(
             device="mps",
             do_formula_enrichment=False,
-            adjustments={},
+            adjustments={
+                "formula_enrichment": (
+                    "MPS 与 formula enrichment 不兼容且 mlx_vlm 未安装，"
+                    "已禁用以保持 GPU 加速"
+                ),
+            },
             cache_key_segment="dev=mps",
             ocr_batch_size=8,
             layout_batch_size=8,
@@ -247,17 +252,12 @@ class TestDoclingMpsEnrichmentPolicy:
                 "negentropy.perceives.pdf.hardware.device_config.resolve_device_config",
                 return_value=fake_cfg,
             ),
-            patch.object(engine, "_mps_enrichment_policy", return_value="granite_mlx"),
-            patch(
-                "negentropy.perceives.pdf.engines.docling.find_spec",
-                return_value=None,
-            ),
         ):
             cfg = engine._resolve_device_config()
 
         assert cfg.do_formula_enrichment is False
         assert engine._enable_formula_enrichment is False
-        assert "mlx-vlm 未安装" in cfg.adjustments["formula_enrichment"]
+        assert "mlx_vlm" in cfg.adjustments["formula_enrichment"]
 
     def test_mps_disable_policy_turns_off_code_formula(self) -> None:
         """disable 策略应关闭 Docling code/formula enrichment。"""
