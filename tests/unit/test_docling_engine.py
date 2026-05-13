@@ -292,8 +292,8 @@ class TestDoclingMpsEnrichmentPolicy:
             )
             assert preset == "disabled"
             assert engine_name == "none"
-            pipeline_options.do_code_enrichment = False
-            pipeline_options.do_formula_enrichment = False
+            assert pipeline_options.do_code_enrichment is False
+            assert pipeline_options.do_formula_enrichment is False
 
     def test_mps_granite_mlx_sets_docling_options(self) -> None:
         """granite_mlx 策略应设置 Granite Docling preset 与 MLX engine。"""

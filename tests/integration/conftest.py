@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from negentropy.perceives.pdf.engines.docling import DoclingMpsMlxUnavailableError
 from negentropy.perceives.tools import create_pdf_processor
 from tests.integration.tooling import get_tool_map
 
@@ -103,10 +102,7 @@ def warm_docling_converter(gpu_docling_engine):
         pytest.skip("Docling 未安装，跳过 converter 预热")
 
     t0 = time.perf_counter()
-    try:
-        converter = gpu_docling_engine._get_converter()
-    except DoclingMpsMlxUnavailableError:
-        pytest.skip("mlx-vlm 未安装，跳过 MPS converter 预热")
+    converter = gpu_docling_engine._get_converter()
     elapsed = time.perf_counter() - t0
 
     logger.info("Docling Converter 预热完成: %.2f 秒", elapsed)

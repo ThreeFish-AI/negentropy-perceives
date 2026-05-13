@@ -22,10 +22,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DoclingMpsMlxUnavailableError(RuntimeError):
-    """Apple Silicon MPS 策略要求 MLX，但运行环境缺少 mlx-vlm。"""
-
-
 # ---------------------------------------------------------------------------
 # 数据类：标准化 Docling 输出
 # ---------------------------------------------------------------------------
