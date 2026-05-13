@@ -982,39 +982,43 @@ class TestMinerUMarkerDispatch:
     async def test_mineru_method_dispatch_unavailable(self):
         """mineru 方法在引擎不可用时应返回失败结果。"""
         with patch(
-            "negentropy.perceives.pdf.mineru_engine.MinerUEngine.is_available",
+            "negentropy.perceives.pdf.processor.MinerUEngine.is_available",
             return_value=False,
         ):
+            proc = PDFProcessor(enable_enhanced_features=False, prefer_docling=False)
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
                 f.write(b"%PDF-1.4 fake")
                 pdf_path = f.name
 
             try:
-                result = await self.processor.process_pdf(pdf_path, method="mineru")
+                result = await proc.process_pdf(pdf_path, method="mineru")
                 assert result["success"] is False
                 assert "error" in result
                 assert "MinerU" in result["error"]
             finally:
                 os.unlink(pdf_path)
+                proc.cleanup()
 
     @pytest.mark.asyncio
     async def test_marker_method_dispatch_unavailable(self):
         """marker 方法在引擎不可用时应返回失败结果。"""
         with patch(
-            "negentropy.perceives.pdf.marker_engine.MarkerEngine.is_available",
+            "negentropy.perceives.pdf.processor.MarkerEngine.is_available",
             return_value=False,
         ):
+            proc = PDFProcessor(enable_enhanced_features=False, prefer_docling=False)
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
                 f.write(b"%PDF-1.4 fake")
                 pdf_path = f.name
 
             try:
-                result = await self.processor.process_pdf(pdf_path, method="marker")
+                result = await proc.process_pdf(pdf_path, method="marker")
                 assert result["success"] is False
                 assert "error" in result
                 assert "Marker" in result["error"]
             finally:
                 os.unlink(pdf_path)
+                proc.cleanup()
 
     @pytest.mark.asyncio
     async def test_mineru_method_dispatch_success(self):

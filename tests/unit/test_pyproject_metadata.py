@@ -57,12 +57,15 @@ class TestOptionalDepsNoDuplicates:
     """optional-dependencies 中不应存在完全相同的别名组。"""
 
     def test_no_identical_optional_dep_groups(self):
-        """不存在两个 optional-dependencies 组具有完全相同的包列表。"""
+        """不存在两个 optional-dependencies 组具有完全相同的非空包列表。
+        空列表组（已移入核心依赖的占位 extra）不参与去重检查。"""
         data = _load_pyproject()
         opt_deps = data.get("project", {}).get("optional-dependencies", {})
 
         groups: dict[tuple[str, ...], str] = {}
         for name, packages in opt_deps.items():
+            if not packages:
+                continue
             key = tuple(sorted(packages))
             if key in groups:
                 pytest.fail(
