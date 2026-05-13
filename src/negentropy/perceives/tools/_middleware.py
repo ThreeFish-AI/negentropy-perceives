@@ -98,6 +98,22 @@ class TaskContextMiddleware(Middleware):
                 elapsed,
             )
             raise
+        except Exception as e:
+            # anyio.ClosedResourceError：会话流在任务执行期间被关闭
+            # （如客户端 DELETE /mcp 终止会话后任务才完成），防御性捕获避免
+            # 未处理异常传播至 FastMCP TaskGroup 导致整个会话崩溃。
+            # 使用 Exception 而非 BaseException，避免拦截 KeyboardInterrupt/SystemExit
+            # 等非业务异常，同时 ClosedResourceError 作为 Exception 子类仍可被捕获。
+            if type(e).__name__ == "ClosedResourceError":
+                cancelled = True
+                elapsed = time.monotonic() - timing.start_monotonic
+                logger.warning(
+                    "会话流已关闭 tool=%s source=%s elapsed=%.2fs",
+                    tool_name,
+                    source,
+                    elapsed,
+                )
+            raise
         finally:
             if not cancelled:
                 elapsed = time.monotonic() - timing.start_monotonic

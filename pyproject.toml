@@ -46,7 +46,8 @@ dependencies = [
     "pymupdf>=1.27.2",
     "pypdf>=6.10.2",  # 修复 CVE-2026-33699, GHSA-3crg-w4f6-42mx
     # --- PDF 引擎 ---
-    "docling>=2.89.0",  # PDF 处理引擎 (GPU 加速)
+    "docling>=2.89.0",  # PDF 处理引擎 (GPU 加速；可选 extra docling-mlx 启用 Apple Silicon MLX VLM)
+    "mineru>=3.0.9",  # PDF 处理引擎 (VLM 自动引擎)
     # --- 数据模型与配置 ---
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
@@ -66,18 +67,17 @@ llm = [
 ]
 # 可选 PDF 引擎（安装后通过 is_available() 自动检测）
 mineru = [
-    "mineru>=3.0.9",
+    # mineru 已包含在核心依赖中；此 extra 保留以兼容旧安装脚本
 ]
 marker = [
     "marker-pdf>=1.10.2",
 ]
 docling-mlx = [
-    "docling[vlm]>=2.89.0",
+    "docling[vlm]>=2.89.0",  # Apple Silicon MLX VLM 加速（与 marker-pdf 存在 transformers 版本冲突）
 ]
 all-engines = [
-    "docling>=2.89.0",
-    "mineru>=3.0.9",
-    "marker-pdf>=1.10.2",
+    # marker-pdf 与 docling-mlx 存在 transformers 版本冲突，不可同时安装
+    # 核心依赖已包含 docling + mineru；按需单独安装 marker 或 docling-mlx
 ]
 cli = [
     "typer>=0.21.2",  # docling 2.89 要求 typer<0.22.0
@@ -191,15 +191,13 @@ ignore_missing_imports = true
 [tool.uv]
 # Pillow 版本统一：surya-ocr(<11) 与 MinerU(>=11) 冲突，上游 PR datalab-to/surya#489 待发布
 # lxml>=6.1.0：修复 CVE-2026-41066（间接依赖）
-override-dependencies = ["pillow>=12.2.0", "lxml>=6.1.0"]
+# urllib3>=2.7.0：修复 CVE-2026-44431, CVE-2026-44432（间接依赖）
+override-dependencies = ["pillow>=12.2.0", "lxml>=6.1.0", "urllib3>=2.7.0"]
+# docling-mlx (mlx-vlm → transformers>=5.1) 与 marker-pdf (transformers<5.0) 不兼容
 conflicts = [
     [
         { extra = "docling-mlx" },
         { extra = "marker" },
-    ],
-    [
-        { extra = "docling-mlx" },
-        { extra = "all-engines" },
     ],
 ]
 

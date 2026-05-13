@@ -168,8 +168,8 @@ class MinerUEngine:
         if self._resolved_backend is not None:
             return self._resolved_backend
 
-        # 用户显式指定后端（最高优先级）
-        if self._backend:
+        # 用户显式指定后端（最高优先级，'auto' 触发自动检测）
+        if self._backend and self._backend.lower() != "auto":
             self._resolved_backend = self._backend
             logger.info("MinerU 后端: %s（用户指定）", self._resolved_backend)
             return self._resolved_backend

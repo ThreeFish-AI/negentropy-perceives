@@ -128,7 +128,7 @@ docling:
 mineru:
   enabled: true # 启用 MinerU 作为 PDF 提取引擎
   device: auto # MinerU 推理设备：auto / cpu / mlx / cuda
-  backend: auto # MinerU 后端：auto / pipeline / vlm
+  backend: auto # MinerU 后端：auto（自动检测，不直接传递）/ pipeline / vlm-auto-engine
 
 # ── Marker PDF 引擎（需安装 marker-pdf 可选依赖）──────────────────────────────
 # 默认 enabled=true；运行时 is_available() 过滤未安装情形。

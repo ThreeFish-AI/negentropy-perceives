@@ -6,25 +6,21 @@ resolution-markers = [
     "sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker'",
     "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker'",
     "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')",
-    "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
+    "sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
+    "sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
     "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker')",
+    "sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
 ]
 conflicts = [[
     { package = "negentropy-perceives", extra = "docling-mlx" },
     { package = "negentropy-perceives", extra = "marker" },
-], [
-    { package = "negentropy-perceives", extra = "all-engines" },
-    { package = "negentropy-perceives", extra = "docling-mlx" },
 ]]
 
 [manifest]
 overrides = [
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "pillow", specifier = ">=12.2.0" },
+    { name = "urllib3", specifier = ">=2.7.0" },
 ]
 
 [[package]]
@@ -32,8 +28,8 @@ name = "accelerate"
 version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "psutil" },
@@ -219,7 +215,7 @@ name = "bandit"
 version = "1.9.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "stevedore" },
@@ -342,7 +338,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -399,7 +395,7 @@ name = "click"
 version = "8.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3d/fa/656b739db8587d7b5dfa22e22ed02566950fbfbcdc20311993483657a5c0/click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a", size = 295065, upload-time = "2025-11-15T20:45:42.706Z" }
 wheels = [
@@ -441,7 +437,7 @@ name = "colorlog"
 version = "6.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a2/61/f083b5ac52e505dfc1c624eafbf8c7589a0d7f32daa398d2e7590efa5fda/colorlog-6.10.1.tar.gz", hash = "sha256:eb4ae5cb65fe7fec7773c2306061a8e63e02efc2c72eba9d27b0fa23c94f1321", size = 17162, upload-time = "2025-10-16T16:14:11.978Z" }
 wheels = [
@@ -492,7 +488,7 @@ name = "cryptography"
 version = "46.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/47/93/ac8f3d5ff04d54bc814e961a43ae5b0b146154c89c61b47bb07557679b18/cryptography-46.0.7.tar.gz", hash = "sha256:e4cfd68c5f3e0bfdad0d38e023239b96a2fe84146481852dffbcca442c245aa5", size = 750652, upload-time = "2026-04-08T01:57:54.692Z" }
 wheels = [
@@ -531,7 +527,7 @@ name = "cuda-bindings"
 version = "12.9.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder" },
+    { name = "cuda-pathfinder", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/05/8b/b4b2d1c7775fa403b64333e720cfcfccef8dcb9cdeb99947061ca5a77628/cuda_bindings-12.9.4-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cf8bfaedc238f3b115d957d1fd6562b7e8435ba57f6d0e2f87d0e7149ccb2da5", size = 11570071, upload-time = "2025-10-21T14:51:47.472Z" },
@@ -586,20 +582,20 @@ name = "datasets"
 version = "4.8.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "dill" },
-    { name = "filelock" },
-    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, extra = ["http"], marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "httpx" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "multiprocess" },
-    { name = "numpy" },
-    { name = "packaging" },
-    { name = "pandas" },
-    { name = "pyarrow" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "tqdm" },
-    { name = "xxhash" },
+    { name = "dill", marker = "sys_platform != 'win32'" },
+    { name = "filelock", marker = "sys_platform != 'win32'" },
+    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, extra = ["http"], marker = "(sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "httpx", marker = "sys_platform != 'win32'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "multiprocess", marker = "sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
+    { name = "packaging", marker = "sys_platform != 'win32'" },
+    { name = "pandas", marker = "sys_platform != 'win32'" },
+    { name = "pyarrow", marker = "sys_platform != 'win32'" },
+    { name = "pyyaml", marker = "sys_platform != 'win32'" },
+    { name = "requests", marker = "sys_platform != 'win32'" },
+    { name = "tqdm", marker = "sys_platform != 'win32'" },
+    { name = "xxhash", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/34/14cd8e76f907f7d4dca2334cfeec9f81d30fd15c25a015f99aaea694eaed/datasets-4.8.5.tar.gz", hash = "sha256:0f0c1c3d56ffff2c93b2f4c63c95bac94f3d7e8621aea2a2a576275233bba772", size = 605649, upload-time = "2026-04-27T15:43:57.384Z" }
 wheels = [
@@ -665,11 +661,11 @@ dependencies = [
     { name = "docling-parse" },
     { name = "filetype" },
     { name = "httpx" },
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "lxml" },
     { name = "marko" },
-    { name = "ocrmac", marker = "sys_platform == 'darwin' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "ocrmac", marker = "sys_platform == 'darwin' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "openpyxl" },
     { name = "pandas" },
     { name = "pillow" },
@@ -730,8 +726,8 @@ wheels = [
 [package.optional-dependencies]
 chunking = [
     { name = "semchunk" },
-    { name = "transformers", version = "4.57.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "transformers", version = "4.57.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "tree-sitter" },
     { name = "tree-sitter-c" },
     { name = "tree-sitter-javascript" },
@@ -746,8 +742,8 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
     { name = "docling-core" },
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "jsonlines" },
     { name = "numpy" },
     { name = "pillow" },
@@ -757,8 +753,8 @@ dependencies = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "tqdm" },
-    { name = "transformers", version = "4.57.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "transformers", version = "4.57.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/61/87/01bf0c710af37328aa3517b34e64c2a2f3a6283a1cfc8859ae05881dd769/docling_ibm_models-3.13.0.tar.gz", hash = "sha256:f402effae8a63b0e5c3b5ce13120601baa2cd8098beef1d53ab5a056443758d3", size = 98538, upload-time = "2026-03-27T15:49:57.569Z" }
 wheels = [
@@ -773,7 +769,7 @@ dependencies = [
     { name = "docling-core" },
     { name = "pillow" },
     { name = "pydantic" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "tabulate" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/15/a7/3d358f4d17482c729b076e188b77e723025a34105fe4959f0a7bd3636374/docling_parse-5.6.2.tar.gz", hash = "sha256:9686c47ee69fd6d8c53889d30ac98f035caa56a61a746265e47c7b2b53dcb7a0", size = 61128099, upload-time = "2026-03-29T09:07:31.759Z" }
@@ -865,7 +861,7 @@ name = "faker"
 version = "40.11.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tzdata", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "tzdata", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fa/e5/b16bf568a2f20fe7423282db4a4059dbcadef70e9029c1c106836f8edd84/faker-40.11.1.tar.gz", hash = "sha256:61965046e79e8cfde4337d243eac04c0d31481a7c010033141103b43f603100c", size = 1957415, upload-time = "2026-03-23T14:05:50.233Z" }
 wheels = [
@@ -1058,7 +1054,6 @@ name = "fsspec"
 version = "2026.2.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "sys_platform == 'win32'",
     "sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/51/7c/f60c259dcbf4f0c47cc4ddb8f7720d2dcdc8888c8e5ad84c73ea4531cc5b/fsspec-2026.2.0.tar.gz", hash = "sha256:6544e34b16869f5aacd5b90bdf1a71acb37792ea3ddf6125ee69a22a53fb8bff", size = 313441, upload-time = "2026-02-05T21:50:53.743Z" }
@@ -1068,7 +1063,7 @@ wheels = [
 
 [package.optional-dependencies]
 http = [
-    { name = "aiohttp" },
+    { name = "aiohttp", marker = "sys_platform != 'win32'" },
 ]
 
 [[package]]
@@ -1076,10 +1071,13 @@ name = "fsspec"
 version = "2026.3.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "sys_platform == 'win32'",
-    "sys_platform == 'darwin'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
+    "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker'",
+    "sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker'",
+    "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker'",
+    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')",
+    "sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
+    "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
+    "sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e1/cf/b50ddf667c15276a9ab15a70ef5f257564de271957933ffea49d2cdbcdfb/fsspec-2026.3.0.tar.gz", hash = "sha256:1ee6a0e28677557f8c2f994e3eea77db6392b4de9cd1f5d7a9e87a0ae9d01b41", size = 313547, upload-time = "2026-03-27T19:11:14.892Z" }
 wheels = [
@@ -1123,7 +1121,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
-    { name = "google-auth", extra = ["requests"], marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "google-auth", extra = ["requests"], marker = "extra == 'extra-20-negentropy-perceives-marker'" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "requests" },
@@ -1174,46 +1172,8 @@ wheels = [
 
 [[package]]
 name = "hf-xet"
-version = "1.4.2"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'win32'",
-    "sys_platform == 'darwin'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/08/23c84a26716382c89151b5b447b4beb19e3345f3a93d3b73009a71a57ad3/hf_xet-1.4.2.tar.gz", hash = "sha256:b7457b6b482d9e0743bd116363239b1fa904a5e65deede350fbc0c4ea67c71ea", size = 672357, upload-time = "2026-03-13T06:58:51.077Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/18/06/e8cf74c3c48e5485c7acc5a990d0d8516cdfb5fdf80f799174f1287cc1b5/hf_xet-1.4.2-cp313-cp313t-macosx_10_12_x86_64.whl", hash = "sha256:ac8202ae1e664b2c15cdfc7298cbb25e80301ae596d602ef7870099a126fcad4", size = 3796125, upload-time = "2026-03-13T06:58:33.177Z" },
-    { url = "https://files.pythonhosted.org/packages/66/d4/b73ebab01cbf60777323b7de9ef05550790451eb5172a220d6b9845385ec/hf_xet-1.4.2-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:6d2f8ee39fa9fba9af929f8c0d0482f8ee6e209179ad14a909b6ad78ffcb7c81", size = 3555985, upload-time = "2026-03-13T06:58:31.797Z" },
-    { url = "https://files.pythonhosted.org/packages/ff/e7/ded6d1bd041c3f2bca9e913a0091adfe32371988e047dd3a68a2463c15a2/hf_xet-1.4.2-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:4642a6cf249c09da8c1f87fe50b24b2a3450b235bf8adb55700b52f0ea6e2eb6", size = 4212085, upload-time = "2026-03-13T06:58:24.323Z" },
-    { url = "https://files.pythonhosted.org/packages/97/c1/a0a44d1f98934f7bdf17f7a915b934f9fca44bb826628c553589900f6df8/hf_xet-1.4.2-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:769431385e746c92dc05492dde6f687d304584b89c33d79def8367ace06cb555", size = 3988266, upload-time = "2026-03-13T06:58:22.887Z" },
-    { url = "https://files.pythonhosted.org/packages/7a/82/be713b439060e7d1f1d93543c8053d4ef2fe7e6922c5b31642eaa26f3c4b/hf_xet-1.4.2-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:c9dd1c1bc4cc56168f81939b0e05b4c36dd2d28c13dc1364b17af89aa0082496", size = 4188513, upload-time = "2026-03-13T06:58:40.858Z" },
-    { url = "https://files.pythonhosted.org/packages/21/a6/cbd4188b22abd80ebd0edbb2b3e87f2633e958983519980815fb8314eae5/hf_xet-1.4.2-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:fca58a2ae4e6f6755cc971ac6fcdf777ea9284d7e540e350bb000813b9a3008d", size = 4428287, upload-time = "2026-03-13T06:58:42.601Z" },
-    { url = "https://files.pythonhosted.org/packages/b2/4e/84e45b25e2e3e903ed3db68d7eafa96dae9a1d1f6d0e7fc85120347a852f/hf_xet-1.4.2-cp313-cp313t-win_amd64.whl", hash = "sha256:163aab46854ccae0ab6a786f8edecbbfbaa38fcaa0184db6feceebf7000c93c0", size = 3665574, upload-time = "2026-03-13T06:58:53.881Z" },
-    { url = "https://files.pythonhosted.org/packages/ee/71/c5ac2b9a7ae39c14e91973035286e73911c31980fe44e7b1d03730c00adc/hf_xet-1.4.2-cp313-cp313t-win_arm64.whl", hash = "sha256:09b138422ecbe50fd0c84d4da5ff537d27d487d3607183cd10e3e53f05188e82", size = 3528760, upload-time = "2026-03-13T06:58:52.187Z" },
-    { url = "https://files.pythonhosted.org/packages/b4/86/b40b83a2ff03ef05c4478d2672b1fc2b9683ff870e2b25f4f3af240f2e7b/hf_xet-1.4.2-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:71f02d6e4cdd07f344f6844845d78518cc7186bd2bc52d37c3b73dc26a3b0bc5", size = 3800339, upload-time = "2026-03-13T06:58:36.245Z" },
-    { url = "https://files.pythonhosted.org/packages/64/2e/af4475c32b4378b0e92a587adb1aa3ec53e3450fd3e5fe0372a874531c00/hf_xet-1.4.2-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:e9b38d876e94d4bdcf650778d6ebbaa791dd28de08db9736c43faff06ede1b5a", size = 3559664, upload-time = "2026-03-13T06:58:34.787Z" },
-    { url = "https://files.pythonhosted.org/packages/3c/4c/781267da3188db679e601de18112021a5cb16506fe86b246e22c5401a9c4/hf_xet-1.4.2-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:77e8c180b7ef12d8a96739a4e1e558847002afe9ea63b6f6358b2271a8bdda1c", size = 4217422, upload-time = "2026-03-13T06:58:27.472Z" },
-    { url = "https://files.pythonhosted.org/packages/68/47/d6cf4a39ecf6c7705f887a46f6ef5c8455b44ad9eb0d391aa7e8a2ff7fea/hf_xet-1.4.2-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:c3b3c6a882016b94b6c210957502ff7877802d0dbda8ad142c8595db8b944271", size = 3992847, upload-time = "2026-03-13T06:58:25.989Z" },
-    { url = "https://files.pythonhosted.org/packages/2d/ef/e80815061abff54697239803948abc665c6b1d237102c174f4f7a9a5ffc5/hf_xet-1.4.2-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:9d9a634cc929cfbaf2e1a50c0e532ae8c78fa98618426769480c58501e8c8ac2", size = 4193843, upload-time = "2026-03-13T06:58:44.59Z" },
-    { url = "https://files.pythonhosted.org/packages/54/75/07f6aa680575d9646c4167db6407c41340cbe2357f5654c4e72a1b01ca14/hf_xet-1.4.2-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:6b0932eb8b10317ea78b7da6bab172b17be03bbcd7809383d8d5abd6a2233e04", size = 4432751, upload-time = "2026-03-13T06:58:46.533Z" },
-    { url = "https://files.pythonhosted.org/packages/cd/71/193eabd7e7d4b903c4aa983a215509c6114915a5a237525ec562baddb868/hf_xet-1.4.2-cp37-abi3-win_amd64.whl", hash = "sha256:ad185719fb2e8ac26f88c8100562dbf9dbdcc3d9d2add00faa94b5f106aea53f", size = 3671149, upload-time = "2026-03-13T06:58:57.07Z" },
-    { url = "https://files.pythonhosted.org/packages/b4/7e/ccf239da366b37ba7f0b36095450efae4a64980bdc7ec2f51354205fdf39/hf_xet-1.4.2-cp37-abi3-win_arm64.whl", hash = "sha256:32c012286b581f783653e718c1862aea5b9eb140631685bb0c5e7012c8719a87", size = 3533426, upload-time = "2026-03-13T06:58:55.46Z" },
-]
-
-[[package]]
-name = "hf-xet"
 version = "1.5.0"
 source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "sys_platform == 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker'",
-    "(platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker')",
-]
 sdist = { url = "https://files.pythonhosted.org/packages/74/d8/5c06fc76461418326a7decf8367480c35be11a41fd938633929c60a9ec6b/hf_xet-1.5.0.tar.gz", hash = "sha256:e0fb0a34d9f406eed88233e829a67ec016bec5af19e480eac65a233ea289a948", size = 837196, upload-time = "2026-05-06T06:18:15.583Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/68/9b/6912c99070915a4f28119e3c5b52a9abd1eec0ad5cb293b8c967a0c6f5a2/hf_xet-1.5.0-cp313-cp313t-macosx_10_12_x86_64.whl", hash = "sha256:7d70fe2ce97b9db73b9c9b9c81fe3693640aec83416a966c446afea54acfae3c", size = 4023383, upload-time = "2026-05-06T06:17:53.947Z" },
@@ -1294,15 +1254,14 @@ resolution-markers = [
     "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "fsspec", version = "2026.3.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "hf-xet", version = "1.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'aarch64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'amd64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'arm64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'x86_64' and extra == 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx')" },
-    { name = "hf-xet", version = "1.5.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'aarch64' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'amd64' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'arm64' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'x86_64' and extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "requests", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "typing-extensions", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "fsspec", version = "2026.3.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "hf-xet", marker = "(platform_machine == 'aarch64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'amd64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'arm64' and extra == 'extra-20-negentropy-perceives-marker') or (platform_machine == 'x86_64' and extra == 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "requests", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "typing-extensions", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7c/b7/8cb61d2eece5fb05a83271da168186721c450eb74e3c31f7ef3169fa475b/huggingface_hub-0.36.2.tar.gz", hash = "sha256:1934304d2fb224f8afa3b87007d58501acfda9215b334eed53072dd5e815ff7a", size = 649782, upload-time = "2026-02-06T09:24:13.098Z" }
 wheels = [
@@ -1318,15 +1277,16 @@ resolution-markers = [
     "sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "hf-xet", version = "1.5.0", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine == 'AMD64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'aarch64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'amd64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'arm64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "httpx", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "typer", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "typing-extensions", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "fsspec", version = "2026.3.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (extra != 'extra-20-negentropy-perceives-docling-mlx' and extra != 'extra-20-negentropy-perceives-marker')" },
+    { name = "hf-xet", marker = "(platform_machine == 'AMD64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'AMD64' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'aarch64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'aarch64' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'amd64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'amd64' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'arm64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'arm64' and extra != 'extra-20-negentropy-perceives-marker') or (platform_machine == 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine == 'x86_64' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "httpx", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "typer", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "typing-extensions", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/39/40/43109e943fd718b0ccd0cd61eb4f1c347df22bf81f5874c6f22adf44bcff/huggingface_hub-1.14.0.tar.gz", hash = "sha256:d6d2c9cd6be1d02ae9ec6672d5587d10a427f377db688e82528f426a041622c2", size = 782365, upload-time = "2026-05-06T14:14:34.278Z" }
 wheels = [
@@ -1338,7 +1298,7 @@ name = "humanfriendly"
 version = "10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyreadline3", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyreadline3", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cc/3f/2c29224acb2e2df4d2046e4c73ee2662023c58ff5b113c4c1adac0886c43/humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc", size = 360702, upload-time = "2021-09-17T21:40:43.31Z" }
 wheels = [
@@ -1586,9 +1546,9 @@ dependencies = [
     { name = "jaraco-classes" },
     { name = "jaraco-context" },
     { name = "jaraco-functools" },
-    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "pywin32-ctypes", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "secretstorage", marker = "sys_platform == 'linux' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pywin32-ctypes", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "secretstorage", marker = "sys_platform == 'linux' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz", hash = "sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b", size = 63516, upload-time = "2025-11-16T16:26:09.482Z" }
 wheels = [
@@ -1693,8 +1653,8 @@ name = "loguru"
 version = "0.7.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "win32-setctime", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "win32-setctime", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
 wheels = [
@@ -1892,12 +1852,12 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fc/6d/62e76bbb8144d6ed86e202b5edd8a4cb631e7c8130f3f4893c3f90262b10/mcp-1.26.0.tar.gz", hash = "sha256:db6e2ef491eecc1a0d93711a76f28dec2e05999f93afd48795da1c1137142c66", size = 608005, upload-time = "2026-01-24T19:40:32.468Z" }
 wheels = [
@@ -1924,8 +1884,8 @@ dependencies = [
     { name = "fast-langdetect" },
     { name = "fastapi" },
     { name = "httpx" },
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "json-repair" },
     { name = "loguru" },
     { name = "lxml" },
@@ -1979,7 +1939,7 @@ name = "miniaudio"
 version = "1.71"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi" },
+    { name = "cffi", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d8/d5/e5439dc08561f73656bfeb3340fc64ab63163e101426593d8fb9a025ff1e/miniaudio-1.71.tar.gz", hash = "sha256:ff51e2887bb673e2e757752b586b3dc924d59aa5fbcae9bbc45f4a111bd3262b", size = 1116480, upload-time = "2026-04-29T21:20:38.182Z" }
 wheels = [
@@ -2011,15 +1971,15 @@ name = "mlx-audio"
 version = "0.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "miniaudio" },
-    { name = "mlx" },
-    { name = "mlx-lm" },
-    { name = "numpy" },
-    { name = "scipy" },
-    { name = "sounddevice" },
-    { name = "tqdm" },
-    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "miniaudio", marker = "sys_platform != 'win32'" },
+    { name = "mlx", marker = "sys_platform != 'win32'" },
+    { name = "mlx-lm", marker = "sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
+    { name = "scipy", marker = "sys_platform != 'win32'" },
+    { name = "sounddevice", marker = "sys_platform != 'win32'" },
+    { name = "tqdm", marker = "sys_platform != 'win32'" },
+    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/95/db/a9f95e3794eca373d681220c8b9f8f84451a0d14959f85cc341ca592394c/mlx_audio-0.4.3.tar.gz", hash = "sha256:8e87badf56a0f73bf91e3797b1195c01440a181cf0b64a2a08dc1bda4b037f54", size = 1144947, upload-time = "2026-04-28T20:18:12.09Z" }
 wheels = [
@@ -2031,13 +1991,13 @@ name = "mlx-lm"
 version = "0.31.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "jinja2" },
+    { name = "jinja2", marker = "sys_platform != 'win32'" },
     { name = "mlx", marker = "sys_platform == 'darwin'" },
-    { name = "numpy" },
-    { name = "protobuf" },
-    { name = "pyyaml" },
-    { name = "sentencepiece" },
-    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
+    { name = "protobuf", marker = "sys_platform != 'win32'" },
+    { name = "pyyaml", marker = "sys_platform != 'win32'" },
+    { name = "sentencepiece", marker = "sys_platform != 'win32'" },
+    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/84/94/9a38d6b0c6fcca995b9136c94eb7da1e9c5165652edf228b96b29960fa7a/mlx_lm-0.31.3.tar.gz", hash = "sha256:61eb0e3ba09444f77f874aff295401d7ccd20b39495cbbce0c782a15474ce733", size = 304318, upload-time = "2026-04-22T07:37:27.922Z" }
 wheels = [
@@ -2059,20 +2019,20 @@ name = "mlx-vlm"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "datasets" },
-    { name = "fastapi" },
-    { name = "llguidance" },
-    { name = "miniaudio" },
-    { name = "mlx" },
-    { name = "mlx-audio" },
-    { name = "mlx-lm" },
-    { name = "numpy" },
-    { name = "opencv-python" },
-    { name = "pillow" },
-    { name = "requests" },
-    { name = "tqdm" },
-    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "uvicorn" },
+    { name = "datasets", marker = "sys_platform != 'win32'" },
+    { name = "fastapi", marker = "sys_platform != 'win32'" },
+    { name = "llguidance", marker = "sys_platform != 'win32'" },
+    { name = "miniaudio", marker = "sys_platform != 'win32'" },
+    { name = "mlx", marker = "sys_platform != 'win32'" },
+    { name = "mlx-audio", marker = "sys_platform != 'win32'" },
+    { name = "mlx-lm", marker = "sys_platform != 'win32'" },
+    { name = "numpy", marker = "sys_platform != 'win32'" },
+    { name = "opencv-python", marker = "sys_platform != 'win32'" },
+    { name = "pillow", marker = "sys_platform != 'win32'" },
+    { name = "requests", marker = "sys_platform != 'win32'" },
+    { name = "tqdm", marker = "sys_platform != 'win32'" },
+    { name = "transformers", version = "5.8.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "uvicorn", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/80/a3/70dce014f6a72efd2cecc07b6a68fc11c0694fbe54ea553b2e00499c7b36/mlx_vlm-0.5.0.tar.gz", hash = "sha256:24563cd1b3a399fd941b2359100628306e2754db1b48780516d1283138258793", size = 1033154, upload-time = "2026-05-06T21:09:33.594Z" }
 wheels = [
@@ -2111,7 +2071,7 @@ version = "2.10.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pygments" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "tqdm" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/3a/93/80ac75c20ce54c785648b4ed363c88f148bf22637e10c9863db4fbe73e74/mpire-2.10.2.tar.gz", hash = "sha256:f66a321e93fadff34585a4bfa05e95bd946cf714b442f51c529038eb45773d97", size = 271270, upload-time = "2024-05-07T14:00:31.815Z" }
@@ -2216,7 +2176,7 @@ name = "mypy"
 version = "1.20.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "librt", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "mypy-extensions" },
     { name = "pathspec" },
     { name = "typing-extensions" },
@@ -2253,6 +2213,7 @@ dependencies = [
     { name = "fake-useragent" },
     { name = "fastmcp" },
     { name = "markitdown" },
+    { name = "mineru" },
     { name = "playwright" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -2266,11 +2227,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-all-engines = [
-    { name = "docling" },
-    { name = "marker-pdf" },
-    { name = "mineru" },
-]
 cli = [
     { name = "rich" },
     { name = "typer" },
@@ -2283,9 +2239,6 @@ llm = [
 ]
 marker = [
     { name = "marker-pdf" },
-]
-mineru = [
-    { name = "mineru" },
 ]
 
 [package.dev-dependencies]
@@ -2313,16 +2266,13 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.5" },
     { name = "beautifulsoup4", specifier = ">=4.14.0" },
     { name = "docling", specifier = ">=2.89.0" },
-    { name = "docling", marker = "extra == 'all-engines'", specifier = ">=2.89.0" },
     { name = "docling", extras = ["vlm"], marker = "extra == 'docling-mlx'", specifier = ">=2.89.0" },
     { name = "fake-useragent", specifier = ">=2.2.0" },
     { name = "fastmcp", specifier = ">=3.2.4" },
     { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.70.0" },
-    { name = "marker-pdf", marker = "extra == 'all-engines'", specifier = ">=1.10.2" },
     { name = "marker-pdf", marker = "extra == 'marker'", specifier = ">=1.10.2" },
     { name = "markitdown", specifier = ">=0.1.5" },
-    { name = "mineru", marker = "extra == 'all-engines'", specifier = ">=3.0.9" },
-    { name = "mineru", marker = "extra == 'mineru'", specifier = ">=3.0.9" },
+    { name = "mineru", specifier = ">=3.0.9" },
     { name = "playwright", specifier = ">=1.58.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
@@ -2450,7 +2400,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.10.2.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/41/e79269ce215c857c935fd86bcfe91a451a584dfc27f1e068f568b9ad1ab7/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:c9132cc3f8958447b4910a1720036d9eff5928cc3179b0a51fb6d167c6cc87d8", size = 705026878, upload-time = "2025-06-06T21:52:51.348Z" },
@@ -2463,7 +2413,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/bc/7771846d3a0272026c416fbb7e5f4c1f146d6d80704534d0b187dd6f4800/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:848ef7224d6305cdb2a4df928759dca7b1201874787083b6e7550dd6765ce69a", size = 193109211, upload-time = "2025-03-07T01:44:56.873Z" },
@@ -2495,9 +2445,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cusparse-cu12" },
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/32/f7cd6ce8a7690544d084ea21c26e910a97e077c9b7f07bf5de623ee19981/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:db9ed69dbef9715071232caa9b69c52ac7de3a95773c2db65bdba85916e4e5c0", size = 267229841, upload-time = "2025-03-07T01:46:54.356Z" },
@@ -2510,7 +2460,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/f7/cd777c4109681367721b00a106f491e0d0d15cfa1fd59672ce580ce42a97/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9b6c161cb130be1a07a27ea6923df8141f3c295852f4b260c65f18f3e0a091dc", size = 288117129, upload-time = "2025-03-07T01:47:40.407Z" },
@@ -2571,9 +2521,9 @@ name = "ocrmac"
 version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click" },
-    { name = "pillow" },
-    { name = "pyobjc-framework-vision" },
+    { name = "click", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pillow", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-vision", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5e/07/3e15ab404f75875c5e48c47163300eb90b7409044d8711fc3aaf52503f2e/ocrmac-1.0.1.tar.gz", hash = "sha256:507fe5e4cbd67b2d03f6729a52bbc11f9d0b58241134eb958a5daafd4b9d93d9", size = 1454317, upload-time = "2026-01-08T16:44:26.412Z" }
 wheels = [
@@ -3292,7 +3242,7 @@ name = "pyobjc-framework-cocoa"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/02/a3/16ca9a15e77c061a9250afbae2eae26f2e1579eb8ca9462ae2d2c71e1169/pyobjc_framework_cocoa-12.1.tar.gz", hash = "sha256:5556c87db95711b985d5efdaaf01c917ddd41d148b1e52a0c66b1a2e2c5c1640", size = 2772191, upload-time = "2025-11-14T10:13:02.069Z" }
 wheels = [
@@ -3305,8 +3255,8 @@ name = "pyobjc-framework-coreml"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/30/2d/baa9ea02cbb1c200683cb7273b69b4bee5070e86f2060b77e6a27c2a9d7e/pyobjc_framework_coreml-12.1.tar.gz", hash = "sha256:0d1a4216891a18775c9e0170d908714c18e4f53f9dc79fb0f5263b2aa81609ba", size = 40465, upload-time = "2025-11-14T10:14:02.265Z" }
 wheels = [
@@ -3319,8 +3269,8 @@ name = "pyobjc-framework-quartz"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/94/18/cc59f3d4355c9456fc945eae7fe8797003c4da99212dd531ad1b0de8a0c6/pyobjc_framework_quartz-12.1.tar.gz", hash = "sha256:27f782f3513ac88ec9b6c82d9767eef95a5cf4175ce88a1e5a65875fee799608", size = 3159099, upload-time = "2025-11-14T10:21:24.31Z" }
 wheels = [
@@ -3333,10 +3283,10 @@ name = "pyobjc-framework-vision"
 version = "12.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pyobjc-core" },
-    { name = "pyobjc-framework-cocoa" },
-    { name = "pyobjc-framework-coreml" },
-    { name = "pyobjc-framework-quartz" },
+    { name = "pyobjc-core", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-coreml", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin' or (sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'win32' and extra != 'extra-20-negentropy-perceives-marker') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c2/5a/08bb3e278f870443d226c141af14205ff41c0274da1e053b72b11dfc9fb2/pyobjc_framework_vision-12.1.tar.gz", hash = "sha256:a30959100e85dcede3a786c544e621ad6eb65ff6abf85721f805822b8c5fe9b0", size = 59538, upload-time = "2025-11-14T10:23:21.979Z" }
 wheels = [
@@ -3416,20 +3366,11 @@ wheels = [
 ]
 
 [[package]]
-name = "pysocks"
-version = "1.7.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bd/11/293dd436aea955d45fc4e8a35b6ae7270f5b8e00b53cf6c024c83b657a11/PySocks-1.7.1.tar.gz", hash = "sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0", size = 284429, upload-time = "2019-09-20T02:07:35.714Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8d/59/b4572118e098ac8e46e399a1dd0f2d85403ce8bbaad9ec79373ed6badaf9/PySocks-1.7.1-py3-none-any.whl", hash = "sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5", size = 16725, upload-time = "2019-09-20T02:06:22.938Z" },
-]
-
-[[package]]
 name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -4094,8 +4035,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "(sys_platform != 'darwin' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "jeepney", marker = "(sys_platform != 'darwin' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "cryptography", marker = "(sys_platform != 'darwin' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "jeepney", marker = "(sys_platform != 'darwin' and sys_platform != 'win32') or (sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (sys_platform == 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -4111,7 +4052,7 @@ dependencies = [
     { name = "trio" },
     { name = "trio-websocket" },
     { name = "typing-extensions" },
-    { name = "urllib3", extra = ["socks"] },
+    { name = "urllib3" },
     { name = "websocket-client" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/6a/fe950b498a3c570ab538ad1c2b60f18863eecf077a865eea4459f3fa78a9/selenium-4.43.0.tar.gz", hash = "sha256:bada5c08a989f812728a4b5bea884d8e91894e939a441cc3a025201ce718581e", size = 967747, upload-time = "2026-04-10T06:47:03.149Z" }
@@ -4233,7 +4174,7 @@ name = "sounddevice"
 version = "0.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi" },
+    { name = "cffi", marker = "sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/2a/f9/2592608737553638fca98e21e54bfec40bf577bb98a61b2770c912aab25e/sounddevice-0.5.5.tar.gz", hash = "sha256:22487b65198cb5bf2208755105b524f78ad173e5ab6b445bdab1c989f6698df3", size = 143191, upload-time = "2026-01-23T18:36:43.529Z" }
 wheels = [
@@ -4367,8 +4308,8 @@ name = "tiktoken"
 version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "regex", version = "2024.11.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "regex", version = "2026.4.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "regex", version = "2024.11.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "regex", version = "2026.4.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
     { name = "requests" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7d/ab/4d017d0f76ec3171d469d80fc03dfbb4e48a4bcaddaa831b31d526f05edc/tiktoken-0.12.0.tar.gz", hash = "sha256:b18ba7ee2b093863978fcb14f74b3707cdc8d4d4d3836853ce7ec60772139931", size = 37806, upload-time = "2025-10-06T20:22:45.419Z" }
@@ -4394,8 +4335,8 @@ name = "tokenizers"
 version = "0.22.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/73/6f/f80cfef4a312e1fb34baf7d85c72d4411afde10978d4657f8cdd811d3ccc/tokenizers-0.22.2.tar.gz", hash = "sha256:473b83b915e547aa366d1eee11806deaf419e17be16310ac0a14077f1e28f917", size = 372115, upload-time = "2026-01-05T10:45:15.988Z" }
 wheels = [
@@ -4448,30 +4389,30 @@ name = "torch"
 version = "2.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-bindings", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "cuda-bindings", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "filelock" },
-    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "fsspec", version = "2026.3.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "fsspec", version = "2026.2.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'win32' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "fsspec", version = "2026.3.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "jinja2" },
     { name = "networkx" },
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-nvshmem-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-nvshmem-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "setuptools" },
     { name = "sympy" },
-    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "typing-extensions" },
 ]
 wheels = [
@@ -4513,7 +4454,7 @@ name = "tqdm"
 version = "4.67.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
 wheels = [
@@ -4531,16 +4472,16 @@ resolution-markers = [
     "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "numpy", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "regex", version = "2024.11.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "requests", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "safetensors", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "tokenizers", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
-    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-all-engines' or extra != 'extra-20-negentropy-perceives-docling-mlx' or (extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "filelock", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "huggingface-hub", version = "0.36.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "numpy", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "regex", version = "2024.11.6", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "requests", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "safetensors", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "tokenizers", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
+    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c4/35/67252acc1b929dc88b6602e8c4a982e64f31e733b804c14bc24b47da35e6/transformers-4.57.6.tar.gz", hash = "sha256:55e44126ece9dc0a291521b7e5492b572e6ef2766338a610b9ab5afbb70689d3", size = 10134912, upload-time = "2026-01-16T10:38:39.284Z" }
 wheels = [
@@ -4556,15 +4497,15 @@ resolution-markers = [
     "sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "numpy", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "regex", version = "2026.4.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "safetensors", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "tokenizers", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
-    { name = "typer", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx'" },
+    { name = "huggingface-hub", version = "1.14.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "numpy", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "packaging", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "pyyaml", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "regex", version = "2026.4.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "safetensors", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "tokenizers", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "tqdm", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
+    { name = "typer", marker = "extra == 'extra-20-negentropy-perceives-docling-mlx' or extra != 'extra-20-negentropy-perceives-marker'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f2/36/390075693b76d4fb4a2bea360fb6080347763bd1f1147c49ed0ed938778c/transformers-5.8.0.tar.gz", hash = "sha256:6cc9a1f0291d16b1c1b735bad775e78ebefff7722701d4e28f98aaaa2bd6fb91", size = 8528141, upload-time = "2026-05-05T16:50:04.778Z" }
 wheels = [
@@ -4654,7 +4595,7 @@ version = "0.33.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
-    { name = "cffi", marker = "(implementation_name != 'pypy' and os_name == 'nt' and platform_machine != 'aarch64' and sys_platform == 'linux') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name == 'pypy' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name == 'pypy' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (implementation_name == 'pypy' and sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name == 'pypy' and sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (implementation_name == 'pypy' and sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name == 'pypy' and sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (os_name != 'nt' and extra == 'extra-20-negentropy-perceives-all-engines' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (os_name != 'nt' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
+    { name = "cffi", marker = "(implementation_name != 'pypy' and os_name == 'nt' and platform_machine != 'aarch64' and sys_platform == 'linux') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'darwin' and extra != 'extra-20-negentropy-perceives-marker') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-20-negentropy-perceives-marker') or (implementation_name == 'pypy' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (implementation_name == 'pypy' and sys_platform == 'darwin' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (implementation_name == 'pypy' and sys_platform == 'linux' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker') or (os_name != 'nt' and extra == 'extra-20-negentropy-perceives-docling-mlx' and extra == 'extra-20-negentropy-perceives-marker')" },
     { name = "idna" },
     { name = "outcome" },
     { name = "sniffio" },
@@ -4778,16 +4719,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/1f/98/7ab46625ce2317756
 
 [[package]]
 name = "urllib3"
-version = "2.6.3"
+version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c7/24/5f1b3bdffd70275f6661c76461e25f024d5a38a46f04aaca912426a2b1d3/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed", size = 435556, upload-time = "2026-01-07T16:24:43.925Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4", size = 131584, upload-time = "2026-01-07T16:24:42.685Z" },
-]
-
-[package.optional-dependencies]
-socks = [
-    { name = "pysocks" },
+    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
 ]
 
 [[package]]

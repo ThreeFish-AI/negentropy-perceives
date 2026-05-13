@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from negentropy.perceives.pdf.engines.docling import DoclingMpsMlxUnavailableError
 from negentropy.perceives.pdf.docling_engine import (
     DoclingCodeBlock,
     DoclingConversionResult,
@@ -277,7 +276,7 @@ class TestDoclingMpsEnrichmentPolicy:
         assert pipeline_options.do_formula_enrichment is False
 
     def test_mps_granite_mlx_requires_mlx_vlm(self) -> None:
-        """缺少 mlx-vlm 时应显式失败，不能让 Docling 静默 CPU fallback。"""
+        """缺少 mlx-vlm 时应优雅禁用 code/formula enrichment 而非硬失败。"""
         engine = DoclingEngine(device="mps")
         pipeline_options = MagicMock()
 
@@ -288,8 +287,13 @@ class TestDoclingMpsEnrichmentPolicy:
                 return_value=None,
             ),
         ):
-            with pytest.raises(DoclingMpsMlxUnavailableError):
-                engine._configure_mps_code_formula_options(pipeline_options)
+            preset, engine_name = engine._configure_mps_code_formula_options(
+                pipeline_options
+            )
+            assert preset == "disabled"
+            assert engine_name == "none"
+            assert pipeline_options.do_code_enrichment is False
+            assert pipeline_options.do_formula_enrichment is False
 
     def test_mps_granite_mlx_sets_docling_options(self) -> None:
         """granite_mlx 策略应设置 Granite Docling preset 与 MLX engine。"""
@@ -822,8 +826,12 @@ class TestDoclingEngineCacheManagement:
 class TestDoclingEngineFailureModes:
     """验证 Docling 初始化/转换故障的 fail-fast 与降级边界。"""
 
-    def test_mps_mlx_unavailable_error_propagates_from_converter_init(self) -> None:
-        """MLX 依赖缺失属于配置错误，应显式抛出而不是返回 None。"""
+    def test_converter_init_runtime_error_returns_none_for_engine_fallback_mlx(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """MLX 依赖缺失现在通过 _configure_mps_code_formula_options 优雅降级，
+        convert() 不再抛出 DoclingMpsMlxUnavailableError，而是返回 None 交由上层引擎降级。"""
         engine = DoclingEngine(device="mps")
 
         with (
@@ -831,11 +839,11 @@ class TestDoclingEngineFailureModes:
             patch.object(
                 engine,
                 "_get_converter",
-                side_effect=DoclingMpsMlxUnavailableError("mlx-vlm missing"),
+                side_effect=RuntimeError("mlx-vlm 相关初始化失败"),
             ),
         ):
-            with pytest.raises(DoclingMpsMlxUnavailableError):
-                engine.convert("/fake.pdf")
+            result = engine.convert("/fake.pdf")
+            assert result is None
 
     def test_converter_init_runtime_error_returns_none_for_engine_fallback(
         self,
