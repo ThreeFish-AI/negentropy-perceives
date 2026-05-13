@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from ..core.task_context import method_var, stage_var, timing_var
@@ -186,6 +187,16 @@ class PipelineOrchestrator:
             "competition",
             self._defaults.get("competition", {}),
         )
+
+        # 防御性检查：若输入数据引用的本地文件已不存在（会话终止等原因清理了
+        # 临时文件），直接失败而非让各引擎逐个报 "file not found"。
+        local_path = getattr(input_data, "local_path", None)
+        if local_path is not None and not Path(str(local_path)).exists():
+            logger.warning("Stage '%s' 跳过：源文件已不存在 (%s)", name, local_path)
+            return StageResult(
+                success=False,
+                error=f"源文件已不存在: {local_path}",
+            )
 
         stage_tok = stage_var.set(name)
         method_tok = method_var.set(None)
