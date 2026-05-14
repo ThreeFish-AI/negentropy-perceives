@@ -53,6 +53,13 @@ dependencies = [
     "albumentations>=1.4.0",  # MinerU pipeline backend MFR (数学公式识别) 图像增强依赖
     # Apple Silicon MLX VLM 加速（仅 macOS ARM64 自动激活）
     "mlx-vlm>=0.4.3,<1.0.0 ; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    # --- PDF 表格补充引擎 ---
+    "camelot-py>=0.11.0",  # 表格提取补充引擎（需系统级 ghostscript）
+    # --- LLM 编排（Smart 模式） ---
+    "litellm>=1.70.0",  # litellm 硬锁 pydantic==2.12.5，暂无法升级
+    # --- CLI ---
+    "typer>=0.21.2",  # docling 2.89 要求 typer<0.22.0
+    "rich>=15.0.0",
     # --- 数据模型与配置 ---
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
@@ -65,27 +72,6 @@ dependencies = [
 "Source Code" = "https://github.com/ThreeFish-AI/negentropy-perceives"
 "User Guide" = "https://github.com/ThreeFish-AI/negentropy-perceives/blob/master/docs/user-guide.md"
 "Bug Tracker" = "https://github.com/ThreeFish-AI/negentropy-perceives/issues"
-
-[project.optional-dependencies]
-llm = [
-    "litellm>=1.70.0",  # litellm 硬锁 pydantic==2.12.5，暂无法升级
-]
-# 以下 extra 保留以兼容旧安装脚本；所有 PDF 引擎已包含在核心依赖中
-mineru = ["albumentations>=1.4.0"]
-marker = []
-docling-mlx = []
-table-extras = [
-    # camelot-py requires system-level ghostscript (gs binary).
-    # Install with: uv add "negentropy-perceives[table-extras]"
-    "camelot-py>=0.11.0",
-]
-all-engines = [
-    # 所有 PDF 引擎已包含在核心依赖中；按需安装 table-extras 启用额外表格提取
-]
-cli = [
-    "typer>=0.21.2",  # docling 2.89 要求 typer<0.22.0
-    "rich>=15.0.0",
-]
 
 [project.scripts]
 negentropy-perceives = "negentropy.perceives.apps.app:main"

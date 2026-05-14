@@ -2153,9 +2153,11 @@ dependencies = [
     { name = "aiohttp" },
     { name = "albumentations" },
     { name = "beautifulsoup4" },
+    { name = "camelot-py" },
     { name = "docling" },
     { name = "fake-useragent" },
     { name = "fastmcp" },
+    { name = "litellm" },
     { name = "marker-pdf" },
     { name = "markitdown" },
     { name = "mineru" },
@@ -2168,24 +2170,11 @@ dependencies = [
     { name = "pypdf" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "rich" },
     { name = "selenium" },
     { name = "setuptools" },
-    { name = "undetected-chromedriver" },
-]
-
-[package.optional-dependencies]
-cli = [
-    { name = "rich" },
     { name = "typer" },
-]
-llm = [
-    { name = "litellm" },
-]
-mineru = [
-    { name = "albumentations" },
-]
-table-extras = [
-    { name = "camelot-py" },
+    { name = "undetected-chromedriver" },
 ]
 
 [package.dev-dependencies]
@@ -2212,13 +2201,12 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.5" },
     { name = "albumentations", specifier = ">=1.4.0" },
-    { name = "albumentations", marker = "extra == 'mineru'", specifier = ">=1.4.0" },
     { name = "beautifulsoup4", specifier = ">=4.14.0" },
-    { name = "camelot-py", marker = "extra == 'table-extras'", specifier = ">=0.11.0" },
+    { name = "camelot-py", specifier = ">=0.11.0" },
     { name = "docling", specifier = ">=2.89.0" },
     { name = "fake-useragent", specifier = ">=2.2.0" },
     { name = "fastmcp", specifier = ">=3.2.4" },
-    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.70.0" },
+    { name = "litellm", specifier = ">=1.70.0" },
     { name = "marker-pdf", specifier = ">=1.10.2" },
     { name = "markitdown", specifier = ">=0.1.5" },
     { name = "mineru", specifier = ">=3.0.9" },
@@ -2231,13 +2219,12 @@ requires-dist = [
     { name = "pypdf", specifier = ">=6.10.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.33.1" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=15.0.0" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "selenium", specifier = ">=4.43.0" },
     { name = "setuptools", specifier = ">=82.0.1" },
-    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.21.2" },
+    { name = "typer", specifier = ">=0.21.2" },
     { name = "undetected-chromedriver", specifier = ">=3.5.5" },
 ]
-provides-extras = ["llm", "mineru", "marker", "docling-mlx", "table-extras", "all-engines", "cli"]
 
 [package.metadata.requires-dev]
 dev = [
