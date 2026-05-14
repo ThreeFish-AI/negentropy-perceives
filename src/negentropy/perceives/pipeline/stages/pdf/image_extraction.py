@@ -414,6 +414,7 @@ class FitzImageExtractor(PDFToolBase):
                     "page_count": max(0, end_page - start_page),
                     "raster_count": len(raster_images),
                     "rendered_count": len(rendered_images),
+                    "_temp_output_dir": str(output_dir),
                 },
             )
 

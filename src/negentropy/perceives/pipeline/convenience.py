@@ -337,6 +337,20 @@ def _build_image_assets(
     return assets
 
 
+def _cleanup_image_temp_dir(image_output: Any) -> None:
+    """清理图片提取阶段创建的临时目录。
+
+    在 ``_build_image_assets`` 完成文件拷贝后调用，删除矢量渲染产生的临时目录。
+    """
+    if isinstance(image_output, ImageExtractionOutput):
+        temp_dir = image_output.metadata.get("_temp_output_dir")
+        if temp_dir:
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:  # noqa: BLE001
+                pass
+
+
 # ---------------------------------------------------------------------------
 # 引擎预热（消除 worker 冷启动时间窗）
 # ---------------------------------------------------------------------------
@@ -503,6 +517,17 @@ async def run_pdf_pipeline(
         image_output_typed = (
             image_output if isinstance(image_output, ImageExtractionOutput) else None
         )
+        image_assets = _build_image_assets(
+            image_output_typed,
+            output_dir=output_dir,
+            pdf_stem=(
+                preprocessing_output.local_path.stem
+                if isinstance(preprocessing_output, PreprocessingOutput)
+                else None
+            ),
+        )
+        # 图片资产已拷贝到最终输出目录，可安全清理 image_extraction 临时目录
+        _cleanup_image_temp_dir(image_output_typed)
         return PipelineResult(
             success=True,
             markdown=assembly_output.markdown,
@@ -534,16 +559,11 @@ async def run_pdf_pipeline(
                 for k, v in stage_results.items()
             },
             metadata=assembly_output.metadata,
-            image_assets=_build_image_assets(
-                image_output_typed,
-                output_dir=output_dir,
-                pdf_stem=(
-                    preprocessing_output.local_path.stem
-                    if isinstance(preprocessing_output, PreprocessingOutput)
-                    else None
-                ),
-            ),
+            image_assets=image_assets,
         )
+
+    # 未走 assembly 输出路径：图片资产虽未透出，仍需清理临时目录
+    _cleanup_image_temp_dir(image_output)
 
     # 降级：如果没有 assembly 输出，尝试从 text_output 构建
     if isinstance(text_output, TextExtractionOutput):
