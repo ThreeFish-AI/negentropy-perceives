@@ -413,6 +413,9 @@ class MinerUEngine:
             stdout_tail,
         )
 
+        # 清理残留进程（VLM 崩溃后可能留下 orphan mineru-api）
+        self._cleanup_residual_processes()
+
         # 尝试从输出目录恢复部分结果
         partial = self._normalize_output(output_dir, pdf_path)
         if partial is not None:
@@ -423,9 +426,6 @@ class MinerUEngine:
                 len(partial.images),
             )
             return partial
-
-        # 清理残留进程
-        self._cleanup_residual_processes()
 
         # VLM 后端降级：vlm-auto-engine → pipeline（CPU 模式，慢但稳定）
         if "vlm" in backend or "auto-engine" in backend:
