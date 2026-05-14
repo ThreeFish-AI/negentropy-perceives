@@ -370,4 +370,13 @@ class TableExtractionStage(Stage[PreprocessingOutput, TableExtractionOutput]):
                 result = await tool.execute(input_data)
                 if result.success:
                     return result
+
+        # 诊断：列出不可用工具及安装建议
+        unavailable = [name for name, cls in _TOOLS.items() if not cls().is_available()]
+        logger.warning(
+            "无可用的表格提取工具。不可用: %s。"
+            "提示: 安装 camelot-py 需同时安装 ghostscript "
+            '(uv add "negentropy-perceives[table-extras]")',
+            unavailable,
+        )
         return StageResult(success=False, error="无可用的表格提取工具")
