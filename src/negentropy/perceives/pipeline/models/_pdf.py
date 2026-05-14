@@ -353,6 +353,24 @@ class ExtractedImage:
 
 
 @dataclass
+class ImageExtractionInput:
+    """图片提取 Stage 的复合输入。
+
+    汇聚 ``preprocessing``（PDF 路径）与 ``layout_analysis``（figure 区域 bbox），
+    使图片提取能同时处理光栅图和矢量图形（通过 bbox 渲染）。
+    """
+
+    preprocessing: "PreprocessingOutput"
+    """PDF 路径和页码范围。"""
+
+    layout: Optional["LayoutAnalysisOutput"] = None
+    """版面分析结果（含 figure 区域 bbox）。
+
+    为 ``None`` 时退化为纯 PyMuPDF 光栅图提取（兼容 layout_analysis 失败场景）。
+    """
+
+
+@dataclass
 class ImageExtractionOutput:
     """图片提取 Stage 的输出。"""
 

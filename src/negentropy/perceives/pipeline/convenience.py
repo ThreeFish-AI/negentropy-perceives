@@ -23,6 +23,7 @@ from .models import (
     FormulaExtractionOutput,
     ImageAsset,
     ImageExtractionOutput,
+    LayoutAnalysisOutput,
     PipelineResult,
     PreprocessingInput,
     PreprocessingOutput,
@@ -135,9 +136,33 @@ def _build_asset_bundling_input(
     )
 
 
+def _build_image_extraction_input(
+    results: Dict[str, StageResult], initial_input: Any
+) -> Any:
+    """为 ``image_extraction`` Stage 汇聚 preprocessing + layout_analysis 结果。
+
+    layout_analysis 失败时 ``layout`` 设为 ``None``，
+    FitzImageExtractor 将退化为纯 PyMuPDF 光栅图提取（兼容降级）。
+    """
+    from .models import ImageExtractionInput
+
+    preprocessing = _unwrap(results.get("preprocessing"))
+    if not isinstance(preprocessing, PreprocessingOutput):
+        raise ValueError(
+            "image_extraction 输入缺失或类型不符："
+            "preprocessing Stage 未产出 PreprocessingOutput"
+        )
+    layout = _unwrap(results.get("layout_analysis"))
+    return ImageExtractionInput(
+        preprocessing=preprocessing,
+        layout=layout if isinstance(layout, LayoutAnalysisOutput) else None,
+    )
+
+
 _PDF_INPUT_BUILDERS = {
     "assembly": _build_assembly_input,
     "asset_bundling": _build_asset_bundling_input,
+    "image_extraction": _build_image_extraction_input,
 }
 
 

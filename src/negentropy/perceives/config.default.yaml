@@ -291,10 +291,12 @@ pipeline:
           early_win_min_rank: 1
           early_win_grace_seconds: 5
 
-      # S6: 图片/图形提取（稳定）
+      # S6: 图片/图形提取（支持 raster + vector figure 渲染）
+      # 使用 input_builder 汇聚 preprocessing + layout_analysis 结果，
+      # 使图片提取能同时处理光栅图和矢量图形（通过 bbox 渲染）。
       - name: image_extraction
         description: "图片提取、分类与 caption 生成"
-        input_from: preprocessing
+        input_builder: image_extraction
         tools:
           - name: pymupdf
             rank: 1
