@@ -310,8 +310,11 @@ def _preinit_torch_device(logger: logging.Logger) -> None:
     if mps_ready:
         torch.backends.mps.is_available = lambda: True  # type: ignore[assignment]
 
-    # 使用 warning 级别确保在默认 WARNING 日志阈值下也可见；单进程只调用一次
-    logger.warning("子进程 torch 诊断 %s", diag)
+    # 根据诊断结果选择日志级别：成功/跳过用 INFO，失败用 WARNING
+    _diag_level = (
+        logging.WARNING if not mps_ready and sys.platform == "darwin" else logging.INFO
+    )
+    logger.log(_diag_level, "子进程 torch 诊断 %s", diag)
 
 
 # MPS first-touch 后保持张量引用，防止 GC 释放 MPS 设备上下文。
@@ -449,7 +452,7 @@ def worker_main(conn: Connection, engine_name: str) -> None:
                 if cached_result is not None:
                     # 命中可观测性：跨 Stage 复用率的关键监控点。命中条件为
                     # 同一 (engine, fingerprint, page_range, embed_images, init_hash)。
-                    logger.warning(
+                    logger.debug(
                         "convert cache hit engine=%s fingerprint=%s init_hash=%s",
                         engine_name,
                         cache_key[1] if len(cache_key) > 1 else "?",

@@ -334,24 +334,15 @@ class MinerUEngine:
 
         可选页码范围（MinerU v3.x）：
             ``mineru -p <input> -o <output_dir> -b <backend> --start N --end N``
+
+        容错策略：
+            1. 首次失败后尝试从输出目录恢复部分结果
+            2. VLM 后端崩溃时自动降级到 pipeline（CPU）重试
+            3. 退出后清理残留 mineru-api 进程
         """
         backend = self._resolve_device()
 
-        cmd = [
-            "mineru",
-            "-p",
-            pdf_path,
-            "-o",
-            str(output_dir),
-            "-b",
-            backend,
-        ]
-
-        # 页码范围参数（MinerU v3.x 使用 --start / --end）
-        if page_range is not None:
-            cmd.extend(["--start", str(page_range[0])])
-            cmd.extend(["--end", str(page_range[1])])
-
+        cmd = self._build_cli_cmd(pdf_path, output_dir, backend, page_range)
         logger.info("MinerU CLI 调用: %s", " ".join(cmd))
 
         try:
@@ -359,21 +350,21 @@ class MinerUEngine:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=600,  # 10 分钟超时
+                timeout=600,
             )
 
             if result.returncode != 0:
-                logger.warning(
-                    "MinerU CLI 执行失败 (exit_code=%d): %s",
-                    result.returncode,
-                    result.stderr[:1000] if result.stderr else "无错误输出",
+                return self._handle_cli_failure(
+                    result,
+                    pdf_path,
+                    output_dir,
+                    backend,
+                    page_range,
                 )
-                return None
 
             if result.stdout:
                 logger.debug("MinerU CLI 输出: %s", result.stdout[:200])
 
-            # 解析输出
             return self._normalize_output(output_dir, pdf_path)
 
         except FileNotFoundError:
@@ -381,10 +372,111 @@ class MinerUEngine:
             return None
         except subprocess.TimeoutExpired:
             logger.warning("MinerU CLI 执行超时（600 秒）")
+            self._cleanup_residual_processes()
             return None
         except Exception as e:
             logger.warning("MinerU CLI 执行异常: %s", e)
             return None
+
+    def _build_cli_cmd(
+        self,
+        pdf_path: str,
+        output_dir: Path,
+        backend: str,
+        page_range: Optional[Tuple[int, int]],
+    ) -> list[str]:
+        """构建 MinerU CLI 命令行。"""
+        cmd = ["mineru", "-p", pdf_path, "-o", str(output_dir), "-b", backend]
+        if page_range is not None:
+            cmd.extend(["--start", str(page_range[0])])
+            cmd.extend(["--end", str(page_range[1])])
+        return cmd
+
+    def _handle_cli_failure(
+        self,
+        result: subprocess.CompletedProcess,
+        pdf_path: str,
+        output_dir: Path,
+        backend: str,
+        page_range: Optional[Tuple[int, int]],
+    ) -> Optional[MinerUConversionResult]:
+        """处理 MinerU CLI 执行失败：尝试部分恢复 + backend 降级重试。"""
+        stderr_tail = result.stderr[-4000:] if result.stderr else "无错误输出"
+        stdout_tail = result.stdout[-2000:] if result.stdout else ""
+        logger.warning(
+            "MinerU CLI 执行失败 (exit_code=%d, backend=%s)\n"
+            "  stderr: %s\n"
+            "  stdout tail: %s",
+            result.returncode,
+            backend,
+            stderr_tail,
+            stdout_tail,
+        )
+
+        # 清理残留进程（VLM 崩溃后可能留下 orphan mineru-api）
+        self._cleanup_residual_processes()
+
+        # 尝试从输出目录恢复部分结果
+        partial = self._normalize_output(output_dir, pdf_path)
+        if partial is not None:
+            logger.info(
+                "MinerU CLI 崩溃后恢复部分结果: %d 表格, %d 公式, %d 图片",
+                len(partial.tables),
+                len(partial.formulas),
+                len(partial.images),
+            )
+            return partial
+
+        # VLM 后端降级：vlm-auto-engine → pipeline（CPU 模式，慢但稳定）
+        if "vlm" in backend or "auto-engine" in backend:
+            fallback_backend = "pipeline"
+            logger.warning(
+                "MinerU VLM backend '%s' 失败，降级为 '%s' 重试",
+                backend,
+                fallback_backend,
+            )
+            retry_cmd = self._build_cli_cmd(
+                pdf_path,
+                output_dir,
+                fallback_backend,
+                page_range,
+            )
+            try:
+                retry_result = subprocess.run(  # nosec B603 B607
+                    retry_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                if retry_result.returncode == 0:
+                    return self._normalize_output(output_dir, pdf_path)
+
+                retry_stderr = (
+                    retry_result.stderr[-4000:] if retry_result.stderr else ""
+                )
+                logger.warning(
+                    "MinerU pipeline backend 重试也失败 (exit_code=%d): %s",
+                    retry_result.returncode,
+                    retry_stderr,
+                )
+            except subprocess.TimeoutExpired:
+                logger.warning("MinerU pipeline backend 重试超时（300 秒）")
+            except Exception as e:
+                logger.warning("MinerU pipeline backend 重试异常: %s", e)
+
+        return None
+
+    @staticmethod
+    def _cleanup_residual_processes() -> None:
+        """清理 MinerU CLI 崩溃后残留的 mineru-api 子进程。"""
+        try:
+            subprocess.run(  # nosec B603 B607
+                ["pkill", "-f", "mineru-api"],
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception:  # nosec B110
+            pass
 
     # ------------------------------------------------------------------
     # 输出归一化
