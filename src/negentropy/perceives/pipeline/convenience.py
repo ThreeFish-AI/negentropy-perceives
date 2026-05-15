@@ -345,10 +345,8 @@ def _cleanup_image_temp_dir(image_output: Any) -> None:
     if isinstance(image_output, ImageExtractionOutput):
         temp_dir = image_output.metadata.get("_temp_output_dir")
         if temp_dir:
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            except Exception:  # noqa: BLE001
-                pass
+            # ignore_errors=True 已吞下 OSError，无需额外 try/except 兜底
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
