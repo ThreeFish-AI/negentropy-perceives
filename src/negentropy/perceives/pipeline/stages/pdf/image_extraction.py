@@ -1,9 +1,14 @@
 """S6: 图片提取 Stage。
 
-图片提取、分类与 caption 生成。
+图片提取、分类与 caption 生成。支持光栅图和矢量图形两种提取路径：
+
+1. **光栅提取**：PyMuPDF ``get_images()`` 提取内嵌光栅图（JPEG/PNG）
+2. **矢量渲染**：利用 layout_analysis 识别的 figure 区域 bbox，
+   通过 ``page.get_pixmap(clip=rect)`` 渲染矢量图形为光栅图
 
 委托关系：
-- ``pdf.enhanced.EnhancedPDFProcessor.extract_images_with_positions()`` — PyMuPDF 图片提取
+- ``pdf.enhanced.EnhancedPDFProcessor.extract_images_from_pdf_page()`` — PyMuPDF 光栅提取
+- ``_render_figure_regions()`` — 矢量图形 bbox 渲染（本模块新增）
 
 并发策略：PyMuPDF 的 ``fitz.Document`` 对象并非线程安全，跨 worker 共享会
 触发 SIGSEGV 或数据损坏（参见 PyMuPDF FAQ "Is PyMuPDF thread-safe?"）。
@@ -15,13 +20,19 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
-from typing import Dict, List
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from ...base import Stage, StageResult
 from ...models import (
     ExtractedImage,
+    ImageExtractionInput,
     ImageExtractionOutput,
+    LayoutAnalysisOutput,
+    LayoutRegion,
     PreprocessingOutput,
 )
 from ...registry import register_tool
@@ -32,6 +43,12 @@ logger = logging.getLogger(__name__)
 # 默认页级并发上限（与 Pool 的 docling/mineru 竞争线一致），保留为模块级常量
 # 兼容历史导入；运行时由 ``_resolve_concurrency()`` 从 settings 读取覆盖值。
 _IMAGE_EXTRACT_CONCURRENCY = 4
+
+# 矢量图渲染参数
+_RENDER_DPI = 150
+_RENDER_ZOOM = _RENDER_DPI / 72.0
+# 空间重叠去重阈值：渲染区域与已有光栅图重叠面积占比超过此值时跳过
+_OVERLAP_THRESHOLD = 0.5
 
 
 def _resolve_concurrency() -> int:
@@ -50,6 +67,190 @@ def _resolve_concurrency() -> int:
 
 
 # ---------------------------------------------------------------------------
+# 空间重叠计算
+# ---------------------------------------------------------------------------
+
+
+def _compute_overlap_ratio(
+    bbox_a: Tuple[float, float, float, float],
+    bbox_b: Tuple[float, float, float, float],
+) -> float:
+    """计算 bbox_a 被 bbox_b 覆盖的面积比例。
+
+    Returns:
+        0.0 ~ 1.0，表示 bbox_a 面积中被 bbox_b 覆盖的比例。
+    """
+    ax0, ay0, ax1, ay1 = bbox_a
+    bx0, by0, bx1, by1 = bbox_b
+    overlap_x0 = max(ax0, bx0)
+    overlap_y0 = max(ay0, by0)
+    overlap_x1 = min(ax1, bx1)
+    overlap_y1 = min(ay1, by1)
+    if overlap_x1 <= overlap_x0 or overlap_y1 <= overlap_y0:
+        return 0.0
+    overlap_area = (overlap_x1 - overlap_x0) * (overlap_y1 - overlap_y0)
+    area_a = (ax1 - ax0) * (ay1 - ay0)
+    if area_a <= 0:
+        return 0.0
+    return overlap_area / area_a
+
+
+# ---------------------------------------------------------------------------
+# 矢量图形区域渲染
+# ---------------------------------------------------------------------------
+
+
+async def _render_figure_regions(
+    pdf_path: str,
+    figure_regions: List[LayoutRegion],
+    raster_images: List[ExtractedImage],
+    start_page: int,
+    end_page: int,
+    output_dir: Path,
+    sem: asyncio.Semaphore,
+) -> List[ExtractedImage]:
+    """将 layout_analysis 检测到的矢量 figure 区域渲染为光栅图。
+
+    仅渲染与已有光栅图无显著空间重叠的区域（去重）。
+
+    Args:
+        pdf_path: PDF 文件路径。
+        figure_regions: layout_analysis 检测到的 figure 区域列表。
+        raster_images: 已提取的光栅图列表（用于去重）。
+        start_page: 起始页码。
+        end_page: 结束页码（exclusive）。
+        output_dir: 图片输出目录。
+        sem: 并发信号量。
+
+    Returns:
+        渲染后的 ``ExtractedImage`` 列表。
+    """
+    from ....pdf._imports import import_fitz
+
+    fitz = import_fitz()
+
+    # 按页索引光栅图 bbox，加速去重判断
+    raster_by_page: Dict[int, List[Tuple[float, float, float, float]]] = {}
+    for img in raster_images:
+        if img.bbox and img.page_number is not None:
+            raster_by_page.setdefault(img.page_number, []).append(img.bbox)
+
+    # 按页分组 figure 区域
+    regions_by_page: Dict[int, List[LayoutRegion]] = {}
+    for region in figure_regions:
+        if start_page <= region.page_number < end_page:
+            regions_by_page.setdefault(region.page_number, []).append(region)
+
+    if not regions_by_page:
+        return []
+
+    async def _render_page_figures(
+        page_idx: int,
+        regions: List[LayoutRegion],
+    ) -> List[ExtractedImage]:
+        async with sem:
+            images: List[ExtractedImage] = []
+            doc = fitz.open(pdf_path)
+            try:
+                page = doc[page_idx]
+                for region_idx, region in enumerate(regions):
+                    bbox = region.bbox
+                    # 跳过退化 bbox
+                    if bbox == (0, 0, 0, 0):
+                        continue
+                    x0, y0, x1, y1 = bbox
+                    if x1 <= x0 or y1 <= y0:
+                        continue
+
+                    # 去重：检查与同页光栅图的空间重叠
+                    raster_bboxes = raster_by_page.get(page_idx, [])
+                    skip = False
+                    for rbox in raster_bboxes:
+                        overlap = _compute_overlap_ratio((x0, y0, x1, y1), rbox)
+                        if overlap > _OVERLAP_THRESHOLD:
+                            skip = True
+                            logger.debug(
+                                "跳过渲染 figure p%d region %d: 与光栅图重叠 %.0f%%",
+                                page_idx,
+                                region_idx,
+                                overlap * 100,
+                            )
+                            break
+                    if skip:
+                        continue
+
+                    # 渲染裁剪区域
+                    try:
+                        rect = fitz.Rect(x0, y0, x1, y1)
+                        mat = fitz.Matrix(_RENDER_ZOOM, _RENDER_ZOOM)
+                        pix = page.get_pixmap(matrix=mat, clip=rect)
+
+                        # CMYK → RGB
+                        if pix.n - pix.alpha >= 4:
+                            pix = fitz.Pixmap(fitz.csRGB, pix)
+
+                        img_id = f"rendered_{page_idx}_{region_idx}"
+                        filename = f"fig_p{page_idx + 1}_{region_idx + 1}.png"
+                        local_path = output_dir / filename
+
+                        # 处理文件名冲突
+                        counter = 1
+                        while local_path.exists():
+                            filename = (
+                                f"fig_p{page_idx + 1}_{region_idx + 1}_{counter}.png"
+                            )
+                            local_path = output_dir / filename
+                            counter += 1
+
+                        pix.save(str(local_path))
+                        b64_data = base64.b64encode(pix.tobytes("png")).decode("ascii")
+
+                        caption = (
+                            region.metadata.get("caption") if region.metadata else None
+                        )
+
+                        images.append(
+                            ExtractedImage(
+                                image_id=img_id,
+                                filename=filename,
+                                local_path=str(local_path),
+                                base64_data=b64_data,
+                                mime_type="image/png",
+                                width=pix.width,
+                                height=pix.height,
+                                page_number=page_idx,
+                                bbox=(x0, y0, x1, y1),
+                                caption=caption if caption else None,
+                                reading_order=0,  # 由调用方统一分配
+                            )
+                        )
+                        logger.info(
+                            "渲染矢量 figure %s (page %d, %dx%d px)",
+                            img_id,
+                            page_idx,
+                            pix.width,
+                            pix.height,
+                        )
+                        pix = None
+                    except Exception as e:
+                        logger.warning(
+                            "渲染 figure 区域失败 (page %d, region %d): %s",
+                            page_idx,
+                            region_idx,
+                            e,
+                        )
+            finally:
+                doc.close()
+            return images
+
+    # 并发渲染各页
+    page_results = await asyncio.gather(
+        *(_render_page_figures(p, regs) for p, regs in regions_by_page.items())
+    )
+    return [img for page_imgs in page_results for img in page_imgs]
+
+
+# ---------------------------------------------------------------------------
 # 工具适配器
 # ---------------------------------------------------------------------------
 
@@ -58,7 +259,11 @@ def _resolve_concurrency() -> int:
 class FitzImageExtractor(PDFToolBase):
     """基于 PyMuPDF 的图片提取工具。
 
-    委托给 ``EnhancedPDFProcessor.extract_images_from_pdf_page()``。
+    三阶段提取策略：
+    1. 光栅提取（``get_images()``）：提取 PDF 内嵌光栅图
+    2. 矢量渲染（``get_pixmap(clip=rect)``）：渲染 layout_analysis
+       检测到的矢量 figure 区域
+    3. 合并去重 + 排序
     """
 
     tool_name = "pymupdf"
@@ -72,16 +277,32 @@ class FitzImageExtractor(PDFToolBase):
         except ImportError:
             return False
 
-    async def _run(
-        self, input_data: PreprocessingOutput
-    ) -> StageResult[ImageExtractionOutput]:
-        """使用 PyMuPDF 提取图片（分页并发）。"""
+    async def _run(self, input_data: Any) -> StageResult[ImageExtractionOutput]:
+        """三阶段图片提取：光栅 + 矢量渲染 + 合并。"""
         try:
             from ....pdf._imports import import_fitz
             from ....pdf.enhanced import EnhancedPDFProcessor
 
             fitz = import_fitz()
-            pdf_path = str(input_data.local_path)
+
+            # 兼容两种输入类型：
+            # - ImageExtractionInput（新版 layout-aware 路径）
+            # - PreprocessingOutput（旧版降级路径，layout_analysis 失败时）
+            preprocessing: PreprocessingOutput
+            layout: Optional[LayoutAnalysisOutput] = None
+
+            if isinstance(input_data, ImageExtractionInput):
+                preprocessing = input_data.preprocessing
+                layout = input_data.layout
+            elif isinstance(input_data, PreprocessingOutput):
+                preprocessing = input_data
+            else:
+                return StageResult(
+                    success=False,
+                    error=f"不支持的输入类型: {type(input_data).__name__}",
+                )
+
+            pdf_path = str(preprocessing.local_path)
 
             # 先用一次性 Document 读取页数，随后立即关闭；实际抽取走分页
             # 并发路径，每页独立 open/close（PyMuPDF 线程不安全，详见文件
@@ -91,20 +312,22 @@ class FitzImageExtractor(PDFToolBase):
 
             start_page = 0
             end_page = total_pages
-            if input_data.page_range:
-                start_page = max(0, input_data.page_range[0])
-                end_page = min(total_pages, input_data.page_range[1])
+            if preprocessing.page_range:
+                start_page = max(0, preprocessing.page_range[0])
+                end_page = min(total_pages, preprocessing.page_range[1])
 
             concurrency = _resolve_concurrency()
             sem = asyncio.Semaphore(concurrency)
 
-            async def _extract_one_page(
+            # 确定图片输出目录
+            output_dir = Path(tempfile.mkdtemp(prefix="pdf_images_"))
+
+            # ── Phase 1: 光栅图提取（原有逻辑）─────────────────────────
+            async def _extract_raster_page(
                 page_idx: int,
             ) -> List[ExtractedImage]:
-                """在独立 Document 上提取单页图片；受 Semaphore 限流。"""
+                """在独立 Document 上提取单页光栅图；受 Semaphore 限流。"""
                 async with sem:
-                    # 每个协程使用独立的 Document + processor，避免 fitz
-                    # 对象被多协程交替访问（PyMuPDF 非线程/非重入安全）。
                     processor = EnhancedPDFProcessor()
                     doc = fitz.open(pdf_path)
                     try:
@@ -138,30 +361,60 @@ class FitzImageExtractor(PDFToolBase):
                                 caption=extracted_img.caption,
                             )
                         )
-                    # 按 bbox y0 排序分配 reading_order，使图片在页内有序
+                    # 按 bbox y0 排序
                     results.sort(key=lambda img: img.bbox[1] if img.bbox else 0)
-                    for order, img in enumerate(results):
-                        img.reading_order = order
                     return results
 
             if end_page <= start_page:
-                pages_results: List[List[ExtractedImage]] = []
+                raster_images: List[ExtractedImage] = []
             else:
                 pages_results = await asyncio.gather(
-                    *(_extract_one_page(p) for p in range(start_page, end_page))
+                    *(_extract_raster_page(p) for p in range(start_page, end_page))
                 )
+                raster_images = [
+                    img for page_images in pages_results for img in page_images
+                ]
 
-            images: List[ExtractedImage] = [
-                img for page_images in pages_results for img in page_images
-            ]
+            # ── Phase 2: 矢量图形渲染（新增）─────────────────────────
+            rendered_images: List[ExtractedImage] = []
+            if layout is not None and isinstance(layout, LayoutAnalysisOutput):
+                figure_regions = [
+                    r
+                    for r in layout.regions
+                    if r.region_type == "figure"
+                    and r.bbox != (0, 0, 0, 0)
+                    and (r.bbox[2] - r.bbox[0]) > 0
+                    and (r.bbox[3] - r.bbox[1]) > 0
+                ]
+                if figure_regions:
+                    rendered_images = await _render_figure_regions(
+                        pdf_path=pdf_path,
+                        figure_regions=figure_regions,
+                        raster_images=raster_images,
+                        start_page=start_page,
+                        end_page=end_page,
+                        output_dir=output_dir,
+                        sem=sem,
+                    )
+
+            # ── Phase 3: 合并 + 排序 + 分配 reading_order ──────────
+            all_images = raster_images + rendered_images
+            all_images.sort(
+                key=lambda img: (img.page_number or 0, img.bbox[1] if img.bbox else 0)
+            )
+            for order, img in enumerate(all_images):
+                img.reading_order = order
 
             output = ImageExtractionOutput(
-                images=images,
-                total_count=len(images),
+                images=all_images,
+                total_count=len(all_images),
                 metadata={
                     "engine": "pymupdf",
                     "concurrency": concurrency,
                     "page_count": max(0, end_page - start_page),
+                    "raster_count": len(raster_images),
+                    "rendered_count": len(rendered_images),
+                    "_temp_output_dir": str(output_dir),
                 },
             )
 
@@ -190,7 +443,7 @@ _TOOLS: Dict[str, type] = {
 # ---------------------------------------------------------------------------
 
 
-class ImageExtractionStage(Stage[PreprocessingOutput, ImageExtractionOutput]):
+class ImageExtractionStage(Stage[ImageExtractionInput, ImageExtractionOutput]):
     """S6: 图片提取 Stage。"""
 
     STAGE_ID = "image_extraction"
@@ -205,9 +458,7 @@ class ImageExtractionStage(Stage[PreprocessingOutput, ImageExtractionOutput]):
     def stage_name(self) -> str:
         return self.STAGE_NAME
 
-    async def execute(
-        self, input_data: PreprocessingOutput
-    ) -> StageResult[ImageExtractionOutput]:
+    async def execute(self, input_data: Any) -> StageResult[ImageExtractionOutput]:
         """执行图片提取。"""
         for tool_cls in _TOOLS.values():
             tool = tool_cls()

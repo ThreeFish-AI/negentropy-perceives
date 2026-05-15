@@ -345,12 +345,21 @@ class MinerUEngine:
         cmd = self._build_cli_cmd(pdf_path, output_dir, backend, page_range)
         logger.info("MinerU CLI 调用: %s", " ".join(cmd))
 
+        # 注入环境变量：减少 MLX/tokenizer 多线程冲突
+        env = None
+        if self._is_apple_silicon():
+            import os
+
+            env = os.environ.copy()
+            env["TOKENIZERS_PARALLELISM"] = "false"
+
         try:
             result = subprocess.run(  # nosec B603 B607
                 cmd,
                 capture_output=True,
                 text=True,
                 timeout=600,
+                env=env,
             )
 
             if result.returncode != 0:
@@ -403,15 +412,27 @@ class MinerUEngine:
         """处理 MinerU CLI 执行失败：尝试部分恢复 + backend 降级重试。"""
         stderr_tail = result.stderr[-4000:] if result.stderr else "无错误输出"
         stdout_tail = result.stdout[-2000:] if result.stdout else ""
-        logger.warning(
-            "MinerU CLI 执行失败 (exit_code=%d, backend=%s)\n"
-            "  stderr: %s\n"
-            "  stdout tail: %s",
-            result.returncode,
-            backend,
-            stderr_tail,
-            stdout_tail,
-        )
+
+        # MLX GPU Stream 错误是 Apple Silicon subprocess 隔离下的已知限制，
+        # 降级为 INFO 级别避免惊悚日志，后续会自动 fallback 到 pipeline backend。
+        is_mlx_stream_error = "Stream(gpu" in stderr_tail or "no Stream" in stderr_tail
+        if is_mlx_stream_error:
+            logger.info(
+                "MinerU VLM backend 遇到 MLX GPU Stream 限制 "
+                "(exit_code=%d, backend=%s)，将自动降级为 pipeline 重试",
+                result.returncode,
+                backend,
+            )
+        else:
+            logger.warning(
+                "MinerU CLI 执行失败 (exit_code=%d, backend=%s)\n"
+                "  stderr: %s\n"
+                "  stdout tail: %s",
+                result.returncode,
+                backend,
+                stderr_tail,
+                stdout_tail,
+            )
 
         # 清理残留进程（VLM 崩溃后可能留下 orphan mineru-api）
         self._cleanup_residual_processes()
@@ -430,7 +451,9 @@ class MinerUEngine:
         # VLM 后端降级：vlm-auto-engine → pipeline（CPU 模式，慢但稳定）
         if "vlm" in backend or "auto-engine" in backend:
             fallback_backend = "pipeline"
-            logger.warning(
+            log_level = logging.INFO if is_mlx_stream_error else logging.WARNING
+            logger.log(
+                log_level,
                 "MinerU VLM backend '%s' 失败，降级为 '%s' 重试",
                 backend,
                 fallback_backend,
