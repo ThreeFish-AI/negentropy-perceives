@@ -370,8 +370,14 @@ class OpenDataLoaderTextExtractor(PDFToolBase):
             if result is None or not result.markdown:
                 return StageResult(success=False, error="OpenDataLoader 返回空结果")
 
-            blocks: List[TextBlock] = []
+            # 降级：OpenDataLoader 不携带逐段页码/bbox 信息，
+            # 按 \n\n 拆段、page_number 缺省为 0。
             full_text = result.markdown
+            blocks: List[TextBlock] = [
+                TextBlock(text=seg, page_number=0)
+                for seg in full_text.split("\n\n")
+                if seg.strip()
+            ]
             word_count = len(full_text.split())
 
             output = TextExtractionOutput(

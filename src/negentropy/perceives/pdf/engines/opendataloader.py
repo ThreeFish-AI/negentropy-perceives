@@ -116,22 +116,24 @@ class OpenDataLoaderEngine:
             logger.error("PDF 文件不存在: %s", pdf_path)
             return None
 
-        with tempfile.TemporaryDirectory(prefix="odl_") as out_dir:
-            try:
-                opendataloader_pdf.convert(
-                    input_path=[pdf_path],
-                    output_dir=out_dir,
-                    format="markdown,json",
-                    image_output="embedded" if embed_images else "external",
-                    image_format="png",
-                    use_struct_tree=self._use_struct_tree,
-                    sanitize=self._sanitize,
-                )
-            except Exception as e:
-                logger.warning("OpenDataLoader convert 失败: %s", e)
-                return None
+        # 使用 mkdtemp 而非 TemporaryDirectory，保持目录存活至 worker 进程回收，
+        # 避免 output_dir / images[].local_path 成为悬空引用。
+        out_dir = tempfile.mkdtemp(prefix="odl_")
+        try:
+            opendataloader_pdf.convert(
+                input_path=[pdf_path],
+                output_dir=out_dir,
+                format="markdown,json",
+                image_output="embedded" if embed_images else "external",
+                image_format="png",
+                use_struct_tree=self._use_struct_tree,
+                sanitize=self._sanitize,
+            )
+        except Exception as e:
+            logger.warning("OpenDataLoader convert 失败: %s", e)
+            return None
 
-            return self._parse_outputs(out_dir, pdf_path)
+        return self._parse_outputs(out_dir, pdf_path)
 
     # ------------------------------------------------------------------
     # 输出解析
