@@ -558,6 +558,18 @@ class MarkdownFormatter:
 
                 markdown_content = markdown_content.replace(sentinel, img_tag)
 
+            # 防御：登记簿与输出失配（如管线中途丢失/裂变 sentinel）时，
+            # 既要避免裸 sentinel 泄漏给用户，也要在日志中暴露以便定位回归。
+            from .html_preprocessor import SENTINEL_RE
+
+            orphans = SENTINEL_RE.findall(markdown_content)
+            if orphans:
+                logger.warning(
+                    "Detected %d orphan image sentinel(s) after restore; stripping.",
+                    len(orphans),
+                )
+                markdown_content = SENTINEL_RE.sub("", markdown_content)
+
             return markdown_content
         except Exception as e:
             logger.warning(f"Error restoring image placeholders: {str(e)}")

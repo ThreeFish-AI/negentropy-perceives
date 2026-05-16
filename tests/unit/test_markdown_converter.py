@@ -1023,3 +1023,41 @@ class TestImageDimensionPreservation:
         # 关键断言：尺寸保留
         assert 'width="400"' in md
         assert 'height="300"' in md
+
+    def test_orphan_sentinel_is_stripped_with_warning(self, caplog):
+        """登记簿与输出失配时，残留 sentinel 必须被剥离并产生 WARNING 日志。
+
+        这是 ``SENTINEL_RE`` 作为防御检测器的实际消费点：当上游 pipeline
+        意外丢失（或重复）sentinel 时，恢复阶段需自洽兜底而非裸露字符串。
+        """
+        import logging as _logging
+
+        from negentropy.perceives.markdown.formatter import MarkdownFormatter
+        from negentropy.perceives.markdown.html_preprocessor import (
+            ImgDimensionRegistry,
+            SENTINEL_RE,
+        )
+
+        registry = ImgDimensionRegistry()
+        real_sentinel = registry.issue(src="x.png", alt="x", width="100", height="100")
+        # 构造一个未登记但仍命中 SENTINEL_RE 的 orphan（模拟管线异常裂变场景）
+        orphan = "XIMGPLACEHOLDER" + "a" * 32 + "ENDX"
+        assert SENTINEL_RE.fullmatch(orphan) is not None
+
+        formatter = MarkdownFormatter()
+        with caplog.at_level(
+            _logging.WARNING, logger="negentropy.perceives.markdown.formatter"
+        ):
+            out = formatter.format(
+                f"before {real_sentinel} middle {orphan} after",
+                img_registry=registry,
+            )
+
+        # 真实 sentinel 被还原为 <img>
+        assert 'src="x.png"' in out
+        assert 'width="100"' in out
+        # orphan 被剥离（不裸露给用户）
+        assert orphan not in out
+        assert "XIMGPLACEHOLDER" not in out
+        # 同时产生告警日志便于排障
+        assert any("orphan image sentinel" in rec.message for rec in caplog.records)
