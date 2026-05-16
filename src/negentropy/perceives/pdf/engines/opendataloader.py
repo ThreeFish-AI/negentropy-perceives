@@ -30,7 +30,7 @@ import glob
 import json
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404
 import tempfile
 from typing import List, Optional, Tuple
 
@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 def _check_java_available(timeout: int = 3) -> bool:
     """检查 Java 11+ 运行时是否可用。"""
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607
             ["java", "-version"],
             capture_output=True,
             text=True,
