@@ -159,11 +159,35 @@ class TestMinerUEngineConfigKey:
         backend = engine._resolve_device()
         assert backend == "hybrid-auto-engine"
 
-    def test_mps_device_maps_to_vlm_auto(self) -> None:
-        """MPS 设备应映射到 vlm-auto-engine 后端（MinerU CLI 合法值）。"""
+    def test_mps_device_with_mlx_available_picks_vlm_auto(self) -> None:
+        """MPS + mlx_vlm 可用 → vlm-auto-engine（MinerU 内部命中 mlx-engine）。"""
         engine = MinerUEngine(device="mps")
-        backend = engine._resolve_device()
+        with patch.object(
+            MinerUEngine, "_probe_mlx_engine_eligibility", return_value=True
+        ):
+            backend = engine._resolve_device()
         assert backend == "vlm-auto-engine"
+
+    def test_mps_device_without_mlx_degrades_to_pipeline(self) -> None:
+        """MPS 但 mlx_vlm 不满足 → pipeline，避免 vlm-auto-engine 回退 transformers。"""
+        engine = MinerUEngine(device="mps")
+        with patch.object(
+            MinerUEngine, "_probe_mlx_engine_eligibility", return_value=False
+        ):
+            backend = engine._resolve_device()
+        assert backend == "pipeline"
+
+    def test_mps_backend_pref_overrides_probe(self) -> None:
+        """settings.mineru_mps_backend != 'auto' 时绕过 mlx 探测直接采用。"""
+        engine = MinerUEngine(device="mps")
+        with patch.object(
+            MinerUEngine, "_read_mps_backend_pref", return_value="pipeline"
+        ):
+            with patch.object(
+                MinerUEngine, "_probe_mlx_engine_eligibility", return_value=True
+            ):
+                backend = engine._resolve_device()
+        assert backend == "pipeline"
 
     def test_cuda_device_maps_to_pipeline(self) -> None:
         """CUDA 设备应映射到 pipeline 后端。"""
@@ -177,14 +201,22 @@ class TestMinerUEngineConfigKey:
         backend = engine._resolve_device()
         assert backend == "pipeline"
 
-    def test_auto_device_detection(self) -> None:
-        """auto 设备应基于平台自动选择后端。"""
+    def test_auto_device_detection_apple_with_mlx(self) -> None:
+        """auto 设备 + Apple Silicon + mlx_vlm 可用 → vlm-auto-engine。"""
         engine = MinerUEngine(device="auto")
-        backend = engine._resolve_device()
-        if MinerUEngine._is_apple_silicon():
-            assert backend == "vlm-auto-engine"
-        else:
-            assert backend == "pipeline"
+        with patch.object(MinerUEngine, "_is_apple_silicon", return_value=True):
+            with patch.object(
+                MinerUEngine, "_probe_mlx_engine_eligibility", return_value=True
+            ):
+                backend = engine._resolve_device()
+        assert backend == "vlm-auto-engine"
+
+    def test_auto_device_detection_non_apple(self) -> None:
+        """auto 设备 + 非 Apple → pipeline。"""
+        engine = MinerUEngine(device="auto")
+        with patch.object(MinerUEngine, "_is_apple_silicon", return_value=False):
+            backend = engine._resolve_device()
+        assert backend == "pipeline"
 
     def test_is_apple_silicon_returns_bool(self) -> None:
         result = MinerUEngine._is_apple_silicon()

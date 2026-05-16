@@ -153,15 +153,18 @@ class DoclingTextExtractor(PDFToolBase):
         try:
             from ....core.cancellation import current_cancel_scope
             from ....infra import get_engine_pool
+            from ....pdf.engines._docling_kwargs import build_docling_init_kwargs
 
             _scope = current_cancel_scope()
+            # 跨 Stage 共享 init_kwargs 以触发 worker 内 _ConvertCache 命中
+            # （与 layout_analysis / table_extraction / formula_extraction / code_detection 对齐）
             result = await get_engine_pool().run(
                 "docling",
                 kwargs={
                     "pdf_path": str(input_data.local_path),
                     "page_range": input_data.page_range,
                 },
-                init_kwargs={},
+                init_kwargs=build_docling_init_kwargs(),
                 deadline_monotonic=_scope.deadline_monotonic if _scope else None,
             )
             if result is None or not result.markdown:

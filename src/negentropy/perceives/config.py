@@ -627,6 +627,16 @@ class NegentropyPerceivesSettings(BaseSettings):
         default="auto",
         description="MinerU 后端：auto（触发自动检测，不直接传递）/ pipeline / vlm-auto-engine",
     )
+    mineru_mps_backend: str = Field(
+        default="auto",
+        description=(
+            "Apple Silicon (MPS) 下的 MinerU 后端策略："
+            "auto（探测 mlx_vlm 与 macOS 版本择优）/ vlm-auto-engine（强制 VLM，"
+            "MinerU 内部命中 mlx-engine 时加速 100-200%）/ pipeline（强制 CPU pipeline，"
+            "绕过 VLM 路径，避免回退 transformers 的慢路径）。"
+            "默认 auto：mlx_vlm 已装 + macOS 13.5+ → vlm-auto-engine；否则 → pipeline。"
+        ),
+    )
 
     # ── Marker PDF 引擎 ──────────────────────────────────────
     marker_enabled: bool = Field(
@@ -644,6 +654,39 @@ class NegentropyPerceivesSettings(BaseSettings):
     marker_license_acknowledged: bool = Field(
         default=False,
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
+    )
+    marker_torch_device: Optional[str] = Field(
+        default=None,
+        description=(
+            "Marker TORCH_DEVICE 透传值：None（默认 CPU 强制，最稳定）/ 'cpu' / "
+            "'mps'（Apple Silicon，自担 text detection 风险）/ 'cuda'。"
+            "切换到 'mps' 时建议先在样本 PDF 上验证 detection 输出无丢字。"
+        ),
+    )
+    marker_inference_ram_gb: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Marker INFERENCE_RAM 透传值（GB）。0 = 不设置（使用 Marker 默认）。"
+            "Apple Silicon 推荐设为统一内存的 ~50%（如 36GB 内存设 16-18），"
+            "超过 50% 易触发 page out。"
+        ),
+    )
+    marker_num_workers: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Marker NUM_WORKERS 透传值（每 GPU 并行进程数）。0 = 不设置。"
+            "受 INFERENCE_RAM / VRAM_PER_TASK 约束。"
+        ),
+    )
+    marker_half_precision: bool = Field(
+        default=False,
+        description=(
+            "marker_torch_device='mps' 时通过 monkey-patch 启用 MODEL_DTYPE=float16。"
+            "默认 False（保持 float32 数值稳定）；启用后内存 -50%，吞吐显著提升，"
+            "但需在样本 PDF 上验证精度。"
+        ),
     )
 
     # ── OpenDataLoader PDF 引擎（Apache 2.0 / CPU-only / 全元素 bbox）─────────

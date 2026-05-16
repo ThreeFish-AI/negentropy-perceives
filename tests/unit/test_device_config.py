@@ -20,11 +20,16 @@ from negentropy.perceives.pdf.hardware.device_config import (
 )
 
 
-def _mock_hardware_info(memory_gb=24.0, device_type=DeviceType.MPS):
+def _mock_hardware_info(
+    memory_gb=24.0, device_type=DeviceType.MPS, chip_generation=None
+):
     """创建 mock HardwareInfo 对象。"""
     info = Mock()
     info.memory_gb = memory_gb
     info.device_type = device_type
+    # 注意：chip_generation 必须是 None 或 int，Mock 默认会自动生成 Mock 对象
+    # 触发 `<=` 比较失败。
+    info.chip_generation = chip_generation
     return info
 
 
@@ -160,6 +165,45 @@ class TestComputeGPUBatchSizes:
         """XPU 应使用中等策略。"""
         ocr, layout, table = _compute_gpu_batch_sizes(16.0, DeviceType.XPU)
         assert ocr == 16
+
+    # --- Apple Silicon 芯片代次缩放 ---
+
+    def test_mps_chip_generation_m1_baseline(self) -> None:
+        """M1 (gen=1) 应保持 baseline，不放大。"""
+        baseline = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 1)
+        no_gen = _compute_gpu_batch_sizes(24.0, DeviceType.MPS)
+        assert baseline == no_gen  # (16, 16, 8)
+        assert baseline[0] == 16
+
+    def test_mps_chip_generation_m2_baseline(self) -> None:
+        """M2 (gen=2) 与 M1 等价（baseline）。"""
+        m2 = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 2)
+        assert m2 == (16, 16, 8)
+
+    def test_mps_chip_generation_m3_scaled(self) -> None:
+        """M3 (gen=3) 应在 baseline 上放大 1.25x。"""
+        m3 = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 3)
+        # baseline ocr=16 → 16*1.25=20
+        assert m3[0] == 20
+        assert m3[2] >= 4  # table 仍保守
+
+    def test_mps_chip_generation_m4_scaled(self) -> None:
+        """M4 (gen=4) 应在 baseline 上放大 1.5x。"""
+        m4 = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 4)
+        # baseline ocr=16 → 16*1.5=24
+        assert m4[0] == 24
+
+    def test_mps_chip_generation_m5_capped_at_15x(self) -> None:
+        """M5+ 与 M4 等价（保留 1.5x 上限，避免越界）。"""
+        m5 = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 5)
+        m4 = _compute_gpu_batch_sizes(24.0, DeviceType.MPS, 4)
+        assert m5 == m4
+
+    def test_mps_chip_generation_does_not_affect_cuda(self) -> None:
+        """chip_generation 不应影响 CUDA 路径。"""
+        cuda_with_gen = _compute_gpu_batch_sizes(24.0, DeviceType.CUDA, 4)
+        cuda_no_gen = _compute_gpu_batch_sizes(24.0, DeviceType.CUDA)
+        assert cuda_with_gen == cuda_no_gen
 
 
 # ============================================================

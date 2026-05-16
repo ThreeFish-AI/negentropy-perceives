@@ -104,8 +104,19 @@ class MarkerEngine:
     Converter 实例在首次调用时延迟初始化并**类级缓存**，
     避免重复加载 AI 模型（首次约 10-30 秒）。
 
-    **设备策略**: 强制使用 CPU（``TORCH_DEVICE=cpu``），因为 MPS 对
-    Marker 的模型存在已知的兼容性问题。此举在导入 marker 之前完成。
+    **设备策略**:
+        - 默认仍强制 ``TORCH_DEVICE=cpu`` 以兼容 Marker 上游 text detection
+          在 MPS 上的已知问题（``marker.settings.Settings`` 自身注释亦提示）；
+        - 用户可通过 ``device='mps'`` 显式 opt-in（自担风险，建议先在样本 PDF
+          上验证 detection 输出无丢字）；
+        - ``device='mps' + half_precision=True``：通过 monkey-patch
+          ``settings.MODEL_DTYPE`` 启用 fp16，配合 Apple Silicon 统一内存
+          可降低内存占用并提升吞吐；
+        - ``inference_ram_gb`` / ``num_workers`` > 0 时透传环境变量。
+
+    References:
+        - VikParuchuri/marker README：``TORCH_DEVICE`` / ``INFERENCE_RAM`` /
+          ``NUM_WORKERS`` 配置项说明。
     """
 
     # 类级缓存：不同配置签名 → converter 实例
@@ -113,37 +124,124 @@ class MarkerEngine:
 
     # 模块级标记：是否已设置 TORCH_DEVICE 环境变量
     _torch_device_set: bool = False
+    _last_torch_device_value: Optional[str] = None
 
     def __init__(
         self,
         output_dir: Optional[str] = None,
         llm_enhanced: bool = False,
+        device: Optional[str] = None,
+        inference_ram_gb: int = 0,
+        num_workers: int = 0,
+        half_precision: bool = False,
     ) -> None:
         """初始化 Marker 引擎。
 
         Args:
             output_dir: 图片输出目录。为 None 时使用临时目录。
             llm_enhanced: 是否启用 LLM 增强模式（需额外配置 LLM 服务）。
+            device: ``TORCH_DEVICE`` 透传值（``None`` / ``"cpu"`` / ``"mps"`` /
+                ``"cuda"``）。``None`` 时维持默认 CPU 强制；``"mps"`` 自担
+                text detection 风险。
+            inference_ram_gb: ``INFERENCE_RAM`` 环境变量（GB），``0`` 表示不设置。
+            num_workers: ``NUM_WORKERS`` 环境变量，``0`` 表示不设置。
+            half_precision: ``device='mps'`` 时启用 fp16
+                （monkey-patch ``MODEL_DTYPE``），减半显存占用。
         """
         self._output_dir = Path(output_dir) if output_dir else None
         self._llm_enhanced = llm_enhanced
+        self._device = device
+        self._inference_ram_gb = inference_ram_gb
+        self._num_workers = num_workers
+        self._half_precision = half_precision
 
     # ------------------------------------------------------------------
     # Torch 设备强制设置
     # ------------------------------------------------------------------
 
     @classmethod
-    def _ensure_cpu_device(cls) -> None:
-        """在导入 marker 之前强制设置 TORCH_DEVICE=cpu。
+    def _ensure_torch_device(
+        cls,
+        device: Optional[str],
+        *,
+        inference_ram_gb: int = 0,
+        num_workers: int = 0,
+    ) -> None:
+        """在导入 marker 之前应用 TORCH_DEVICE / INFERENCE_RAM / NUM_WORKERS。
 
-        MPS 在 Marker 模型上存在不可靠行为（精度损失、算子不支持等），
-        因此统一使用 CPU 以确保输出稳定性。必须在任何 torch/marker
-        导入之前调用。
+        - ``device=None``：维持默认 CPU 强制（向后兼容，确保 text detection 稳定）。
+        - ``device``={cpu,mps,cuda}：透传到环境变量。
+        - ``inference_ram_gb>0`` / ``num_workers>0``：透传以利用统一内存与并行度。
+
+        必须在任何 ``torch``/``marker`` 模块**导入之前**调用，避免上游单次
+        ``settings`` 实例化锁死配置。
         """
-        if not cls._torch_device_set:
-            os.environ["TORCH_DEVICE"] = "cpu"
+        target = (device or "cpu").lower()
+        # 仅在值变化时写入，减少重复日志
+        if not cls._torch_device_set or cls._last_torch_device_value != target:
+            os.environ["TORCH_DEVICE"] = target
             cls._torch_device_set = True
-            logger.info("Marker 引擎: 已强制设置 TORCH_DEVICE=cpu（MPS 兼容性规避）")
+            cls._last_torch_device_value = target
+            if target == "cpu":
+                logger.info("Marker 引擎: TORCH_DEVICE=cpu（默认稳定路径）")
+            else:
+                logger.warning(
+                    "Marker 引擎: TORCH_DEVICE=%s（用户显式 opt-in；"
+                    "Marker 上游警告 MPS text detection 可能不可靠，建议样本验证）",
+                    target,
+                )
+
+        if inference_ram_gb > 0:
+            os.environ["INFERENCE_RAM"] = str(inference_ram_gb)
+            logger.info("Marker 引擎: INFERENCE_RAM=%dGB", inference_ram_gb)
+        if num_workers > 0:
+            os.environ["NUM_WORKERS"] = str(num_workers)
+            logger.info("Marker 引擎: NUM_WORKERS=%d", num_workers)
+
+    @classmethod
+    def _ensure_cpu_device(cls) -> None:
+        """兼容旧调用路径：等价于 ``_ensure_torch_device(None)``。"""
+        cls._ensure_torch_device(None)
+
+    @staticmethod
+    def _maybe_enable_fp16_on_mps() -> None:
+        """在 ``device=mps`` 时把 Marker ``MODEL_DTYPE`` patch 为 ``torch.float16``。
+
+        Marker 原生 ``MODEL_DTYPE`` computed property 在非 CUDA 设备上恒返回
+        ``torch.float32``，无法利用 Apple Silicon 的 fp16 throughput。本方法
+        通过 monkey-patch ``Settings`` 类一次性切换返回值，覆盖所有现有/新建
+        ``settings`` 单例（pydantic ``BaseSettings`` 子类的 computed_field
+        在 class 层级解析）。
+
+        失败时（marker 上游结构变更等）静默吞下，不破坏主流程。
+        """
+        try:
+            import torch  # type: ignore[import-not-found]
+            from marker.settings import Settings  # type: ignore[import-untyped]
+        except ImportError as e:
+            logger.warning("Marker FP16 patch 跳过：依赖不可用 %s", e)
+            return
+
+        # 已 patch 过则不再重复
+        if getattr(Settings, "_negentropy_fp16_patched", False):
+            return
+
+        try:
+            # computed_field 的属性以 fget 形式存在；将其替换为返回 float16 的属性
+            original = Settings.MODEL_DTYPE  # noqa: F841 (保留供未来回滚)
+
+            def _model_dtype_fp16(self):  # type: ignore[no-untyped-def]
+                # CUDA 仍保留 bfloat16；MPS/CPU 改为 float16
+                if getattr(self, "TORCH_DEVICE_MODEL", "cpu") == "cuda":
+                    return torch.bfloat16
+                return torch.float16
+
+            # 直接覆盖 property 描述符，pydantic computed_field 兼容
+            Settings.MODEL_DTYPE = property(_model_dtype_fp16)  # type: ignore[assignment]
+            Settings._negentropy_fp16_patched = True  # type: ignore[attr-defined]
+            logger.info("Marker 引擎: MODEL_DTYPE → torch.float16 (MPS fp16 已启用)")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Marker FP16 patch 失败，保留 float32: %s", e)
 
     # ------------------------------------------------------------------
     # 可用性检测
@@ -171,7 +269,11 @@ class MarkerEngine:
 
     def _config_key(self) -> str:
         """生成当前配置的缓存键签名。"""
-        return f"llm={self._llm_enhanced}"
+        return (
+            f"llm={self._llm_enhanced}|dev={self._device or 'cpu'}"
+            f"|ram={self._inference_ram_gb}|nw={self._num_workers}"
+            f"|fp16={self._half_precision}"
+        )
 
     # ------------------------------------------------------------------
     # Converter 延迟初始化
@@ -181,14 +283,23 @@ class MarkerEngine:
         """延迟初始化并返回 PdfConverter 实例。
 
         首次调用时加载 AI 模型（create_model_dict），后续调用返回缓存实例。
-        设备强制为 CPU，通过环境变量在导入前设置。
+        设备/批处理参数通过环境变量在 marker 导入前设置；半精度通过
+        ``MODEL_DTYPE`` monkey-patch 启用。
         """
         key = self._config_key()
         if key in MarkerEngine._converters:
             return MarkerEngine._converters[key]
 
-        # 强制 CPU 设备，必须在 marker 导入之前
-        MarkerEngine._ensure_cpu_device()
+        # 透传设备 / 内存 / 并行度环境变量（必须在 marker 导入之前）
+        MarkerEngine._ensure_torch_device(
+            self._device,
+            inference_ram_gb=self._inference_ram_gb,
+            num_workers=self._num_workers,
+        )
+
+        # 半精度 monkey-patch：仅在 mps 上有意义（cuda 上 Marker 已默认 bfloat16）
+        if self._half_precision and (self._device or "").lower() == "mps":
+            self._maybe_enable_fp16_on_mps()
 
         from marker.converters.pdf import PdfConverter  # type: ignore[import-untyped]
         from marker.models import create_model_dict  # type: ignore[import-untyped]

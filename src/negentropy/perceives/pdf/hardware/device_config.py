@@ -194,16 +194,18 @@ def _apply_mps_constraints(config: DoclingDeviceConfig) -> None:
 
     hw_info = get_cached_hardware_info()
     ocr_bs, layout_bs, table_bs = _compute_gpu_batch_sizes(
-        hw_info.memory_gb, config.device_type
+        hw_info.memory_gb, config.device_type, hw_info.chip_generation
     )
     config.ocr_batch_size = ocr_bs
     config.layout_batch_size = layout_bs
     config.table_batch_size = table_bs
+    gen_tag = f"M{hw_info.chip_generation}" if hw_info.chip_generation else "M?"
     config.adjustments["batch_sizes"] = (
         f"MPS batch size 优化: ocr={ocr_bs}, layout={layout_bs}, "
-        f"table={table_bs} (基于 {hw_info.memory_gb:.1f}GB 统一内存)"
+        f"table={table_bs} (基于 {hw_info.memory_gb:.1f}GB 统一内存, {gen_tag})"
         if hw_info.memory_gb
-        else f"MPS batch size: ocr={ocr_bs}, layout={layout_bs}, table={table_bs} (内存未知)"
+        else f"MPS batch size: ocr={ocr_bs}, layout={layout_bs}, "
+        f"table={table_bs} ({gen_tag}, 内存未知)"
     )
 
     # macOS 原生 OCR 引擎偏好
@@ -277,8 +279,9 @@ def _apply_xpu_defaults(config: DoclingDeviceConfig) -> None:
 def _compute_gpu_batch_sizes(
     memory_gb: Optional[float],
     device_type: DeviceType,
+    chip_generation: Optional[int] = None,
 ) -> Tuple[int, int, int]:
-    """根据 GPU 显存推断最优 batch size。
+    """根据 GPU 显存与 Apple Silicon 芯片代次推断最优 batch size。
 
     Batch size 推断策略（循证基准）：
 
@@ -289,6 +292,13 @@ def _compute_gpu_batch_sizes(
         - 12-24GB: batch = 12 (M2 16GB / M3 Pro)
         - 24-48GB: batch = 16 (M2 Pro 32GB / M3 Max)
         - > 48GB:  batch = 32 (M2/M3 Ultra 128GB+)
+
+        在同等内存下按芯片代次缩放（Apple Neural Engine + GPU
+        逐代提升、带宽与 fp16 throughput 显著增长）：
+        - M1/M2: × 1.0 （baseline）
+        - M3:    × 1.25
+        - M4:    × 1.5
+        - M5+:   保留 × 1.5（未来扩展，避免越界）
 
     CUDA（NVIDIA 专用显存 — 可更激进）：
         - < 8GB:   batch = 8  (GTX 1060, RTX 3050)
@@ -302,10 +312,12 @@ def _compute_gpu_batch_sizes(
     References:
         [1] Docling GPU 文档推荐 batch_size 上限 64,
             https://docling-project.github.io/docling/usage/gpu/
+        [2] Apple Silicon 代次性能基准（M1/M2/M3/M4 GPU & ANE 对比）。
 
     Args:
         memory_gb: GPU 可用显存（GB），None 表示未知
         device_type: 设备类型
+        chip_generation: Apple Silicon 芯片代次（1/2/3/4），仅 MPS 时生效
 
     Returns:
         (ocr_batch_size, layout_batch_size, table_batch_size)
@@ -326,6 +338,10 @@ def _compute_gpu_batch_sizes(
             batch = 12
         else:
             batch = 8
+        # Apple 芯片代次缩放（保守取整，最低保留 baseline）
+        scale = _apple_chip_batch_scale(chip_generation)
+        if scale != 1.0:
+            batch = max(batch, int(round(batch * scale)))
     elif device_type == DeviceType.CUDA:
         if memory_gb >= 24:
             batch = 64
@@ -346,6 +362,23 @@ def _compute_gpu_batch_sizes(
 
     table_batch = max(4, batch // 2)
     return (batch, batch, table_batch)
+
+
+def _apple_chip_batch_scale(chip_generation: Optional[int]) -> float:
+    """Apple Silicon 芯片代次对应的 batch size 缩放系数。
+
+    M1/M2 保持 baseline，M3 起每代 GPU/ANE/带宽显著提升，
+    在统一内存允许时可适度提高 batch 提升吞吐。
+
+    Returns:
+        缩放系数（M1/M2: 1.0；M3: 1.25；M4+: 1.5）
+    """
+    if chip_generation is None or chip_generation <= 2:
+        return 1.0
+    if chip_generation == 3:
+        return 1.25
+    # M4 及以上代次（含未来 M5+）：1.5x
+    return 1.5
 
 
 def _check_flash_attention_available() -> bool:
