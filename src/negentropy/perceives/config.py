@@ -560,8 +560,8 @@ class NegentropyPerceivesSettings(BaseSettings):
         description="LLM API Base URL（OpenAI 兼容协议，如 https://api.openai.com/v1）",
     )
     llm_model: str = Field(
-        default="gpt-5.4-mini",
-        description="LiteLLM 模型标识（如 gpt-5.4-mini、zhipu/glm-5.1）",
+        default="gpt-5-nano",
+        description="LiteLLM 模型标识（如 gpt-5-nano、gpt-5.4-mini）",
     )
     llm_temperature: float = Field(
         default=0.1, ge=0.0, le=2.0, description="LLM 温度参数"
