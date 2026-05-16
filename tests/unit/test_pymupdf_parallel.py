@@ -75,7 +75,13 @@ def _build_minimal_pdf(num_pages: int) -> Path:
 
     每页文本格式：``Page <N> line1`` / ``Page <N> line2``，便于断言
     page_number 与文本内容的对应关系。
+
+    Windows 注意：``tempfile.mkstemp`` 返回的 fd 在原进程持有写锁，
+    导致 fitz.save 同名时上游 ``cannot remove file ... Permission denied``。
+    必须先 ``os.close(fd)`` 释放再交给 fitz。
     """
+    import os as _os
+
     import fitz  # type: ignore[import-untyped]
 
     doc = fitz.open()
@@ -83,24 +89,44 @@ def _build_minimal_pdf(num_pages: int) -> Path:
         page = doc.new_page()
         page.insert_text((50, 100), f"Page {n} line1")
         page.insert_text((50, 130), f"Page {n} line2")
-    tmp = Path(tempfile.mkstemp(prefix="test_parallel_pdf_", suffix=".pdf")[1])
+
+    fd, tmp_path = tempfile.mkstemp(prefix="test_parallel_pdf_", suffix=".pdf")
+    # Windows 上需要先释放 mkstemp 持有的写锁，否则 fitz.save 同名失败
+    _os.close(fd)
+    tmp = Path(tmp_path)
     doc.save(str(tmp))
     doc.close()
     return tmp
+
+
+def _safe_unlink(path: Path) -> None:
+    """容错删除：Windows 上 fitz 句柄 GC 未完成时会报 PermissionError，
+    多重试 + 静默吞下，避免污染 CI（实际清理由 OS 临时目录回收兜底）。
+    """
+    import gc
+
+    gc.collect()
+    for _ in range(3):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except (PermissionError, OSError):
+            gc.collect()
+    # 最终静默：临时文件会被 OS 临时目录策略回收
 
 
 @pytest.fixture
 def minimal_pdf_small() -> Path:
     pdf = _build_minimal_pdf(4)  # 小文档：触发串行
     yield pdf
-    pdf.unlink(missing_ok=True)
+    _safe_unlink(pdf)
 
 
 @pytest.fixture
 def minimal_pdf_large() -> Path:
     pdf = _build_minimal_pdf(20)  # 大文档：触发并行
     yield pdf
-    pdf.unlink(missing_ok=True)
+    _safe_unlink(pdf)
 
 
 def _make_input(

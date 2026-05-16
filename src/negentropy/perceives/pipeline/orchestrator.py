@@ -242,8 +242,11 @@ class PipelineOrchestrator:
             )
 
         # === Adaptive Engine Selection: 路由策略决策 ===
+        # 兼容：测试或外部代码可能通过 ``__new__`` + 手动赋字段绕过 __init__,
+        # 未填充 ``_selector``；此处兜底为 IdentitySelector，保持与 PR2 前等价行为。
+        selector = getattr(self, "_selector", None) or IdentitySelector()
         selection_ctx = self._build_selection_context(results_so_far)
-        decision = self._selector.select(name, tool_configs, selection_ctx)
+        decision = selector.select(name, tool_configs, selection_ctx)
         if decision.skip:
             empty = _empty_output_for_stage(name)
             logger.info(
