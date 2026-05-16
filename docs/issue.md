@@ -3,6 +3,64 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-17] parse_pdf_to_markdown Apple Silicon 调优与 Adaptive Engine Selection
+
+### 问题描述
+
+`parse_pdf_to_markdown` 在 Apple M 系列上仍存在四类待优化项：
+1. MinerU MPS 后端依赖 `vlm-auto-engine` 自动挑选，mlx_vlm 缺失时静默回退
+   transformers 慢路径，无可观测性；
+2. Marker 引擎对 MPS / FP16 / INFERENCE_RAM / NUM_WORKERS 无显式支持，
+   Apple Silicon 统一内存优势未释放；
+3. `quick_scan` 产出的 `DocumentCharacteristics` 是死字段，
+   没有路由反向作用于后续 Stage；
+4. PyMuPDF text_extraction 单线程 for-loop，对 80 页 PDF 是浪费多核的瓶颈。
+
+### 处理方式
+
+按 4 PR 渐进交付：
+
+- **PR1** Apple Silicon 引擎深度调优：MinerU 显式择优 `vlm-auto-engine` / `pipeline`、
+  Marker 扩展 device/half_precision/inference_ram_gb/num_workers、新增
+  `parse_apple_chip_generation` 并按 M1-M5+ 缩放 batch（M3 *1.25, M4+ *1.5）、
+  统一 init_kwargs 标准化（`_mineru_kwargs` / `_marker_kwargs` 与
+  `_docling_kwargs` 对齐）。
+- **PR2** Adaptive Engine Selection：新增 `EngineSelector` Strategy Pattern
+  与 `ProfileAwareSelector`，把 `DocumentCharacteristics` 激活为路由信号；
+  4 个特征驱动型 Stage（table/formula/code/image）在对应特征 False 时短路；
+  text_extraction 在扫描版 PDF 上优先 marker/docling，小文档（<5 页非扫描）
+  走 pymupdf 快路径；layout_analysis 在简单布局小文档上走 pymupdf 快路径。
+- **PR3** PyMuPDF text_extraction 多页并行：`page_count >= 10` 时按
+  `chunk_size = max(1, min(8, cpu//2))` 分片，每 chunk 独立 `fitz.open()`
+  在 `asyncio.to_thread + asyncio.gather` 上并发；reading_order 在聚合后
+  全局重排保证与串行版本一致。
+- **PR4** 基准测试矩阵 + 文档化：[scripts/benchmark/parse_pdf_bench.py](../scripts/benchmark/parse_pdf_bench.py)
+  端到端基准、[docs/agents/pdf-engine-selection.md](agents/pdf-engine-selection.md)
+  决策图、[docs/agents/apple-silicon-tuning.md](agents/apple-silicon-tuning.md)
+  调优指南、knowledge-map 同步。
+
+### 后续防范
+
+- 任何引擎设备/批处理参数新增**必须**走 `build_*_init_kwargs()` 单一通道，
+  避免 stage 直接 `init_kwargs={}` 导致 worker 端缓存 miss 与配置不可观测；
+- 新增 Stage 短路特征：仅扩展 `ProfileAwareSelector.SKIPPABLE_STAGES_BY_FEATURE`
+  并补对应空 `*Output` 占位（见
+  [pipeline/orchestrator.py:_empty_output_for_stage](../src/negentropy/perceives/pipeline/orchestrator.py)）；
+- 新增 selector 规则**必须**带审计 metadata（`selector_decision` 字段）；
+- Marker MPS 是 opt-in（GPL-3.0 + text detection 上游警告），默认仍 CPU，
+  启用前在样本扫描 PDF 上验证输出无丢字。
+
+### 同类问题影响与注意事项
+
+- 「stage 短路」类规则修改时优先看 `DocumentCharacteristics` 字段是否真正
+  来自 `quick_scan` 而非占位（PDF 加密或 PyMuPDF 失败时 chars 为默认值，
+  selector 会保守回退 YAML 默认，不会误跳过）。
+- 引入新设备类型（如未来 NPU）时，扩展 `DeviceType` 枚举 +
+  `_compute_gpu_batch_sizes` 即可；芯片代次解析对 Apple 之外的厂商默认 None
+  → baseline 行为。
+- 多页并行受 `pdf_pymupdf_parallel_pages` 配置控制，遇到内存/句柄相关问题
+  优先把它降回 1 串行排障。
+
 ## [2026-05-16] parse_webpage_to_markdown 图片在 Markdown 中被"放到最大"
 
 ### 问题描述
