@@ -1,11 +1,17 @@
 """Markdown 格式化管线：将原始 Markdown 内容增强为高质量输出。"""
 
+from __future__ import annotations
+
+import html
 import logging
 import os
 import re
 import uuid
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from .html_preprocessor import ImgDimensionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +87,13 @@ DEFAULT_FORMATTING_OPTIONS: Dict[str, bool] = {
     "smart_quotes": True,
     "em_dashes": True,
     "fix_spacing": True,
+    # 保留源 HTML <img> 的 width/height 尺寸到最终 Markdown（输出为内嵌 HTML）。
+    # 默认开启；关闭后所有图片走标准 ![alt](src) 形式（旧行为）。
+    "preserve_image_dimensions": True,
 }
+
+# 响应式样式：在保留源尺寸的同时允许窄屏自适应（W3C 推荐 pattern）。
+_IMG_RESPONSIVE_STYLE = "max-width:100%;height:auto;"
 
 
 class MarkdownFormatter:
@@ -92,12 +104,20 @@ class MarkdownFormatter:
         if options:
             self.options.update(options)
 
-    def format(self, markdown_content: str) -> str:
+    def format(
+        self,
+        markdown_content: str,
+        *,
+        img_registry: Optional["ImgDimensionRegistry"] = None,
+    ) -> str:
         """
         Apply the full formatting pipeline to Markdown content.
 
         Args:
             markdown_content: Raw Markdown content
+            img_registry: 由 ``preprocess_html`` 填充的图片尺寸登记簿。若提供
+                且 ``preserve_image_dimensions`` 开关开启，则在管线末尾把
+                sentinel 占位符还原为内嵌 HTML ``<img>`` 标签。
 
         Returns:
             Enhanced and cleaned up Markdown content
@@ -132,6 +152,17 @@ class MarkdownFormatter:
                 markdown_content = self._normalize_paragraph_breaks(markdown_content)
 
             markdown_content = self._basic_cleanup(markdown_content)
+
+            # 还原带尺寸的图片：必须在 _basic_cleanup 之后执行，否则其中的
+            # `style="..."` 会被 cleanup 第二段 re.sub 误清除。
+            if (
+                img_registry is not None
+                and self.options.get("preserve_image_dimensions", True)
+                and img_registry.placeholders
+            ):
+                markdown_content = self._restore_image_placeholders(
+                    markdown_content, img_registry
+                )
 
             # 还原被保护的代码块
             markdown_content = self._restore_code_blocks(markdown_content, protected)
@@ -486,6 +517,50 @@ class MarkdownFormatter:
 
         except Exception as e:
             logger.warning(f"Error in basic cleanup: {str(e)}")
+            return markdown_content
+
+    def _restore_image_placeholders(
+        self,
+        markdown_content: str,
+        registry: "ImgDimensionRegistry",
+    ) -> str:
+        """将 ``preprocess_html`` 注入的 sentinel 占位符还原为内嵌 HTML ``<img>``。
+
+        生成模板：
+            ``<img src="…" alt="…"[ title="…"][ width="X"][ height="Y"] style="max-width:100%;height:auto;" />``
+
+        - 仅在尺寸非空时输出 ``width``/``height``
+        - 仅在 ``title`` 非空时输出 ``title``
+        - ``src``/``alt``/``title`` 均经 ``html.escape(quote=True)`` 实体化，
+          防止源 HTML 中的特殊字符破坏 Markdown 后续渲染
+        - ``style`` 始终输出，保证窄屏自适应
+        """
+        if not registry.placeholders:
+            return markdown_content
+
+        try:
+            for sentinel, meta in registry.placeholders.items():
+                src = html.escape(meta.get("src") or "", quote=True)
+                alt = html.escape(meta.get("alt") or "", quote=True)
+                title = meta.get("title") or ""
+                width = meta.get("width")
+                height = meta.get("height")
+
+                parts: List[str] = [f'<img src="{src}"', f'alt="{alt}"']
+                if title:
+                    parts.append(f'title="{html.escape(title, quote=True)}"')
+                if width:
+                    parts.append(f'width="{width}"')
+                if height:
+                    parts.append(f'height="{height}"')
+                parts.append(f'style="{_IMG_RESPONSIVE_STYLE}"')
+                img_tag = " ".join(parts) + " />"
+
+                markdown_content = markdown_content.replace(sentinel, img_tag)
+
+            return markdown_content
+        except Exception as e:
+            logger.warning(f"Error restoring image placeholders: {str(e)}")
             return markdown_content
 
 

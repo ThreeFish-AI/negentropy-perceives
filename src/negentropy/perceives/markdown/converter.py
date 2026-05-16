@@ -17,6 +17,7 @@ import requests
 
 from .formatter import MarkdownFormatter, markdown_to_text
 from .html_preprocessor import (
+    ImgDimensionRegistry,
     preprocess_html,
     extract_content_area,
     fallback_html_conversion,
@@ -184,8 +185,18 @@ class MarkdownConverter:
             Markdown formatted content
         """
         try:
+            # 图片尺寸登记簿：在 preprocess 阶段为带 width/height 的 <img>
+            # 注入 sentinel 占位符，在 postprocess 阶段还原为内嵌 HTML <img>。
+            # 仅当 formatter 的 preserve_image_dimensions 开关开启时生效。
+            preserve_dims = self._formatter.options.get(
+                "preserve_image_dimensions", True
+            )
+            img_registry = ImgDimensionRegistry() if preserve_dims else None
+
             # Preprocess HTML if needed
-            processed_html = preprocess_html(html_content, base_url)
+            processed_html = preprocess_html(
+                html_content, base_url, img_registry=img_registry
+            )
 
             # Create a temporary HTML file for MarkItDown to process
             with tempfile.NamedTemporaryFile(
@@ -200,7 +211,9 @@ class MarkdownConverter:
                 markdown_content = result.text_content
 
                 # Post-process the markdown for better formatting
-                markdown_content = self.postprocess_markdown(markdown_content)
+                markdown_content = self.postprocess_markdown(
+                    markdown_content, img_registry=img_registry
+                )
 
                 return markdown_content
 
@@ -216,17 +229,24 @@ class MarkdownConverter:
             # Fallback to basic conversion if MarkItDown fails
             return fallback_html_conversion(html_content)
 
-    def postprocess_markdown(self, markdown_content: str) -> str:
+    def postprocess_markdown(
+        self,
+        markdown_content: str,
+        *,
+        img_registry: Optional[ImgDimensionRegistry] = None,
+    ) -> str:
         """
         Post-process Markdown content with advanced formatting features.
 
         Args:
             markdown_content: Raw Markdown content
+            img_registry: 可选的图片尺寸登记簿（由 html_to_markdown 注入），
+                PDF/纯文本等非 HTML 路径无需传递。
 
         Returns:
             Enhanced and cleaned up Markdown content
         """
-        return self._formatter.format(markdown_content)
+        return self._formatter.format(markdown_content, img_registry=img_registry)
 
     # Delegate sub-module functions as methods for backward compatibility
     def preprocess_html(self, html_content: str, base_url: Optional[str] = None) -> str:
