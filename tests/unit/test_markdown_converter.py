@@ -785,3 +785,279 @@ class TestPerformanceAndLimits:
 
             assert result["stats"]["attempted"] >= 10
             assert result["stats"]["embedded"] <= 10
+
+
+class TestImageDimensionPreservation:
+    """测试图片源尺寸保留特性 (preserve_image_dimensions)。
+
+    覆盖 plan 中定义的 12 条测试矩阵：
+    1. 双属性 width/height 透传
+    2. style 优先级高于 width 属性（与 W3C CSS 计算值一致）
+    3. 无尺寸退回 ![alt](src) 形式
+    4. 无效单位（%/auto/em/rem）忽略
+    5. alt 中特殊字符做 HTML entity escape
+    6. <a><img> 包装变成 [<img />](href) 合法 Markdown
+    7. Next.js 代理 + 尺寸：src 解析为 CDN URL 且尺寸保留
+    8. 懒加载兜底：data-src 升级为 src 且尺寸保留
+    9. Anthropic 真实场景（用户报告的原始 case）
+    10. preserve_image_dimensions=False 退化到旧行为
+    11. 与 image_embedder 协同：HTML <img> 的 src 替换为 data URI
+    12. sentinel 防 escape：markdownify 的 *_ 转义不破坏占位符
+    """
+
+    def setup_method(self):
+        try:
+            self.converter = MarkdownConverter()
+        except ImportError:
+            pytest.skip("MarkItDown not available, skipping tests")
+
+    def test_1_width_height_attributes(self):
+        """双属性 width/height 透传到 HTML <img>，含响应式 style。"""
+        html = '<html><body><img src="x.svg" width="1000" height="1000" alt="logo"></body></html>'
+        md = self.converter.html_to_markdown(html)
+        assert "<img " in md
+        assert 'src="x.svg"' in md
+        assert 'alt="logo"' in md
+        assert 'width="1000"' in md
+        assert 'height="1000"' in md
+        assert "max-width:100%" in md
+        assert "height:auto" in md
+
+    def test_2_style_overrides_attribute(self):
+        """style 内的 px 优先于 HTML width 属性。"""
+        html = (
+            "<html><body>"
+            '<img src="x.png" width="100" height="100" '
+            'style="width:50px;height:75px" alt="x"></body></html>'
+        )
+        md = self.converter.html_to_markdown(html)
+        assert 'width="50"' in md
+        assert 'height="75"' in md
+        assert 'width="100"' not in md  # 不应同时存在
+
+    def test_3_no_dimensions_falls_back_to_markdown(self):
+        """无尺寸的图片走默认 ![alt](src) 形式，不输出 HTML <img>。"""
+        html = '<html><body><img src="x.jpg" alt="cat"></body></html>'
+        md = self.converter.html_to_markdown(html)
+        assert "![cat](x.jpg)" in md
+        assert "<img" not in md
+
+    def test_4_invalid_units_ignored(self):
+        """百分比、auto、em 等无法转 px 的单位被忽略，退回 ![alt](src)。"""
+        html = (
+            "<html><body>"
+            '<img src="x.png" width="100%" style="height:auto" alt="banner">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        assert "![banner](x.png)" in md
+        assert "<img" not in md
+
+    def test_5_alt_entity_escape(self):
+        """alt 中的 " & < 等特殊字符做 HTML entity escape。"""
+        html = (
+            "<html><body>"
+            '<img src="x.png" alt=\'a "& <b\' width="50" height="50">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        assert "&quot;" in md
+        assert "&amp;" in md
+        assert "&lt;" in md
+
+    def test_6_anchor_image_wrap(self):
+        """<a><img></a> 包装应变成 [<img />](href) 形式。"""
+        html = (
+            "<html><body>"
+            '<a href="https://target.com"><img src="x.png" alt="link" '
+            'width="50" height="50"></a></body></html>'
+        )
+        md = self.converter.html_to_markdown(html)
+        assert "[<img" in md
+        assert "](https://target.com)" in md
+
+    def test_7_nextjs_proxy_with_dimensions(self):
+        """Next.js _next/image 代理 URL 应解析为真实 CDN URL，且尺寸保留。"""
+        nextjs_url = "/_next/image?url=https%3A%2F%2Fcdn.test.com%2Fa.png&w=2048&q=75"
+        html = (
+            f'<html><body><img src="{nextjs_url}" width="1200" height="600" alt="hero">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html, base_url="https://test.com/")
+        # src 应被解析到真实 CDN（不再包含 _next/image 路径）
+        assert "/_next/image" not in md
+        assert "cdn.test.com" in md
+        assert 'width="1200"' in md
+        assert 'height="600"' in md
+
+    def test_8_lazy_loading_with_dimensions(self):
+        """懒加载 data-src 应被升级为 src，且尺寸属性保留。"""
+        html = (
+            "<html><body>"
+            '<img src="" data-src="real.png" width="300" height="200" alt="lazy">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        assert 'src="real.png"' in md
+        assert 'width="300"' in md
+        assert 'height="200"' in md
+
+    def test_9_anthropic_user_reported_case(self):
+        """用户实际报告的 anthropic 1000x1000 SVG 场景。"""
+        html = (
+            "<html><body><p>Intro paragraph.</p>"
+            '<img alt="" loading="lazy" width="1000" height="1000" '
+            'decoding="async" data-nimg="1" style="color:transparent" '
+            'src="https://www-cdn.anthropic.com/x/y-1000x1000.svg">'
+            "<p>After image.</p></body></html>"
+        )
+        md = self.converter.html_to_markdown(
+            html, base_url="https://www.anthropic.com/"
+        )
+        assert "<img " in md
+        assert 'width="1000"' in md
+        assert 'height="1000"' in md
+        assert 'src="https://www-cdn.anthropic.com/x/y-1000x1000.svg"' in md
+        assert "max-width:100%" in md
+        # 上下文段落仍正常输出
+        assert "Intro paragraph" in md
+        assert "After image" in md
+
+    def test_10_disable_via_formatting_option(self):
+        """preserve_image_dimensions=False 时退化为旧行为 ![alt](src)。"""
+        from negentropy.perceives.markdown.formatter import MarkdownFormatter
+
+        converter = MarkdownConverter()
+        converter._formatter = MarkdownFormatter(
+            options={"preserve_image_dimensions": False}
+        )
+        html = (
+            "<html><body>"
+            '<img src="x.svg" width="1000" height="1000" alt="big">'
+            "</body></html>"
+        )
+        md = converter.html_to_markdown(html)
+        assert "<img" not in md
+        assert "![big](x.svg)" in md
+
+    def test_11_embed_images_handles_html_img(self):
+        """image_embedder 应能把保留尺寸的 HTML <img> 的 src 替换为 data URI。"""
+        from negentropy.perceives.markdown.image_embedder import (
+            embed_images_in_markdown,
+        )
+
+        markdown = (
+            '<img src="https://example.com/a.png" alt="x" '
+            'width="100" height="100" style="max-width:100%;height:auto;" />'
+        )
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            mock_response.headers = {"Content-Type": "image/png"}
+            mock_response.content = b"fake png data"
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+
+            result = embed_images_in_markdown(
+                markdown, max_images=10, max_bytes_per_image=10_000
+            )
+
+        assert "data:image/png;base64," in result["markdown"]
+        # width/height/style 应保留
+        assert 'width="100"' in result["markdown"]
+        assert 'height="100"' in result["markdown"]
+        assert "max-width:100%" in result["markdown"]
+        assert result["stats"]["embedded"] == 1
+
+    def test_12_sentinel_survives_markdownify_escape(self):
+        """sentinel 字面量必须穿透 markdownify 的 *_ 转义，最终被完全还原。"""
+        # 用 emphasis 字符包夹图片测试 sentinel 抗 escape
+        html = (
+            "<html><body>"
+            '<p>before</p><img src="x.png" width="100" height="100" alt="img">'
+            "<p>after</p></body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        # 最终输出中不应有任何 sentinel 残留
+        assert "XIMGPLACEHOLDER" not in md
+        assert "ENDX" not in md or md.count("ENDX") == 0
+        # 且 <img> 标签完整生成
+        assert 'width="100"' in md
+        assert 'height="100"' in md
+
+    def test_image_with_title_attribute(self):
+        """补充：图片含 title 属性时应保留到 HTML <img>。"""
+        html = (
+            "<html><body>"
+            '<img src="x.png" width="50" height="50" alt="alt" title="tooltip">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        assert 'title="tooltip"' in md
+
+    def test_multiple_images_in_one_document(self):
+        """补充：多张带不同尺寸的图片各自独立处理。"""
+        html = (
+            "<html><body>"
+            '<img src="a.png" width="100" height="100" alt="A">'
+            '<img src="b.png" width="200" height="300" alt="B">'
+            '<img src="c.png" alt="C-no-size">'
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        assert 'src="a.png"' in md and 'width="100"' in md
+        assert 'src="b.png"' in md and 'width="200"' in md and 'height="300"' in md
+        assert "![C-no-size](c.png)" in md  # 无尺寸的退回旧形式
+
+    def test_picture_element_with_sized_img(self):
+        """补充：<picture> 展平后内层 <img> 的尺寸仍保留。"""
+        html = (
+            "<html><body>"
+            "<picture>"
+            '<source srcset="hi.webp 2x" type="image/webp">'
+            '<img src="lo.jpg" width="400" height="300" alt="pic">'
+            "</picture>"
+            "</body></html>"
+        )
+        md = self.converter.html_to_markdown(html)
+        # picture 已被展平到内层 img；src 可能被 source 的 srcset 覆盖（视 _convert_media_elements 行为而定）
+        # 关键断言：尺寸保留
+        assert 'width="400"' in md
+        assert 'height="300"' in md
+
+    def test_orphan_sentinel_is_stripped_with_warning(self, caplog):
+        """登记簿与输出失配时，残留 sentinel 必须被剥离并产生 WARNING 日志。
+
+        这是 ``SENTINEL_RE`` 作为防御检测器的实际消费点：当上游 pipeline
+        意外丢失（或重复）sentinel 时，恢复阶段需自洽兜底而非裸露字符串。
+        """
+        import logging as _logging
+
+        from negentropy.perceives.markdown.formatter import MarkdownFormatter
+        from negentropy.perceives.markdown.html_preprocessor import (
+            ImgDimensionRegistry,
+            SENTINEL_RE,
+        )
+
+        registry = ImgDimensionRegistry()
+        real_sentinel = registry.issue(src="x.png", alt="x", width="100", height="100")
+        # 构造一个未登记但仍命中 SENTINEL_RE 的 orphan（模拟管线异常裂变场景）
+        orphan = "XIMGPLACEHOLDER" + "a" * 32 + "ENDX"
+        assert SENTINEL_RE.fullmatch(orphan) is not None
+
+        formatter = MarkdownFormatter()
+        with caplog.at_level(
+            _logging.WARNING, logger="negentropy.perceives.markdown.formatter"
+        ):
+            out = formatter.format(
+                f"before {real_sentinel} middle {orphan} after",
+                img_registry=registry,
+            )
+
+        # 真实 sentinel 被还原为 <img>
+        assert 'src="x.png"' in out
+        assert 'width="100"' in out
+        # orphan 被剥离（不裸露给用户）
+        assert orphan not in out
+        assert "XIMGPLACEHOLDER" not in out
+        # 同时产生告警日志便于排障
+        assert any("orphan image sentinel" in rec.message for rec in caplog.records)

@@ -3,6 +3,56 @@
 > 记录已处理的 Issue 摘要，便于同类问题跨上下文复用。
 > 按“问题描述 / 表因 / 根因 / 处理方式 / 后续防范 / 同类问题影响与注意事项”结构化维护。
 
+## [2026-05-16] parse_webpage_to_markdown 图片在 Markdown 中被"放到最大"
+
+### 问题描述
+
+`parse_webpage_to_markdown` 处理 Anthropic 网页（`https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents`）时，对 `<img alt="" loading="lazy" width="1000" height="1000" decoding="async" data-nimg="1" style="color:transparent" src="https://www-cdn.anthropic.com/.../...-1000x1000.svg">` 这类带尺寸属性的图片，最终 Markdown 中图片被“放到最大”，占满阅读器宽度。用户期望在保持高清原图的前提下，让 Markdown 中显示尺寸贴近源页面尺寸。
+
+### 表因
+
+转换链路 `preprocess_html → MarkItDown → MarkdownFormatter` 把所有 `<img>` 统一转为标准 Markdown `![alt](src)` 语法，丢失了源 HTML 上声明的 `width`/`height` 与 `style` 内尺寸信息；下游渲染器（飞书 / Notion / VSCode preview / GitHub）在缺乏尺寸约束时按图片固有尺寸（intrinsic size）或 `width:100%` 渲染。
+
+### 根因
+
+1. [src/negentropy/perceives/markdown/html_preprocessor.py](../src/negentropy/perceives/markdown/html_preprocessor.py) 第 115-119 行（剥离 `class`/`style`）在去除 style 时同时丢弃了 `style="width:Xpx"` 中的尺寸信息。
+2. MarkItDown 内部基于 markdownify，`convert_img` 永远输出 `![alt](src)`，硬性丢弃 HTML 属性 `width`/`height`<sup>[[1]](#ref-markdownify-img)</sup>。
+3. CommonMark 无原生图片尺寸语法<sup>[[2]](#ref-commonmark-images)</sup>；GitHub/Notion/飞书/VSCode 均接受内嵌 HTML `<img>` 作为事实标准（CommonMark spec § 4.6 允许 HTML blocks）<sup>[[3]](#ref-commonmark-html-blocks)</sup>。
+
+### 处理方式
+
+引入“占位符 + 后处理还原”模式（复用 [formatter.py](../src/negentropy/perceives/markdown/formatter.py) 已有的 `_protect_code_blocks`/`_restore_code_blocks` 思路）：
+
+- **`html_preprocessor.py` 新增** `ImgDimensionRegistry`、`_extract_img_dimensions`、`_register_img_placeholders`：在 `_convert_media_elements` 之后、style 剥离之前遍历 `<img>`，对带尺寸的图片登记 sentinel 并以 `NavigableString(sentinel)` 替换原节点；sentinel 采用 `XIMGPLACEHOLDER<32 hex>ENDX` 纯字母数字格式，规避 markdownify 默认开启的 `escape_asterisks`/`escape_underscores`<sup>[[4]](#ref-markdownify-escape)</sup>。
+- **`formatter.py` 新增** `_restore_image_placeholders` + `preserve_image_dimensions` 开关（默认 `True`）：在 `_basic_cleanup` 之后（避免其 `re.sub(r'\s+style="[^"]*"', "", ...)` 误清）、`_restore_code_blocks` 之前把 sentinel 还原为 `<img src=".." alt=".." [title=".."] [width="X"] [height="Y"] style="max-width:100%;height:auto;" />`，所有文本属性经 `html.escape(quote=True)` 实体化；`style="max-width:100%;height:auto;"` 始终输出以兼顾源尺寸与窄屏自适应（W3C 推荐响应式图片 pattern<sup>[[5]](#ref-whatwg-img)</sup>）。
+- **`converter.py` 粘合调用链**：`html_to_markdown` 按 `preserve_image_dimensions` 开关条件性实例化 registry 并贯穿 preprocess + format 两阶段；`postprocess_markdown` 增 `img_registry` 透传，PDF 等非 HTML 路径不传 registry 即向后兼容。
+- **`image_embedder.py` 扩展** 新增 `_HTML_IMG_RE` 正则与 `html_replacer`，让 `embed_images=True` + `preserve_image_dimensions=True` 两个开关正交可组合：HTML `<img>` 的 src 同样会被替换为 data URI，width/height/style 保留。
+
+尺寸提取优先级遵循 W3C CSS 计算值：`style:width:Xpx` > `width` 属性；忽略 `%`/`auto`/`em`/`rem`/`vh`/`vw` 等不可转 px 的值。无尺寸的图片仍按 `![alt](src)` 输出，行为完全兼容。
+
+### 后续防范
+
+- 任何会改变 MarkItDown 输出形态的预处理改造，必须验证“sentinel 字面量穿透 markdownify”一项（覆盖 `*_` 转义、HTML inline 嵌套、`<a><img>` 包装三种典型路径）。
+- 修改 [formatter.py](../src/negentropy/perceives/markdown/formatter.py) `_basic_cleanup` 中的属性剥离正则时，需评估对内嵌 HTML `<img>` 的副作用；当前策略是**先 cleanup 再还原**，回避耦合。
+- 新增 `formatting_options` 开关时遵循“**新行为默认开**，回滚靠 `formatting_options={"...": False}`”的现行约定。
+- 新增图片相关后处理 pass 时，必须同时考虑 Markdown 语法 `![alt](url)` 与 HTML 语法 `<img>` 两种形式，避免 [image_embedder.py](../src/negentropy/perceives/markdown/image_embedder.py) 这类只匹配前者的历史正则导致功能盲区。
+
+### 同类问题影响与注意事项
+
+- 看到“Markdown 输出图片不带尺寸”类报告时，先检查上游 HTML 是否声明了 `width`/`height`：若有，直接走本特性；若无（如 CSS 完全控制尺寸），无法在丢失 CSS 上下文后恢复，需在转换前增加自定义抓取策略。
+- 若下游消费者是严格 CommonMark sanitizer（如部分 ReadMe.io / 旧版 GitBook），可能 strip 内嵌 HTML。此时通过 `formatting_options={"preserve_image_dimensions": False}` 一键退化为 `![alt](src)`。
+- 超大源尺寸（>4000px）当前不截断；内联 `max-width:100%` 已限制实际显示宽度，后续若需硬上限可加 `max_image_width` 配置。
+
+<a id="ref-markdownify-img"></a>[1] M. Tretter et al., "markdownify – convert_img," *markdownify Source*, version 1.2.x. [Online]. Available: https://github.com/matthewwithanm/python-markdownify/blob/master/markdownify/__init__.py
+
+<a id="ref-commonmark-images"></a>[2] J. MacFarlane et al., "Images," *CommonMark Spec 0.31.2*, § 6.4. [Online]. Available: https://spec.commonmark.org/0.31.2/#images
+
+<a id="ref-commonmark-html-blocks"></a>[3] J. MacFarlane et al., "HTML blocks," *CommonMark Spec 0.31.2*, § 4.6. [Online]. Available: https://spec.commonmark.org/0.31.2/#html-blocks
+
+<a id="ref-markdownify-escape"></a>[4] M. Tretter et al., "markdownify – escape options," *markdownify Source*, version 1.2.x. 默认启用 `escape_asterisks=True` 与 `escape_underscores=True`，`escape_misc=False`. [Online]. Available: https://github.com/matthewwithanm/python-markdownify
+
+<a id="ref-whatwg-img"></a>[5] WHATWG, "Embedded content – images," *HTML Living Standard*, § 4.8.4. [Online]. Available: https://html.spec.whatwg.org/multipage/embedded-content.html#the-img-element
+
 ## [2026-05-07] Docling CodeFormulaV2 在 Apple Silicon MPS 下静默回退 CPU
 
 ### 问题描述

@@ -2,21 +2,168 @@
 
 import logging
 import re
-from typing import Dict, Optional
+import uuid
+from dataclasses import dataclass, field
+from typing import Dict, Optional, Tuple
 from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 
 logger = logging.getLogger(__name__)
 
 
-def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
+# ---------------------------------------------------------------------------
+# 图片尺寸占位符登记簿
+#
+# 解决方案核心：MarkItDown/markdownify 永远把 <img> 转成 ![alt](src)，
+# 硬性丢弃 width/height/style，导致下游渲染器把图片放到最大。我们在
+# preprocess_html 阶段把带尺寸的 <img> 替换为纯字母数字 sentinel
+# NavigableString 节点，让 markdownify 把它当成普通文本透传，再由
+# MarkdownFormatter 在 _basic_cleanup 之后还原为内嵌 HTML <img> 标签。
+#
+# sentinel 使用全字母数字（[A-Za-z0-9]+），不命中 markdownify 默认
+# 启用的 escape_asterisks/escape_underscores 字符集（``*_[]\&<`[>~=+|``），
+# 保证字面量穿透。
+# ---------------------------------------------------------------------------
+
+SENTINEL_PREFIX = "XIMGPLACEHOLDER"
+SENTINEL_SUFFIX = "ENDX"
+SENTINEL_RE = re.compile(rf"{SENTINEL_PREFIX}[0-9a-f]{{32}}{SENTINEL_SUFFIX}")
+
+
+@dataclass
+class ImgDimensionRegistry:
+    """图片占位符登记簿：sentinel → 原始 <img> 元信息。
+
+    在 ``preprocess_html`` 中由调用方实例化并以关键字参数传入，
+    遍历 ``<img>`` 时为每张带尺寸的图片登记并返回 sentinel；后续在
+    ``MarkdownFormatter`` 还原阶段读取 ``placeholders`` 重建 HTML。
+    """
+
+    placeholders: Dict[str, Dict[str, Optional[str]]] = field(default_factory=dict)
+
+    def issue(
+        self,
+        *,
+        src: str,
+        alt: str,
+        width: Optional[str],
+        height: Optional[str],
+        title: str = "",
+    ) -> str:
+        """登记一条图片元信息并返回 sentinel 字符串。"""
+        sentinel = f"{SENTINEL_PREFIX}{uuid.uuid4().hex}{SENTINEL_SUFFIX}"
+        self.placeholders[sentinel] = {
+            "src": src,
+            "alt": alt,
+            "width": width,
+            "height": height,
+            "title": title,
+        }
+        return sentinel
+
+
+# 尺寸解析正则
+_PURE_NUM_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*$")
+_PX_VALUE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*px\b", re.IGNORECASE)
+_STYLE_WIDTH_RE = re.compile(r"(?:^|;)\s*width\s*:\s*([^;]+)", re.IGNORECASE)
+_STYLE_HEIGHT_RE = re.compile(r"(?:^|;)\s*height\s*:\s*([^;]+)", re.IGNORECASE)
+
+
+def _parse_dim(value: Optional[str]) -> Optional[str]:
+    """解析单一尺寸值，返回整数像素字符串或 None。
+
+    支持的输入：
+        ``"100"``、``"100px"``、``" 100 px "`` → ``"100"``
+
+    忽略（返回 None）：
+        ``"100%"``、``"auto"``、``"0"``、``"3em"``、``"50vw"``、空串、None
+    """
+    if not value or not isinstance(value, str):
+        return None
+    raw = value.strip()
+    if not raw or raw.lower() in ("auto", "0", "inherit", "initial", "unset"):
+        return None
+    if raw.endswith("%"):
+        return None
+    m = _PURE_NUM_RE.match(raw)
+    if m:
+        n = float(m.group(1))
+        return str(int(n)) if n > 0 else None
+    m = _PX_VALUE_RE.search(raw)
+    if m:
+        n = float(m.group(1))
+        return str(int(n)) if n > 0 else None
+    return None
+
+
+def _extract_img_dimensions(img: Tag) -> Tuple[Optional[str], Optional[str]]:
+    """从 ``<img>`` 标签提取 width/height。
+
+    优先级：``style`` 内的 ``width:Xpx`` > ``width`` 属性（height 同理）。
+    与 W3C CSS 计算值优先级一致——内联 style 覆盖 HTML presentational 属性。
+    """
+    style = img.get("style", "")
+    style_w = style_h = None
+    if isinstance(style, str) and style:
+        sw_match = _STYLE_WIDTH_RE.search(style)
+        if sw_match:
+            style_w = _parse_dim(sw_match.group(1))
+        sh_match = _STYLE_HEIGHT_RE.search(style)
+        if sh_match:
+            style_h = _parse_dim(sh_match.group(1))
+    attr_w_val = img.get("width")
+    attr_h_val = img.get("height")
+    attr_w = _parse_dim(attr_w_val if isinstance(attr_w_val, str) else None)
+    attr_h = _parse_dim(attr_h_val if isinstance(attr_h_val, str) else None)
+    return (style_w or attr_w, style_h or attr_h)
+
+
+def _register_img_placeholders(
+    soup: BeautifulSoup, registry: ImgDimensionRegistry
+) -> None:
+    """遍历 ``<img>``：对带尺寸的图片登记 sentinel 并替换原节点。
+
+    无可解析尺寸的图片保留原 ``<img>`` 节点，走默认 ``![alt](src)`` 路径。
+    必须在 ``_convert_media_elements``（懒加载/srcset/Next.js 解析）之后、
+    在 ``preprocess_html`` 剥离 ``class``/``style`` 之前调用。
+    """
+    for img in list(soup.find_all("img")):
+        src_val = img.get("src", "")
+        if not isinstance(src_val, str) or not src_val.strip():
+            continue
+        if _is_placeholder_src(src_val):
+            continue
+        width, height = _extract_img_dimensions(img)
+        if not width and not height:
+            continue
+        alt_val = img.get("alt", "")
+        title_val = img.get("title", "")
+        sentinel = registry.issue(
+            src=src_val,
+            alt=alt_val if isinstance(alt_val, str) else "",
+            width=width,
+            height=height,
+            title=title_val if isinstance(title_val, str) else "",
+        )
+        img.replace_with(NavigableString(sentinel))
+
+
+def preprocess_html(
+    html_content: str,
+    base_url: Optional[str] = None,
+    *,
+    img_registry: Optional[ImgDimensionRegistry] = None,
+) -> str:
     """
     Preprocess HTML content before MarkItDown conversion.
 
     Args:
         html_content: Raw HTML content
         base_url: Base URL for resolving relative URLs
+        img_registry: 可选的图片尺寸登记簿。若提供，则对带 width/height
+            的 <img> 标签注入 sentinel 占位符，由调用方在 Markdown 后处理
+            阶段还原为内嵌 HTML <img>，从而保留源页面尺寸信息。
 
     Returns:
         Preprocessed HTML content
@@ -43,6 +190,11 @@ def preprocess_html(html_content: str, base_url: Optional[str] = None) -> str:
         # 将非 Markdown 友好的媒体元素转换为可转换形式
         # 必须在 unwanted_tags/unwanted_patterns 移除之前执行
         _convert_media_elements(soup, base_url)
+
+        # 登记带尺寸的 <img>：必须在 style 剥离之前执行，否则 style 中的
+        # 尺寸信息会丢失。无尺寸的图片保留 <img> 节点走默认 ![alt](src) 路径。
+        if img_registry is not None:
+            _register_img_placeholders(soup, img_registry)
 
         # Remove unwanted elements that typically don't contain main content
         unwanted_tags = [
