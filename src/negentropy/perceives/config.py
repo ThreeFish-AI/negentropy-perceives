@@ -649,6 +649,17 @@ class NegentropyPerceivesSettings(BaseSettings):
         ),
     )
 
+    # ── PyMuPDF 多页并行 ────────────────────────────────────
+    pdf_pymupdf_parallel_pages: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "PyMuPDF text/image stage 内的多页并行 chunk 大小。"
+            "0 = 自动按 CPU 推断（max(1, min(8, cpu//2))，Apple Silicon E-core 不参与）；"
+            ">0 = 显式覆盖。<10 页文档强制串行（开销 > 收益）。"
+        ),
+    )
+
     # ── Marker PDF 引擎 ──────────────────────────────────────
     marker_enabled: bool = Field(
         default=True,
