@@ -320,8 +320,9 @@ Pipeline 的 Stage 配置完全由 [`config.default.yaml`](../src/negentropy/per
 
 [`src/negentropy/perceives/pdf/`](../src/negentropy/perceives/pdf/) 子包采用多引擎架构，支持 LLM 智能编排：
 
-- **[`PDFProcessor`](../src/negentropy/perceives/pdf/processor.py)**：主处理器，支持 `auto`/`pymupdf`/`pypdf`/`docling`/`mineru`/`marker`/`smart` 七种方法。`auto` 模式按降级链动态选择首个可用引擎
+- **[`PDFProcessor`](../src/negentropy/perceives/pdf/processor.py)**：主处理器，支持 `auto`/`pymupdf`/`pypdf`/`docling`/`opendataloader`/`mineru`/`marker`/`smart` 八种方法。`auto` 模式按降级链动态选择首个可用引擎
 - **[`DoclingEngine`](../src/negentropy/perceives/pdf/docling_engine.py)**：AI 布局分析引擎，基于 [Docling](https://github.com/DS4SD/docling)，提供 TableFormer 表格结构识别、代码检测和公式提取（可选依赖）
+- **[`OpenDataLoaderEngine`](../src/negentropy/perceives/pdf/engines/opendataloader.py)**：CPU-only / 全元素 bounding box 引擎，基于 [OpenDataLoader PDF](https://github.com/opendataloader-project/opendataloader-pdf)，Apache-2.0 许可证，XY-Cut++ 阅读顺序，Tagged PDF 原生结构支持（可选依赖，需 Java 11+）
 - **[`MinerUEngine`](../src/negentropy/perceives/pdf/mineru_engine.py)**：深度学习文档结构分析引擎，擅长学术论文与多栏排版、公式与表格提取（可选依赖）
 - **[`MarkerEngine`](../src/negentropy/perceives/pdf/marker_engine.py)**：基于 Nougat 模型的学术文档转换引擎，保留公式与结构化排版（可选依赖，GPL-3.0 许可证需确认）
 - **[`EnhancedPDFProcessor`](../src/negentropy/perceives/pdf/enhanced.py)**：增强处理器，提取图像（保存文件 + base64）、识别表格（管道符/制表符/空格分隔模式匹配）、检测 LaTeX 数学公式
@@ -334,16 +335,18 @@ Pipeline 的 Stage 配置完全由 [`config.default.yaml`](../src/negentropy/per
 
 ```mermaid
 graph LR
-    A["Docling<br/>MIT · 最佳整体质量"] --> B["MinerU<br/>Apache 2.0 · 最佳 LaTeX"]
-    B --> C["Marker<br/>GPL-3.0 · 最佳准确率"]
-    C --> D["PyMuPDF<br/>快速文本提取"]
-    D --> E["PyPDF<br/>基础降级"]
+    A["Docling<br/>MIT · 最佳整体质量"] --> B["OpenDataLoader<br/>Apache 2.0 · CPU-only · 全元素 bbox"]
+    B --> C["MinerU<br/>Apache 2.0 · 最佳 LaTeX"]
+    C --> D["Marker<br/>GPL-3.0 · 最佳准确率"]
+    D --> E["PyMuPDF<br/>快速文本提取"]
+    E --> F["PyPDF<br/>基础降级"]
 
     style A fill:#166534,stroke:#22c55e,color:#ffffff
-    style B fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
-    style C fill:#dc2626,stroke:#ef4444,color:#ffffff
-    style D fill:#134e4a,stroke:#14b8a6,color:#ffffff
-    style E fill:#581c87,stroke:#9333ea,color:#ffffff
+    style B fill:#0f766e,stroke:#14b8a6,color:#ffffff
+    style C fill:#1e3a8a,stroke:#3b82f6,color:#ffffff
+    style D fill:#dc2626,stroke:#ef4444,color:#ffffff
+    style E fill:#134e4a,stroke:#14b8a6,color:#ffffff
+    style F fill:#581c87,stroke:#9333ea,color:#ffffff
 ```
 
 > 各引擎均为可选依赖——未安装时自动跳过，确保系统在最小依赖集下仍可运行。

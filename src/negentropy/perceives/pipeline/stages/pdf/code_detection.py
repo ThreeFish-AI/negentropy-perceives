@@ -245,6 +245,80 @@ class AlgorithmCodeDetector(PDFToolBase):
             return StageResult(success=False, error=f"算法检测器执行失败: {e}")
 
 
+@register_tool("code_detection.opendataloader")
+class OpenDataLoaderCodeDetector(PDFToolBase):
+    """基于 OpenDataLoader 的代码块检测工具（Apache-2.0 / CPU-only / 全元素 bbox）。
+
+    注意：OpenDataLoader local mode 不支持代码块提取
+    （``supports_code_blocks=False``），因此 ``result.code_blocks`` 始终为空。
+    此工具保留用于 hybrid mode 场景下的兼容性。
+    """
+
+    tool_name = "opendataloader"
+
+    def is_available(self) -> bool:
+        try:
+            from ....pdf.engines.opendataloader import OpenDataLoaderEngine
+
+            return OpenDataLoaderEngine.is_available()
+        except ImportError:
+            return False
+
+    async def _run(
+        self, input_data: PreprocessingOutput
+    ) -> StageResult[CodeDetectionOutput]:
+        """使用 OpenDataLoader 检测代码块。
+
+        local mode 下 code_blocks 为空，直接返回空结果（success=True），
+        避免因无代码块而阻断后续 Stage。
+        """
+        try:
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "opendataloader",
+                kwargs={"pdf_path": str(input_data.local_path)},
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
+            if result is None:
+                return StageResult(success=False, error="OpenDataLoader 转换返回空结果")
+
+            code_blocks: List[ExtractedCodeBlock] = []
+            for idx, cb in enumerate(result.code_blocks):
+                code_blocks.append(
+                    ExtractedCodeBlock(
+                        code_id=f"code_{idx}",
+                        code=cb.code,
+                        language=cb.language,
+                        page_number=(
+                            cb.page_number if cb.page_number is not None else 0
+                        ),
+                        confidence=0.85,
+                    )
+                )
+
+            output = CodeDetectionOutput(
+                code_blocks=code_blocks,
+                total_count=len(code_blocks),
+                metadata={"engine": "opendataloader"},
+            )
+
+            return StageResult(
+                success=True,
+                output=output,
+                engine_used=self.tool_name,
+            )
+
+        except Exception as e:
+            logger.warning("OpenDataLoader 代码块检测失败: %s", e)
+            return StageResult(
+                success=False, error=f"OpenDataLoader 代码块检测失败: {e}"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Stage 本地工具映射
 # ---------------------------------------------------------------------------
@@ -253,6 +327,7 @@ _TOOLS: Dict[str, type] = {
     "docling": DoclingCodeDetector,
     "marker": MarkerCodeDetector,
     "algorithm_detector": AlgorithmCodeDetector,
+    "opendataloader": OpenDataLoaderCodeDetector,
 }
 
 

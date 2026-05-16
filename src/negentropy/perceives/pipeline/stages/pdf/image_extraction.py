@@ -429,12 +429,95 @@ class FitzImageExtractor(PDFToolBase):
             return StageResult(success=False, error=f"PyMuPDF 图片提取失败: {e}")
 
 
+@register_tool("image_extraction.opendataloader")
+class OpenDataLoaderImageExtractor(PDFToolBase):
+    """基于 OpenDataLoader 的图片提取工具（Apache-2.0 / CPU-only / 全元素 bbox）。"""
+
+    tool_name = "opendataloader"
+
+    def is_available(self) -> bool:
+        try:
+            from ....pdf.engines.opendataloader import OpenDataLoaderEngine
+
+            return OpenDataLoaderEngine.is_available()
+        except ImportError:
+            return False
+
+    async def _run(self, input_data: Any) -> StageResult[ImageExtractionOutput]:
+        """使用 OpenDataLoader 提取图片信息。
+
+        OpenDataLoader 的 ``EngineConversionResult.images`` 包含页码、bbox 与
+        外部图片路径，但不提取 base64 数据和宽高信息。
+        """
+        try:
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
+
+            # 兼容两种输入类型（与 FitzImageExtractor 一致）
+            preprocessing: PreprocessingOutput
+            if isinstance(input_data, ImageExtractionInput):
+                preprocessing = input_data.preprocessing
+            elif isinstance(input_data, PreprocessingOutput):
+                preprocessing = input_data
+            else:
+                return StageResult(
+                    success=False,
+                    error=f"不支持的输入类型: {type(input_data).__name__}",
+                )
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "opendataloader",
+                kwargs={"pdf_path": str(preprocessing.local_path)},
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
+            if result is None:
+                return StageResult(success=False, error="OpenDataLoader 转换返回空结果")
+
+            images: List[ExtractedImage] = []
+            for idx, img in enumerate(result.images):
+                images.append(
+                    ExtractedImage(
+                        image_id=f"odl_img_{idx}",
+                        filename=img.filename or f"odl_img_{idx}.png",
+                        local_path=img.local_path,
+                        page_number=img.page_number
+                        if img.page_number is not None
+                        else 0,
+                        bbox=img.bbox,
+                        caption=img.caption,
+                        reading_order=idx,
+                    )
+                )
+
+            output = ImageExtractionOutput(
+                images=images,
+                total_count=len(images),
+                metadata={
+                    "engine": "opendataloader",
+                    "page_count": result.page_count,
+                },
+            )
+
+            return StageResult(
+                success=True,
+                output=output,
+                engine_used=self.tool_name,
+            )
+
+        except Exception as e:
+            logger.warning("OpenDataLoader 图片提取失败: %s", e)
+            return StageResult(success=False, error=f"OpenDataLoader 图片提取失败: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Stage 本地工具映射
 # ---------------------------------------------------------------------------
 
 _TOOLS: Dict[str, type] = {
     "pymupdf": FitzImageExtractor,
+    "opendataloader": OpenDataLoaderImageExtractor,
 }
 
 

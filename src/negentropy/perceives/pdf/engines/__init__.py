@@ -8,6 +8,7 @@
 - ``docling``：Docling 引擎（MIT 许可证）
 - ``mineru``：MinerU 引擎（LaTeX 公式提取最优）
 - ``marker``：Marker 引擎（综合准确率最高，GPL-3.0）
+- ``opendataloader``：OpenDataLoader 引擎（Apache-2.0 / CPU-only / 全元素 bbox）
 """
 
 from __future__ import annotations
@@ -46,6 +47,7 @@ from .mineru import (
     MinerUImage,
     MinerUTable,
 )
+from .opendataloader import OpenDataLoaderEngine
 
 __all__ = [
     # 协议与基类
@@ -80,4 +82,6 @@ __all__ = [
     "MarkerImage",
     "MarkerFormula",
     "MarkerCodeBlock",
+    # OpenDataLoader 引擎
+    "OpenDataLoaderEngine",
 ]
