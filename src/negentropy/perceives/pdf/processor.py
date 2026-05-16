@@ -12,19 +12,11 @@ from ._imports import import_fitz, import_pypdf
 from ._sources import download_pdf_to_temp, is_pdf_url
 from .enhanced import (
     EnhancedPDFProcessor,
-    ExtractedFormula,
     ExtractedImage,
     ExtractedTable,
 )
-from ..markdown.algorithm_detector import (
-    _compute_algorithm_score,
-    detect_algorithm_regions,
-    is_algorithm_block,
-    wrap_as_code_fence,
-)
+from ..markdown.algorithm_detector import is_algorithm_block
 from .math_formula import (
-    DoclingFormulaEnricher,
-    FormulaReconstructor,
     MathRegion,
 )
 from .engines.docling import DoclingEngine
@@ -402,175 +394,30 @@ class PDFProcessor:
                     logger.warning("LLM 编排失败，降级至 auto 模式: %s", e)
                     method = "auto"
 
-            # ── Docling 主路径 ──
-            # 当 Docling 可用且 method 为 auto/docling 时，优先使用 Docling 引擎
-            if self._docling_engine and method in ("auto", "docling"):
-                try:
-                    logger.info("使用 Docling 引擎转换 PDF: %s", pdf_source)
-                    page_range_tuple = page_range if page_range else None
-                    from ..core.cancellation import current_cancel_scope
-                    from ..infra import get_engine_pool
+            # ── 引擎降级链（Docling → OpenDataLoader → MinerU → Marker） ──
+            from ._engine_dispatch import DISPATCH_TABLE, try_dispatch_engine
 
-                    _scope = current_cancel_scope()
-                    docling_result = await get_engine_pool().run(
-                        "docling",
-                        kwargs={
-                            "pdf_path": str(pdf_path),
-                            "page_range": page_range_tuple,
-                            "embed_images": embed_images,
-                        },
-                        init_kwargs=self._docling_init_kwargs,
-                        deadline_monotonic=_scope.deadline_monotonic
-                        if _scope
-                        else None,
-                    )
-                    if docling_result and docling_result.markdown:
-                        return self._build_result_from_engine(
-                            docling_result,
-                            engine_name="docling",
-                            pdf_source=pdf_source,
-                            include_metadata=include_metadata,
-                            output_format=output_format,
-                        )
-                    else:
-                        logger.warning("Docling 返回空结果，降级至 PyMuPDF 路径")
-                except Exception as e:
-                    logger.warning("Docling 转换失败，降级至 PyMuPDF 路径: %s", e)
-
-            # 若显式指定 docling 但不可用，返回错误
-            if method == "docling" and not self._docling_engine:
-                return {
-                    "success": False,
-                    "error": "Docling 引擎不可用，请安装 docling 可选依赖: "
-                    "uv pip install negentropy-perceives[docling]",
-                    "source": pdf_source,
-                }
-
-            # ── OpenDataLoader 引擎路径 ──
-            if self._opendataloader_engine and method in ("auto", "opendataloader"):
-                try:
-                    logger.info("使用 OpenDataLoader 引擎转换 PDF: %s", pdf_source)
-                    from ..core.cancellation import current_cancel_scope
-                    from ..infra import get_engine_pool
-
-                    _scope = current_cancel_scope()
-                    odl_result = await get_engine_pool().run(
-                        "opendataloader",
-                        kwargs={
-                            "pdf_path": str(pdf_path),
-                            "embed_images": embed_images,
-                        },
-                        init_kwargs=self._opendataloader_init_kwargs,
-                        deadline_monotonic=_scope.deadline_monotonic
-                        if _scope
-                        else None,
-                    )
-                    if odl_result and odl_result.markdown:
-                        return self._build_result_from_engine(
-                            odl_result,
-                            engine_name="opendataloader",
-                            pdf_source=pdf_source,
-                            include_metadata=include_metadata,
-                            output_format=output_format,
-                        )
-                    else:
-                        logger.warning("OpenDataLoader 返回空结果，降级至下一引擎")
-                except Exception as e:
-                    logger.warning("OpenDataLoader 转换失败，降级至下一引擎: %s", e)
-
-            # 若显式指定 opendataloader 但不可用，返回错误
-            if method == "opendataloader" and not self._opendataloader_engine:
-                return {
-                    "success": False,
-                    "error": "OpenDataLoader 引擎不可用，请安装 opendataloader-pdf 依赖并确保 Java 11+ 可用",
-                    "source": pdf_source,
-                }
-
-            # ── MinerU 引擎路径 ──
-            # 当 MinerU 可用且 method 为 auto/mineru 时，使用 MinerU 引擎
-            if self._mineru_engine and method in ("auto", "mineru"):
-                try:
-                    logger.info("使用 MinerU 引擎转换 PDF: %s", pdf_source)
-                    page_range_tuple = page_range if page_range else None
-                    from ..core.cancellation import current_cancel_scope
-                    from ..infra import get_engine_pool
-
-                    _scope = current_cancel_scope()
-                    mineru_result = await get_engine_pool().run(
-                        "mineru",
-                        kwargs={
-                            "pdf_path": str(pdf_path),
-                            "page_range": page_range_tuple,
-                        },
-                        init_kwargs=self._mineru_init_kwargs,
-                        deadline_monotonic=_scope.deadline_monotonic
-                        if _scope
-                        else None,
-                    )
-                    if mineru_result and mineru_result.markdown:
-                        return self._build_result_from_engine(
-                            mineru_result,
-                            engine_name="mineru",
-                            pdf_source=pdf_source,
-                            include_metadata=include_metadata,
-                            output_format=output_format,
-                        )
-                    else:
-                        logger.warning("MinerU 返回空结果，降级至下一引擎")
-                except Exception as e:
-                    logger.warning("MinerU 转换失败，降级至下一引擎: %s", e)
-
-            # 若显式指定 mineru 但不可用，返回错误
-            if method == "mineru" and not self._mineru_engine:
-                return {
-                    "success": False,
-                    "error": "MinerU 引擎不可用，请安装 mineru 可选依赖: "
-                    "uv pip install negentropy-perceives[mineru]",
-                    "source": pdf_source,
-                }
-
-            # ── Marker 引擎路径 ──
-            # 当 Marker 可用且 method 为 auto/marker 时，使用 Marker 引擎
-            if self._marker_engine and method in ("auto", "marker"):
-                try:
-                    logger.info("使用 Marker 引擎转换 PDF: %s", pdf_source)
-                    from ..core.cancellation import current_cancel_scope
-                    from ..infra import get_engine_pool
-
-                    _scope = current_cancel_scope()
-                    marker_result = await get_engine_pool().run(
-                        "marker",
-                        kwargs={
-                            "pdf_path": str(pdf_path),
-                            "embed_images": embed_images,
-                        },
-                        init_kwargs=self._marker_init_kwargs,
-                        deadline_monotonic=_scope.deadline_monotonic
-                        if _scope
-                        else None,
-                    )
-                    if marker_result and marker_result.markdown:
-                        return self._build_result_from_engine(
-                            marker_result,
-                            engine_name="marker",
-                            pdf_source=pdf_source,
-                            include_metadata=include_metadata,
-                            output_format=output_format,
-                        )
-                    else:
-                        logger.warning("Marker 返回空结果，降级至下一引擎")
-                except Exception as e:
-                    logger.warning("Marker 转换失败，降级至下一引擎: %s", e)
-
-            # 若显式指定 marker 但不可用，返回错误
-            if method == "marker" and not self._marker_engine:
-                return {
-                    "success": False,
-                    "error": "Marker 引擎不可用，请安装 marker 可选依赖: "
-                    "uv pip install negentropy-perceives[marker]。"
-                    "注意：Marker 使用 GPL-3.0 许可证。",
-                    "source": pdf_source,
-                }
+            for desc in DISPATCH_TABLE:
+                dispatch_result = await try_dispatch_engine(
+                    processor=self,
+                    desc=desc,
+                    pdf_path=str(pdf_path),
+                    page_range=page_range if page_range else None,
+                    embed_images=embed_images,
+                    pdf_source=pdf_source,
+                    include_metadata=include_metadata,
+                    output_format=output_format,
+                    method=method,
+                )
+                if dispatch_result is not None:
+                    # 非None = 有结果（可能是成功结果或显式指定不可用的错误）
+                    if dispatch_result.get("success"):
+                        return dispatch_result
+                    # 显式指定但不可用 → 返回错误
+                    if method == desc.name:
+                        return dispatch_result
+                    # auto 模式下此引擎失败 → 继续尝试下一个
+                    logger.debug("引擎 %s 调度返回失败，继续降级链", desc.name)
 
             # ── PyMuPDF/PyPDF 降级路径 ──
             # 1. Extract enhanced assets (images with positions) FIRST
@@ -1076,237 +923,39 @@ class PDFProcessor:
 
     def _convert_to_markdown(self, text: str) -> str:
         """Convert extracted text to Markdown format using MarkItDown."""
-        try:
-            # Try to use the new MarkdownConverter for better formatting
-            from ..markdown.converter import MarkdownConverter
+        from ._markdown_builder import convert_to_markdown
 
-            converter = MarkdownConverter()
-
-            # 预处理：检测跨段落的算法区域并合并为代码围栏
-            text = self._merge_algorithm_regions(text)
-
-            # Split text into paragraphs and wrap each in <p> tags
-            # so MarkItDown can properly convert paragraph structure.
-            # 算法代码围栏使用 UUID 占位符绕过 MarkItDown（避免标签丢失），
-            # 转换后再还原。
-            import uuid as _uuid
-
-            algo_placeholders: dict = {}
-            paragraphs = text.split("\n\n")
-            html_parts = []
-            for p in paragraphs:
-                p = p.strip()
-                if not p:
-                    continue
-                if p.startswith("<!--"):
-                    # Preserve page comments as-is
-                    html_parts.append(p)
-                elif p.startswith("!["):
-                    # Preserve inline image references as-is
-                    html_parts.append(p)
-                elif p.startswith("|") or (p.startswith("**") and "\n|" in p):
-                    # Preserve inline markdown tables as-is
-                    html_parts.append(p)
-                elif p.startswith("```algorithm\n"):
-                    # _merge_algorithm_regions 产生的算法围栏：用占位符绕过 MarkItDown
-                    placeholder = f"ALGOPH{_uuid.uuid4().hex[:16]}"
-                    algo_placeholders[placeholder] = p
-                    html_parts.append(f"<p>{placeholder}</p>")
-                elif is_algorithm_block(p) and _compute_algorithm_score(p) >= 7:
-                    # 独立算法/伪代码块：使用更高阈值避免普通段落误判
-                    fence = wrap_as_code_fence(p)
-                    placeholder = f"ALGOPH{_uuid.uuid4().hex[:16]}"
-                    algo_placeholders[placeholder] = fence
-                    html_parts.append(f"<p>{placeholder}</p>")
-                else:
-                    # Merge intra-paragraph line breaks into spaces
-                    p_clean = p.replace("\n", " ")
-                    html_parts.append(f"<p>{p_clean}</p>")
-
-            html_content = f"<html><body><div>{''.join(html_parts)}</div></body></html>"
-
-            # Use MarkItDown through the converter
-            result = converter.html_to_markdown(html_content)
-
-            # 还原算法代码围栏占位符
-            for placeholder, fence in algo_placeholders.items():
-                result = result.replace(placeholder, fence)
-
-            # Check if the result has proper markdown formatting (headers, structure)
-            # If not, fall back to our simple conversion which is better for PDFs
-            if not self._has_markdown_structure(result):
-                logger.info(
-                    "MarkdownConverter didn't add structure, using simple conversion"
-                )
-                return self._simple_markdown_conversion(text)
-
-            return result
-
-        except Exception as e:
-            logger.warning(
-                f"Failed to use MarkdownConverter, falling back to simple conversion: {str(e)}"
-            )
-            # Fallback to the simple conversion method
-            return self._simple_markdown_conversion(text)
+        return convert_to_markdown(text)
 
     def _merge_algorithm_regions(self, text: str) -> str:
-        """检测并合并跨段落的算法区域为代码围栏。
+        """检测并合并跨段落的算法区域为代码围栏。"""
+        from ._markdown_builder import merge_algorithm_regions
 
-        PDF 提取中，一个算法块可能被拆分为多个段落（标题、Require/Ensure、编号行），
-        此方法将它们合并为单个代码围栏。
-        """
-        regions = detect_algorithm_regions(text)
-        if not regions:
-            return text
-
-        paragraphs = text.split("\n\n")
-        # 标记哪些段落属于算法区域
-        merged_indices: set = set()
-        insertions: dict = {}  # {start_idx: code_fence_text}
-
-        for region in regions:
-            for idx in range(region.start_idx, region.end_idx):
-                merged_indices.add(idx)
-            # 合并区域内的段落并包装为代码围栏
-            region_paragraphs = []
-            for idx in range(region.start_idx, region.end_idx):
-                if idx < len(paragraphs):
-                    p = paragraphs[idx].strip()
-                    if p and not p.startswith("<!--"):
-                        region_paragraphs.append(p)
-            if region_paragraphs:
-                merged_content = "\n".join(region_paragraphs)
-                insertions[region.start_idx] = wrap_as_code_fence(merged_content)
-
-        # 重组段落
-        result_parts = []
-        for i, p in enumerate(paragraphs):
-            if i in insertions:
-                result_parts.append(insertions[i])
-            elif i not in merged_indices:
-                result_parts.append(p)
-
-        return "\n\n".join(result_parts)
+        return merge_algorithm_regions(text)
 
     def _simple_markdown_conversion(self, text: str) -> str:
         """Simple fallback markdown conversion with paragraph grouping."""
-        # Split by double-newlines to get paragraph groups
-        paragraphs = text.split("\n\n")
-        result_paragraphs = []
+        from ._markdown_builder import simple_markdown_conversion
 
-        for paragraph in paragraphs:
-            paragraph = paragraph.strip()
-            if not paragraph:
-                continue
-            if paragraph.startswith("<!--"):
-                continue  # Skip page comments
-
-            # Preserve inline image references
-            if paragraph.startswith("!["):
-                result_paragraphs.append(paragraph)
-                continue
-
-            # Preserve inline markdown tables
-            if paragraph.startswith("|") or (
-                paragraph.startswith("**") and "\n|" in paragraph
-            ):
-                result_paragraphs.append(paragraph)
-                continue
-
-            # Collect non-empty lines within this paragraph
-            lines = [line.strip() for line in paragraph.split("\n") if line.strip()]
-            if not lines:
-                continue
-
-            if len(lines) == 1:
-                line = lines[0]
-                # Convert common patterns to Markdown headings
-                if line.isupper() and len(line.split()) <= 5:
-                    result_paragraphs.append(f"# {line}")
-                elif line.endswith(":") and len(line.split()) <= 8:
-                    result_paragraphs.append(f"## {line}")
-                elif self._looks_like_title(line):
-                    result_paragraphs.append(f"# {line}")
-                else:
-                    result_paragraphs.append(line)
-            else:
-                # 检测算法/伪代码块，保留行结构
-                raw_text = "\n".join(lines)
-                if (
-                    is_algorithm_block(raw_text)
-                    and _compute_algorithm_score(raw_text) >= 7
-                ):
-                    result_paragraphs.append(wrap_as_code_fence(raw_text))
-                else:
-                    # Merge multiple lines into a single paragraph
-                    merged = " ".join(lines)
-                    result_paragraphs.append(merged)
-
-        return "\n\n".join(result_paragraphs)
+        return simple_markdown_conversion(text)
 
     def _looks_like_title(self, line: str) -> bool:
         """Check if a line looks like a title."""
-        # Title heuristics
-        words = line.split()
-        if len(words) > 8:  # Too long to be a title
-            return False
+        from ._markdown_builder import looks_like_title
 
-        # Check if most words are capitalized
-        capitalized_count = sum(1 for word in words if word and word[0].isupper())
-
-        # If more than half the words are capitalized, it might be a title
-        return capitalized_count > len(words) * 0.6
+        return looks_like_title(line)
 
     def _normalize_paragraphs(self, text: str) -> str:
-        """Normalize paragraph separation in raw extracted text.
+        """Normalize paragraph separation in raw extracted text."""
+        from ._markdown_builder import normalize_paragraphs
 
-        When text lacks double-newline paragraph separators (e.g. from pypdf),
-        use heuristics to detect paragraph boundaries and insert blank lines.
-        """
-        # If text already has double-newlines, it has paragraph structure
-        if "\n\n" in text:
-            return text
-
-        # 算法/伪代码块不应被段落拆分
-        if is_algorithm_block(text):
-            return text
-
-        lines = text.split("\n")
-        if len(lines) <= 1:
-            return text
-
-        result_lines = []
-        for i, line in enumerate(lines):
-            result_lines.append(line)
-            if i >= len(lines) - 1:
-                continue
-            current = line.strip()
-            next_line = lines[i + 1].strip()
-            if not current or not next_line:
-                continue
-            # Heuristic: sentence-ending punctuation followed by uppercase start
-            if current[-1] in ".?!:" and next_line[0].isupper():
-                result_lines.append("")  # Insert blank line (paragraph break)
-
-        return "\n".join(result_lines)
+        return normalize_paragraphs(text)
 
     def _has_markdown_structure(self, text: str) -> bool:
-        """Check if text has proper markdown structure (headers, formatting, etc.)."""
-        # Check for common markdown structures
-        has_headers = bool(re.search(r"^#{1,6}\s+", text, re.MULTILINE))
-        has_lists = bool(re.search(r"^[\s]*[-*+]\s+", text, re.MULTILINE))
-        has_bold = "**" in text or "__" in text
-        has_italic = "*" in text or "_" in text
-        has_links = "[" in text and "](" in text
-        has_code = "`" in text
+        """Check if text has proper markdown structure."""
+        from ._markdown_builder import has_markdown_structure
 
-        # If it has any meaningful markdown structure, consider it good
-        structure_count = sum(
-            [has_headers, has_lists, has_bold, has_italic, has_links, has_code]
-        )
-
-        # We especially want headers for PDF content
-        return has_headers or structure_count >= 2
+        return has_markdown_structure(text)
 
     async def _extract_enhanced_assets(
         self,
@@ -1317,130 +966,25 @@ class PDFProcessor:
         extract_formulas: bool,
         pdf_name: str = "",
     ) -> Dict[str, Any]:
-        """
-        Extract enhanced assets (images, tables, formulas) from PDF.
-
-        For images, this also populates self._page_image_maps with
-        block_no -> ExtractedImage mappings for each page, enabling
-        inline image placement during text extraction.
-
-        Args:
-            pdf_path: Path to PDF file
-            page_range: Optional page range tuple
-            extract_images: Whether to extract images
-            extract_tables: Whether to extract tables
-            extract_formulas: Whether to extract formulas
-            pdf_name: Original PDF filename for image naming
-
-        Returns:
-            Dict with extraction results
-        """
+        """提取增强资源（图片、表格、公式），委托至 _enhanced_assets 模块。"""
         if not self.enhanced_processor:
             return {}
 
-        try:
-            # Open PDF document
-            fitz = _import_fitz()
-            doc = fitz.open(str(pdf_path))
+        from ._enhanced_assets import extract_enhanced_assets
 
-            # Determine page range
-            start_page = 0
-            end_page = len(doc)
-
-            if page_range:
-                start_page = max(0, page_range[0])
-                end_page = min(len(doc), page_range[1])
-
-            extracted_assets = {
-                "success": True,
-                "pages_processed": end_page - start_page,
-            }
-
-            # Extract images with position mapping for inline placement
-            if extract_images:
-                for page_num in range(start_page, end_page):
-                    try:
-                        page = doc[page_num]
-                        blocks = page.get_text("blocks")
-
-                        image_map = (
-                            await self.enhanced_processor.extract_images_with_positions(
-                                doc,
-                                page_num,
-                                blocks,
-                                self.enhanced_processor.output_dir,
-                                self.enhanced_processor.images,
-                                pdf_name=pdf_name,
-                            )
-                        )
-                        if image_map:
-                            self._page_image_maps[page_num] = image_map
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to extract images from page {page_num}: {str(e)}"
-                        )
-
-                extracted_assets["images_extracted"] = len(
-                    self.enhanced_processor.images
-                )
-
-            # Extract tables using geometric detection (primary) with text fallback
-            if extract_tables:
-                for page_num in range(start_page, end_page):
-                    try:
-                        page = doc[page_num]
-                        blocks = page.get_text("blocks")
-
-                        # Primary: geometric table detection via find_tables()
-                        bbox_map, geo_tables = (
-                            self.enhanced_processor.extract_tables_with_geometry(
-                                doc,
-                                page_num,
-                                blocks,
-                            )
-                        )
-
-                        if bbox_map:
-                            self._page_table_maps[page_num] = bbox_map
-
-                        self.enhanced_processor.tables.extend(geo_tables)
-
-                        # Fallback: if geometric detection found nothing,
-                        # try text-based pattern matching
-                        if not geo_tables:
-                            text = page.get_text()
-                            text_tables = (
-                                self.enhanced_processor.extract_tables_from_text(
-                                    text, page_num
-                                )
-                            )
-                            self.enhanced_processor.tables.extend(text_tables)
-
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to extract tables from page {page_num}: {str(e)}"
-                        )
-
-            # Extract formulas using dual-path strategy
-            if extract_formulas:
-                self._extract_formulas_dual_path(doc, pdf_path, start_page, end_page)
-
-            # Add extraction summaries
-            if extract_tables:
-                extracted_assets["tables_extracted"] = len(
-                    self.enhanced_processor.tables
-                )
-            if extract_formulas:
-                extracted_assets["formulas_extracted"] = len(
-                    self.enhanced_processor.formulas
-                )
-
-            doc.close()
-            return extracted_assets
-
-        except Exception as e:
-            logger.error(f"Error in enhanced asset extraction: {str(e)}")
-            return {"success": False, "error": str(e)}
+        return await extract_enhanced_assets(
+            enhanced_processor=self.enhanced_processor,
+            page_image_maps=self._page_image_maps,
+            page_table_maps=self._page_table_maps,
+            page_math_blocks=self._page_math_blocks,
+            page_math_regions=self._page_math_regions,
+            pdf_path=pdf_path,
+            page_range=page_range,
+            extract_images=extract_images,
+            extract_tables=extract_tables,
+            extract_formulas=extract_formulas,
+            pdf_name=pdf_name,
+        )
 
     def _extract_formulas_dual_path(
         self,
@@ -1449,89 +993,24 @@ class PDFProcessor:
         start_page: int,
         end_page: int,
     ) -> None:
-        """使用双路径策略提取公式。
+        """使用双路径策略提取公式，委托至 _enhanced_assets 模块。"""
+        from ._enhanced_assets import extract_formulas_dual_path
 
-        高保真路径：Docling CodeFormula（需安装可选依赖）
-        降级路径：PyMuPDF 字体分析 + Unicode→LaTeX 映射
-        """
-        if not self.enhanced_processor:
-            return
-
-        # 路径 1: 尝试 Docling 高保真路径
-        if DoclingFormulaEnricher.is_available():
-            try:
-                logger.info("使用 Docling CodeFormula 模型提取公式")
-                enricher = DoclingFormulaEnricher()
-                docling_md = enricher.get_markdown_with_formulas(str(pdf_path))
-                self._inject_docling_formulas(docling_md)
-                return
-            except Exception as e:
-                logger.warning(f"Docling 公式提取失败，降级至 PyMuPDF 字体分析: {e}")
-
-        # 路径 2: PyMuPDF 字体分析降级路径
-        logger.info("使用 PyMuPDF 字体分析提取公式")
-        reconstructor = FormulaReconstructor()
-        for page_num in range(start_page, end_page):
-            try:
-                page = doc[page_num]
-                enhanced_blocks, regions = reconstructor.extract_formulas_from_page(
-                    page, page_num
-                )
-                if enhanced_blocks:
-                    self._page_math_blocks[page_num] = enhanced_blocks
-                if regions:
-                    self._page_math_regions[page_num] = regions
-                    # 转换为 ExtractedFormula 追加到 enhanced_processor
-                    for i, region in enumerate(regions):
-                        formula = ExtractedFormula(
-                            id=self.enhanced_processor._generate_asset_id(
-                                "formula", page_num, i
-                            ),
-                            latex=region.latex,
-                            formula_type=region.formula_type,
-                            page_number=page_num,
-                            position=region.bbox,
-                            description=f"Equation ({region.equation_number})"
-                            if region.equation_number
-                            else None,
-                        )
-                        self.enhanced_processor.formulas.append(formula)
-            except Exception as e:
-                logger.warning(f"PyMuPDF 公式提取失败 (page {page_num}): {e}")
+        extract_formulas_dual_path(
+            enhanced_processor=self.enhanced_processor,
+            page_math_blocks=self._page_math_blocks,
+            page_math_regions=self._page_math_regions,
+            doc=doc,
+            pdf_path=pdf_path,
+            start_page=start_page,
+            end_page=end_page,
+        )
 
     def _inject_docling_formulas(self, docling_md: str) -> None:
-        """从 Docling 输出的 Markdown 中提取公式，注入到 enhanced_processor。"""
-        if not self.enhanced_processor or not docling_md:
-            return
+        """从 Docling 输出的 Markdown 中提取公式，委托至 _enhanced_assets 模块。"""
+        from ._enhanced_assets import inject_docling_formulas
 
-        # 提取块级公式: $$ ... $$
-        block_pattern = re.compile(r"\$\$([\s\S]+?)\$\$")
-        for i, match in enumerate(block_pattern.finditer(docling_md)):
-            latex = match.group(1).strip()
-            if latex:
-                formula = ExtractedFormula(
-                    id=self.enhanced_processor._generate_asset_id("formula", 0, i),
-                    latex=latex,
-                    formula_type="block",
-                    description="Docling CodeFormula",
-                )
-                self.enhanced_processor.formulas.append(formula)
-
-        # 提取行内公式: $ ... $ (排除 $$)
-        inline_pattern = re.compile(r"(?<!\$)\$(?!\$)([^$]+?)\$(?!\$)")
-        offset = len(self.enhanced_processor.formulas)
-        for i, match in enumerate(inline_pattern.finditer(docling_md)):
-            latex = match.group(1).strip()
-            if latex and len(latex) > 1:
-                formula = ExtractedFormula(
-                    id=self.enhanced_processor._generate_asset_id(
-                        "formula", 0, offset + i
-                    ),
-                    latex=latex,
-                    formula_type="inline",
-                    description="Docling CodeFormula",
-                )
-                self.enhanced_processor.formulas.append(formula)
+        inject_docling_formulas(self.enhanced_processor, docling_md)
 
     def _build_result_from_engine(
         self,
