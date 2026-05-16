@@ -1,6 +1,6 @@
 """LLM 客户端封装模块（基于 LiteLLM）。
 
-当 ``litellm`` 可选依赖已安装时，提供对 GLM-5 (ZhipuAI) 等大语言模型的
+当 ``litellm`` 可选依赖已安装时，提供对 OpenAI GPT 等大语言模型的
 异步调用能力，用于 PDF 多引擎编排的分析与融合阶段。
 
 降级策略：当 ``litellm`` 未安装时，``is_available()`` 返回 ``False``，
