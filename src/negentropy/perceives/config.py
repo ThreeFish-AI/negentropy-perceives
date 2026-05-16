@@ -646,6 +646,35 @@ class NegentropyPerceivesSettings(BaseSettings):
         description="确认 Marker GPL-3.0 许可证条款（商业使用需评估）",
     )
 
+    # ── OpenDataLoader PDF 引擎（Apache 2.0 / CPU-only / 全元素 bbox）─────────
+    opendataloader_enabled: bool = Field(
+        default=True,
+        description=(
+            "允许 OpenDataLoader 参与 PDF Pipeline 调度（Apache-2.0，CPU-only）。"
+            "默认 True，实际是否运行取决于 `is_available()`：需 Java 11+ 且安装 opendataloader-pdf。"
+        ),
+    )
+    opendataloader_use_struct_tree: bool = Field(
+        default=True,
+        description="利用 Tagged PDF 原生结构（若存在），提供高质量 reading order。",
+    )
+    opendataloader_sanitize: bool = Field(
+        default=False,
+        description="启用 prompt injection / PII 过滤（影响内容完整性，默认关闭）。",
+    )
+    opendataloader_hybrid_enabled: bool = Field(
+        default=False,
+        description="启用 hybrid 模式（需 opendataloader-pdf-hybrid 边车 server）。",
+    )
+    opendataloader_hybrid_endpoint: Optional[str] = Field(
+        default=None,
+        description="hybrid server 端点 URL（hybrid_enabled=True 时必填）。",
+    )
+    opendataloader_java_check_timeout: int = Field(
+        default=3,
+        description="Java 可用性检测超时（秒）。",
+    )
+
     # ── 表格质量过滤（PyMuPDF find_tables 兜底启发式） ─────────
     pdf_table_quality_filter_enabled: bool = Field(
         default=True,

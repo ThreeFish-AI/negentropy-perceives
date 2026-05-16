@@ -30,6 +30,7 @@ from .math_formula import (
 from .engines.docling import DoclingEngine
 from .engines.mineru import MinerUEngine
 from .engines.marker import MarkerEngine
+from .engines.opendataloader import OpenDataLoaderEngine
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 # 每个 "auto" 模式的降级链：按优先级排列，前面的引擎不可用或失败时自动降级
 _ENGINE_FALLBACK_CHAIN = [
     "docling",  # 最佳整体质量（MIT 许可证）
+    "opendataloader",  # CPU-only / 全元素 bbox / Apache-2.0
     "mineru",  # 最佳 LaTeX 公式提取（Apache 2.0）
     "marker",  # 最佳整体准确率（GPL-3.0，需确认许可证）
     "pymupdf",  # 快速文本提取（始终可用）
@@ -48,7 +50,7 @@ _ENGINE_FALLBACK_CHAIN = [
 ]
 
 # 简化降级链（不包含 MinerU/Marker，保持向后兼容）
-_SIMPLE_FALLBACK_CHAIN = ["docling", "pymupdf", "pypdf"]
+_SIMPLE_FALLBACK_CHAIN = ["docling", "opendataloader", "pymupdf", "pypdf"]
 
 
 def _import_fitz():
@@ -83,6 +85,7 @@ class PDFProcessor:
             "pypdf",
             "auto",
             "docling",
+            "opendataloader",
             "smart",
             "mineru",
             "marker",
@@ -101,12 +104,14 @@ class PDFProcessor:
 
         # Docling 引擎（延迟初始化，仅当 prefer_docling=True 且已安装时）
         self._docling_engine: Optional[DoclingEngine] = None
+        self._opendataloader_engine: Optional[OpenDataLoaderEngine] = None
         self._mineru_engine: Optional[MinerUEngine] = None
         self._marker_engine: Optional[MarkerEngine] = None
 
         # 传递给 Worker 的 init_kwargs：process 隔离模式下子进程据此实例化
         # 对应引擎；与主进程侧 `_*_engine` 实例使用同一组 kwargs，保证行为一致。
         self._docling_init_kwargs: Dict[str, Any] = {}
+        self._opendataloader_init_kwargs: Dict[str, Any] = {}
         self._mineru_init_kwargs: Dict[str, Any] = {}
         self._marker_init_kwargs: Dict[str, Any] = {}
 
@@ -125,6 +130,9 @@ class PDFProcessor:
                 "table_batch_size": settings.accelerator_table_batch_size,
             }
             self._docling_engine = DoclingEngine(**self._docling_init_kwargs)
+
+        # OpenDataLoader 引擎（延迟初始化，仅当配置启用且已安装时）
+        self._init_opendataloader_engine()
 
         # MinerU 引擎（延迟初始化，仅当配置启用且已安装时）
         self._init_mineru_engine()
@@ -153,6 +161,29 @@ class PDFProcessor:
     # ------------------------------------------------------------------
     # 引擎初始化辅助方法
     # ------------------------------------------------------------------
+
+    def _init_opendataloader_engine(self) -> None:
+        """初始化 OpenDataLoader 引擎（仅当配置启用且已安装时）。"""
+        try:
+            from ..config import settings
+
+            if (
+                getattr(settings, "opendataloader_enabled", True)
+                and OpenDataLoaderEngine.is_available()
+            ):
+                self._opendataloader_init_kwargs = {
+                    "use_struct_tree": getattr(
+                        settings, "opendataloader_use_struct_tree", True
+                    ),
+                    "sanitize": getattr(settings, "opendataloader_sanitize", False),
+                }
+                self._opendataloader_engine = OpenDataLoaderEngine(
+                    **self._opendataloader_init_kwargs
+                )
+                logger.info("OpenDataLoader 引擎已初始化")
+        except Exception as e:
+            logger.warning("OpenDataLoader 引擎初始化失败: %s", e)
+            self._opendataloader_engine = None
 
     def _init_mineru_engine(self) -> None:
         """初始化 MinerU 引擎（仅当配置启用且已安装时）。"""
@@ -412,6 +443,46 @@ class PDFProcessor:
                     "success": False,
                     "error": "Docling 引擎不可用，请安装 docling 可选依赖: "
                     "uv pip install negentropy-perceives[docling]",
+                    "source": pdf_source,
+                }
+
+            # ── OpenDataLoader 引擎路径 ──
+            if self._opendataloader_engine and method in ("auto", "opendataloader"):
+                try:
+                    logger.info("使用 OpenDataLoader 引擎转换 PDF: %s", pdf_source)
+                    from ..core.cancellation import current_cancel_scope
+                    from ..infra import get_engine_pool
+
+                    _scope = current_cancel_scope()
+                    odl_result = await get_engine_pool().run(
+                        "opendataloader",
+                        kwargs={
+                            "pdf_path": str(pdf_path),
+                            "embed_images": embed_images,
+                        },
+                        init_kwargs=self._opendataloader_init_kwargs,
+                        deadline_monotonic=_scope.deadline_monotonic
+                        if _scope
+                        else None,
+                    )
+                    if odl_result and odl_result.markdown:
+                        return self._build_result_from_engine(
+                            odl_result,
+                            engine_name="opendataloader",
+                            pdf_source=pdf_source,
+                            include_metadata=include_metadata,
+                            output_format=output_format,
+                        )
+                    else:
+                        logger.warning("OpenDataLoader 返回空结果，降级至下一引擎")
+                except Exception as e:
+                    logger.warning("OpenDataLoader 转换失败，降级至下一引擎: %s", e)
+
+            # 若显式指定 opendataloader 但不可用，返回错误
+            if method == "opendataloader" and not self._opendataloader_engine:
+                return {
+                    "success": False,
+                    "error": "OpenDataLoader 引擎不可用，请安装 opendataloader-pdf 依赖并确保 Java 11+ 可用",
                     "source": pdf_source,
                 }
 

@@ -293,7 +293,7 @@ class TestCacheReplay:
 
 
 class TestCacheableEnginesContract:
-    """仅 docling/mineru 入白名单；Marker/Fake 引擎不走缓存。"""
+    """仅 docling/mineru/opendataloader 入白名单；Marker/Fake 引擎不走缓存。"""
 
     def test_cacheable_set_is_exactly_docling_and_mineru(self) -> None:
-        assert _CACHEABLE_ENGINES == frozenset({"docling", "mineru"})
+        assert _CACHEABLE_ENGINES == frozenset({"docling", "mineru", "opendataloader"})

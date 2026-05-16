@@ -137,6 +137,17 @@ marker:
   llm_enhanced: false # 启用 Marker LLM 增强模式
   license_acknowledged: false # 确认 Marker GPL-3.0 许可证条款
 
+# ── OpenDataLoader PDF 引擎（Apache 2.0 / CPU-only / 全元素 bbox）─────────────
+# Java 11+ 运行时必需；运行时 is_available() 同时校验 Java 和 Python 包可用性。
+# 默认 enabled=true；包未安装时被自动过滤跳过。
+opendataloader:
+  enabled: true # 启用 OpenDataLoader 作为 PDF 提取引擎
+  use_struct_tree: true # 利用 Tagged PDF 原生结构（高质量 reading order）
+  sanitize: false # prompt injection / PII 过滤（影响内容完整性，默认关闭）
+  hybrid_enabled: false # MVP 不启用 hybrid 模式（需边车 server + docling-fast 后端）
+  hybrid_endpoint: null # hybrid server 端点（hybrid_enabled=true 时必填）
+  java_check_timeout: 3 # Java 可用性检测超时（秒）
+
 # ── PDF 相关配置 ──────────────────────────────────────────────────────
 pdf:
   # 表格质量过滤（PyMuPDF find_tables 兜底启发式；false 时回退原行为）
@@ -192,7 +203,8 @@ pipeline:
 
       # S2: 版面分析与阅读顺序
       # 默认走降级模式：仅运行 rank=1 docling 取得最佳质量（reading-order/heading-level 最准），
-      # rank=2/3/4 作为 fallback 兜底。如需启用 4 引擎竞争 + LLM 评审择优（资源开销更高），
+      # rank=2 opendataloader 提供 CPU-only / Apache-2.0 / 全元素 bbox 路径，
+      # rank=3/4/5 作为 fallback 兜底。如需启用竞争 + LLM 评审择优（资源开销更高），
       # 改为 competition_mode: true，下方 competition: 子配置即时生效。
       - name: layout_analysis
         description: "检测文档物理布局结构，确定正确阅读顺序"
@@ -201,14 +213,17 @@ pipeline:
           - name: docling
             rank: 1
             enabled: true
-          - name: mineru
+          - name: opendataloader
             rank: 2
             enabled: true
-          - name: marker
+          - name: mineru
             rank: 3
             enabled: true
-          - name: pymupdf
+          - name: marker
             rank: 4
+            enabled: true
+          - name: pymupdf
+            rank: 5
             enabled: true
         competition_mode: false # 默认降级；改 true 启用 4 引擎竞争
         competition:
@@ -227,16 +242,20 @@ pipeline:
           - name: pymupdf
             rank: 1
             enabled: true
-          - name: docling
+          - name: opendataloader
             rank: 2
             enabled: true
-          - name: pypdf
+          - name: docling
             rank: 3
+            enabled: true
+          - name: pypdf
+            rank: 4
             enabled: true
         competition_mode: false
 
       # S4: 表格识别与提取
       # 默认走降级模式：仅运行 rank=1 docling（TableFormer 结构化识别最准），
+      # rank=2 opendataloader 提供 CPU-only / 全元素 bbox 表格路径，
       # camelot/pdfplumber/pymupdf 作为 fallback。docling 的 init_kwargs 与 layout 对齐，
       # 单跑模式下仍命中 worker 子进程内 _ConvertCache，节省一次完整推理。
       # 如需启用竞争，改 competition_mode: true。
@@ -247,14 +266,17 @@ pipeline:
           - name: docling
             rank: 1
             enabled: true
-          - name: camelot
+          - name: opendataloader
             rank: 2
             enabled: true
-          - name: pdfplumber
+          - name: camelot
             rank: 3
             enabled: true
-          - name: pymupdf
+          - name: pdfplumber
             rank: 4
+            enabled: true
+          - name: pymupdf
+            rank: 5
             enabled: true
         competition_mode: false # 默认降级；改 true 启用 4 引擎竞争
         competition:

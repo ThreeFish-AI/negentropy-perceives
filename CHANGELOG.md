@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### ✨ 新增
 
+- **OpenDataLoader PDF 引擎集成** — 引入 [OpenDataLoader PDF](https://github.com/opendataloader-project/opendataloader-pdf) v2.4.3 作为第六个 PDF 提取引擎，定位为 Docling（MIT/GPU）之后的 rank=2 降级路径。核心优势：Apache-2.0 许可证（无 copyleft 感染）、CPU-only（零 GPU 依赖）、全元素 bounding box（非占位）、XY-Cut++ 阅读顺序、Tagged PDF 原生结构支持。官方 benchmark Overall 0.907（200 篇真实 PDF），reading order 0.934，table 0.928。架构策略：复用 `EngineWorkerPool` 进程隔离机制，将 JVM 常驻于 worker 子进程，化解每次 `convert()` 启动 JVM 的固有开销；一次转换同时输出 Markdown + JSON（含 bbox），从 JSON 中提取结构化 tables/images/headings/captions。覆盖 Stage：layout_analysis / text_extraction / table_extraction / image_extraction / code_detection。新增文件：`pdf/engines/opendataloader.py`（引擎主类）、`pdf/engines/_opendataloader_schema.py`（Pydantic 模型）。依赖：`opendataloader-pdf>=2.4.3`（运行时需 Java 11+）。
+
 - **LLM 竞态评审器** — Pipeline 竞争模式新增 `LLMCompetitionJudge`，当多个引擎同时产出成功结果时，通过 LLM 从准确性、结构完整性、格式规范性三个维度进行质量评估并择优。支持 OpenAI API 兼容协议的自定义端点（`llm_api_base_url`），默认使用 `gpt-5.4-mini` 模型。LLM 不可用时自动回退到基于质量信号的启发式评分。评审器通过 `CompetitionJudgeConfig` 配置（strategy / model / temperature / max_tokens），由 `PipelineOrchestrator` 在初始化时延迟加载，不阻塞无 LLM 场景的启动。涉及文件：`pipeline/llm_judge.py`（新增）、`pipeline/scheduler.py`（judge 参数透传）、`pipeline/orchestrator.py`（初始化与注入）、`pdf/llm/client.py`（新增 `api_base_url` 支持）、`config.py`（新增 `llm_api_base_url` 字段）、`config.default.yaml`（默认模型改为 `gpt-5.4-mini`）。
 
 ### 🔧 修复

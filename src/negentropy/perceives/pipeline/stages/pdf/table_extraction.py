@@ -328,6 +328,67 @@ class PDFPlumberTableExtractor(PDFToolBase):
             return StageResult(success=False, error=f"pdfplumber 表格提取失败: {e}")
 
 
+@register_tool("table_extraction.opendataloader")
+class OpenDataLoaderTableExtractor(PDFToolBase):
+    """基于 OpenDataLoader 的表格提取工具（Apache-2.0 / CPU-only / 全元素 bbox）。"""
+
+    tool_name = "opendataloader"
+
+    def is_available(self) -> bool:
+        try:
+            from ....pdf.engines.opendataloader import OpenDataLoaderEngine
+
+            return OpenDataLoaderEngine.is_available()
+        except ImportError:
+            return False
+
+    async def _run(
+        self, input_data: PreprocessingOutput
+    ) -> StageResult[TableExtractionOutput]:
+        try:
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "opendataloader",
+                kwargs={"pdf_path": str(input_data.local_path)},
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
+            if result is None:
+                return StageResult(success=False, error="OpenDataLoader 转换返回空结果")
+
+            tables: List[ExtractedTable] = []
+            for idx, t in enumerate(result.tables):
+                tables.append(
+                    ExtractedTable(
+                        table_id=f"tbl_{idx}",
+                        markdown=t.markdown,
+                        rows=t.rows,
+                        columns=t.columns,
+                        page_number=(t.page_number if t.page_number is not None else 0),
+                        bbox=t.bbox,
+                    )
+                )
+
+            output = TableExtractionOutput(
+                tables=tables,
+                total_count=len(tables),
+                metadata={"engine": "opendataloader"},
+            )
+
+            return StageResult(
+                success=True,
+                output=output,
+                engine_used=self.tool_name,
+            )
+
+        except Exception as e:
+            logger.warning("OpenDataLoader 表格提取失败: %s", e)
+            return StageResult(success=False, error=f"OpenDataLoader 表格提取失败: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Stage 本地工具映射
 # ---------------------------------------------------------------------------
@@ -337,6 +398,7 @@ _TOOLS: Dict[str, type] = {
     "camelot": CamelotTableExtractor,
     "pdfplumber": PDFPlumberTableExtractor,
     "pymupdf": FitzTableExtractor,
+    "opendataloader": OpenDataLoaderTableExtractor,
 }
 
 

@@ -49,7 +49,7 @@ from typing import Any, Dict, Optional, Tuple
 
 _CACHE_CAPACITY = 4
 _CACHE_TTL_SECONDS = 300.0
-_CACHEABLE_ENGINES = frozenset({"docling", "mineru"})
+_CACHEABLE_ENGINES = frozenset({"docling", "mineru", "opendataloader"})
 
 
 class _ConvertCache:
@@ -195,6 +195,10 @@ def _load_engine(engine_name: str, init_kwargs: Optional[Dict[str, Any]] = None)
         from ..pdf.engines.marker import MarkerEngine
 
         return MarkerEngine(**kw)
+    if engine_name == "opendataloader":
+        from ..pdf.engines.opendataloader import OpenDataLoaderEngine
+
+        return OpenDataLoaderEngine(**kw)
     if engine_name == "_fake_slow":
         return _FakeSlowEngine()
     if engine_name == "_fake_fast":

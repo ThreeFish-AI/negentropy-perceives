@@ -453,6 +453,90 @@ _TOOLS: Dict[str, type] = {
 
 
 # ---------------------------------------------------------------------------
+# OpenDataLoader 版面分析工具（延迟导入避免 Java/JVM 启动开销）
+# ---------------------------------------------------------------------------
+
+
+@register_tool("layout_analysis.opendataloader")
+class OpenDataLoaderLayoutAnalyzer(PDFToolBase):
+    """基于 OpenDataLoader 的版面分析工具（Apache-2.0 / CPU-only / 全元素 bbox）。"""
+
+    tool_name = "opendataloader"
+
+    def is_available(self) -> bool:
+        try:
+            from ....pdf.engines.opendataloader import OpenDataLoaderEngine
+
+            return OpenDataLoaderEngine.is_available()
+        except ImportError:
+            return False
+
+    async def _run(
+        self, input_data: PreprocessingOutput
+    ) -> StageResult[LayoutAnalysisOutput]:
+        try:
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "opendataloader",
+                kwargs={
+                    "pdf_path": str(input_data.local_path),
+                },
+                init_kwargs={},
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
+            if result is None:
+                return StageResult(success=False, error="OpenDataLoader 转换返回空结果")
+
+            regions: List[LayoutRegion] = []
+            reading_order = 0
+
+            for table in result.tables:
+                regions.append(
+                    LayoutRegion(
+                        region_type="table",
+                        bbox=table.bbox or (0, 0, 0, 0),
+                        page_number=table.page_number or 0,
+                        reading_order=reading_order,
+                    )
+                )
+                reading_order += 1
+
+            for image in result.images:
+                regions.append(
+                    LayoutRegion(
+                        region_type="figure",
+                        bbox=image.bbox or (0, 0, 0, 0),
+                        page_number=image.page_number or 0,
+                        reading_order=reading_order,
+                    )
+                )
+                reading_order += 1
+
+            output = LayoutAnalysisOutput(
+                regions=regions,
+                page_count=result.page_count,
+                metadata={"engine": "opendataloader"},
+            )
+
+            return StageResult(
+                success=True,
+                output=output,
+                engine_used=self.tool_name,
+            )
+
+        except Exception as e:
+            logger.warning("OpenDataLoader 版面分析失败: %s", e)
+            return StageResult(success=False, error=f"OpenDataLoader 版面分析失败: {e}")
+
+
+# 更新 tools 映射
+_TOOLS["opendataloader"] = OpenDataLoaderLayoutAnalyzer
+
+
+# ---------------------------------------------------------------------------
 # Stage 类
 # ---------------------------------------------------------------------------
 
