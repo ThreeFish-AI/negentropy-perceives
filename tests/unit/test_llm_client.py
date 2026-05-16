@@ -32,11 +32,11 @@ class TestLLMResponseDataClass:
     def test_full(self) -> None:
         r = LLMResponse(
             content='{"key": "value"}',
-            model="zhipu/glm-5.1",
+            model="gpt-5-nano",
             usage={"prompt_tokens": 100, "completion_tokens": 50},
             raw_response={"id": "test"},
         )
-        assert r.model == "zhipu/glm-5.1"
+        assert r.model == "gpt-5-nano"
         assert r.usage["prompt_tokens"] == 100
 
 
@@ -72,14 +72,14 @@ class TestLLMClientAvailability:
 
     def test_custom_params(self) -> None:
         client = LLMClient(
-            model="zhipu/glm-4-flash-250414",
+            model="gpt-5-nano",
             api_key="test-key",
             temperature=0.5,
             max_tokens=2048,
             timeout=30.0,
             max_retries=1,
         )
-        assert client._model == "zhipu/glm-4-flash-250414"
+        assert client._model == "gpt-5-nano"
         assert client._api_key == "test-key"
         assert client._temperature == 0.5
         assert client._max_tokens == 2048
@@ -110,12 +110,12 @@ class TestLLMClientCompletion:
             patch.object(LLMClient, "is_available", return_value=True),
             patch.dict("sys.modules", {"litellm": mock_litellm}),
         ):
-            client = LLMClient(model="zhipu/glm-5.1")
+            client = LLMClient(model="gpt-5-nano")
             result = await client.acomplete(
                 messages=[{"role": "user", "content": "test"}]
             )
             assert result.content == '{"result": "ok"}'
-            assert result.model == "zhipu/glm-5.1"
+            assert result.model == "gpt-5-nano"
             assert result.usage["prompt_tokens"] == 100
             assert result.usage["completion_tokens"] == 50
 

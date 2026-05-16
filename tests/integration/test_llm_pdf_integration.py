@@ -30,7 +30,7 @@ ARXIV_PDF = ASSETS_DIR / "2603.05344v3.pdf"
 # 条件跳过装饰器
 _litellm_available = LLMClient.is_available()
 _has_api_key = bool(
-    os.environ.get("ZHIPU_API_KEY")
+    os.environ.get("OPENAI_API_KEY")
     or os.environ.get("NEGENTROPY_PERCEIVES_LLM_API_KEY")
 )
 
@@ -40,7 +40,7 @@ skip_no_litellm = pytest.mark.skipif(
 )
 skip_no_api_key = pytest.mark.skipif(
     not _has_api_key,
-    reason="需要配置 ZHIPU_API_KEY 或 NEGENTROPY_PERCEIVES_LLM_API_KEY 环境变量",
+    reason="需要配置 OPENAI_API_KEY 或 NEGENTROPY_PERCEIVES_LLM_API_KEY 环境变量",
 )
 skip_no_ce_pdf = pytest.mark.skipif(
     not CE_PDF.exists(),

@@ -464,9 +464,9 @@ async with NegentropyPerceivesClient(
 
 | 环境变量                               | 类型    | 默认值                    | 约束        | 说明                                                  |
 | -------------------------------------- | ------- | ------------------------- | ----------- | ----------------------------------------------------- |
-| `NEGENTROPY_PERCEIVES_LLM_API_KEY`     | `str?`  | `null`                    | -           | LLM API Key（ZhipuAI），也可通过 `ZHIPU_API_KEY` 设置 |
+| `NEGENTROPY_PERCEIVES_LLM_API_KEY`     | `str?`  | `null`                    | -           | LLM API Key（OpenAI），也可通过 `OPENAI_API_KEY` 设置 |
 | `NEGENTROPY_PERCEIVES_LLM_API_BASE_URL` | `str?` | `null`                    | -           | LLM API Base URL（OpenAI 兼容协议，如 `https://api.openai.com/v1`） |
-| `NEGENTROPY_PERCEIVES_LLM_MODEL`       | `str`   | `zhipu/glm-5.1` | -           | LiteLLM 模型标识                                      |
+| `NEGENTROPY_PERCEIVES_LLM_MODEL`       | `str`   | `gpt-5-nano` | -           | LiteLLM 模型标识                                      |
 | `NEGENTROPY_PERCEIVES_LLM_TEMPERATURE` | `float` | `0.1`                     | `0.0 ~ 2.0` | LLM 温度参数                                          |
 | `NEGENTROPY_PERCEIVES_LLM_MAX_TOKENS`  | `int`   | `4096`                    | `> 0`       | LLM 最大输出 token                                    |
 | `NEGENTROPY_PERCEIVES_LLM_TIMEOUT`     | `float` | `60.0`                    | `> 0`       | LLM API 超时（秒）                                    |
@@ -1028,7 +1028,7 @@ async def build_link_map(target_url: str):
 
 使用 `method="smart"` 启用 LLM 编排多引擎并行处理，自动择优融合最佳输出。适用于含公式、表格、代码、图像的复杂学术文档——让 AI 帮你挑最好的结果。
 
-**前置条件**：安装 `litellm`（`uv pip install litellm`），并配置 `ZHIPU_API_KEY` 或 `NEGENTROPY_PERCEIVES_LLM_API_KEY` 环境变量。
+**前置条件**：安装 `litellm`（`uv pip install litellm`），并配置 `OPENAI_API_KEY` 或 `NEGENTROPY_PERCEIVES_LLM_API_KEY` 环境变量。
 
 ```python
 async def smart_pdf_processing():
