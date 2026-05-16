@@ -638,6 +638,17 @@ class NegentropyPerceivesSettings(BaseSettings):
         ),
     )
 
+    # ── Pipeline Engine Selector ────────────────────────────
+    pipeline_engine_selector: str = Field(
+        default="profile_aware",
+        description=(
+            "Adaptive Engine Selection 策略："
+            "profile_aware（默认）= 基于 DocumentCharacteristics 动态重排各 Stage 的 "
+            "tool 顺序、并在 has_tables/has_formulas/has_code_blocks/has_images "
+            "为 False 时短路对应 Stage；identity = 保持 YAML 静态顺序，回退 PR2 前行为。"
+        ),
+    )
+
     # ── Marker PDF 引擎 ──────────────────────────────────────
     marker_enabled: bool = Field(
         default=True,

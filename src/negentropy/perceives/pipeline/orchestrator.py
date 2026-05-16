@@ -14,12 +14,43 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from ..core.task_context import method_var, stage_var, timing_var
 from .base import StageResult
+from .engine_selector import EngineSelector, IdentitySelector, SelectionContext
 from .scheduler import StageScheduler
 
 logger = logging.getLogger(__name__)
 
 
 InputBuilder = Callable[[Dict[str, StageResult], Any], Any]
+
+
+# Stage name → 空 output 工厂（selector 决定 skip 时返回的占位输出）
+# 仅覆盖会被 ProfileAwareSelector 短路的 4 个特征驱动型 Stage。
+def _empty_output_for_stage(stage_name: str) -> Any:
+    """返回 stage 短路时的空输出占位，供下游 Stage 安全消费。"""
+    from .models import (
+        CodeDetectionOutput,
+        FormulaExtractionOutput,
+        ImageExtractionOutput,
+        TableExtractionOutput,
+    )
+
+    if stage_name == "table_extraction":
+        return TableExtractionOutput(
+            tables=[], total_count=0, metadata={"skipped": True}
+        )
+    if stage_name == "formula_extraction":
+        return FormulaExtractionOutput(
+            formulas=[], inline_count=0, block_count=0, metadata={"skipped": True}
+        )
+    if stage_name == "image_extraction":
+        return ImageExtractionOutput(
+            images=[], total_count=0, metadata={"skipped": True}
+        )
+    if stage_name == "code_detection":
+        return CodeDetectionOutput(
+            code_blocks=[], total_count=0, metadata={"skipped": True}
+        )
+    return None
 
 
 class PipelineOrchestrator:
@@ -41,6 +72,7 @@ class PipelineOrchestrator:
         engine_gates: Optional[Dict[str, bool]] = None,
         pipeline_name: str = "",
         input_builders: Optional[Mapping[str, InputBuilder]] = None,
+        selector: Optional[EngineSelector] = None,
     ):
         """
         Args:
@@ -51,6 +83,9 @@ class PipelineOrchestrator:
             pipeline_name: Pipeline 名称，用于工具限定名查找隔离
             input_builders: 复合输入构造器字典（``{key: builder}``），
                 ``builder(stage_results, initial_input) -> Any``。
+            selector: 路由策略（``EngineSelector`` 协议实例）。默认 ``IdentitySelector``
+                （保持 YAML 顺序）。``ProfileAwareSelector`` 启用基于
+                ``DocumentCharacteristics`` 的动态重排与 stage 短路。
         """
         self._stages_config = stages_config
         self._defaults = defaults_config or {}
@@ -59,6 +94,7 @@ class PipelineOrchestrator:
         self._input_builders: Mapping[str, InputBuilder] = input_builders or {}
         self._scheduler = StageScheduler()
         self._judge = self._init_judge()
+        self._selector: EngineSelector = selector or IdentitySelector()
 
     @staticmethod
     def _init_judge():
@@ -125,7 +161,7 @@ class PipelineOrchestrator:
                         logger.error("Stage '%s' 输入解析失败，管线终止: %s", name, err)
                         results[name] = StageResult(success=False, error=err)
                         return results
-                    result = await self._execute_stage(stage_cfg, resolved)
+                    result = await self._execute_stage(stage_cfg, resolved, results)
                     results[name] = result
                     if not result.success:
                         logger.error(
@@ -152,7 +188,7 @@ class PipelineOrchestrator:
                         resolved_pairs.append((cfg, resolved))
 
                 if resolved_pairs:
-                    exec_results = await self._execute_parallel(resolved_pairs)
+                    exec_results = await self._execute_parallel(resolved_pairs, results)
                     parallel_results.update(exec_results)
 
                 results.update(parallel_results)
@@ -173,12 +209,19 @@ class PipelineOrchestrator:
         self,
         stage_config: Dict[str, Any],
         input_data: Any,
+        results_so_far: Optional[Dict[str, StageResult]] = None,
     ) -> StageResult:
         """执行单个 Stage。
 
         为当前 Stage 绑定 `stage_var` 与 `method_var`（ContextVar），使日志前缀
         自动携带 `stage=` / `method=` 字段，并在 TaskTiming 中追加一条 Stage 记录。
         `asyncio.gather` 为并行 Stage 自动复制 Context，故并发任务间互不干扰。
+
+        Args:
+            stage_config: Stage 配置项（含 name / tools / competition_mode 等）
+            input_data: 已由 ``_resolve_input`` 解析后的输入。
+            results_so_far: 截至当前的所有前序 Stage 结果，用于
+                ``EngineSelector`` 读取 ``quick_scan`` 的 DocumentCharacteristics。
         """
         name = stage_config["name"]
         tool_configs = self._apply_engine_gates(stage_config.get("tools", []))
@@ -198,14 +241,35 @@ class PipelineOrchestrator:
                 error=f"源文件已不存在: {local_path}",
             )
 
+        # === Adaptive Engine Selection: 路由策略决策 ===
+        selection_ctx = self._build_selection_context(results_so_far)
+        decision = self._selector.select(name, tool_configs, selection_ctx)
+        if decision.skip:
+            empty = _empty_output_for_stage(name)
+            logger.info(
+                "Stage '%s' 由 selector 短路跳过 (reason=%s)", name, decision.reason
+            )
+            return StageResult(
+                success=True,
+                output=empty,
+                engine_used=f"skipped:{decision.reason}",
+                elapsed_ms=0.0,
+                metadata={
+                    "selector_decision": decision.reason,
+                    "selector_skipped": True,
+                },
+            )
+        tool_configs = decision.tools
+
         stage_tok = stage_var.set(name)
         method_tok = method_var.set(None)
         start = time.monotonic()
         tool_names = [tc.get("name", "") for tc in tool_configs]
         logger.info(
-            "Stage 开始 tools=%s competition=%s",
+            "Stage 开始 tools=%s competition=%s selector=%s",
             tool_names,
             competition_mode,
+            decision.reason,
         )
         try:
             result = await self._scheduler.run_stage(
@@ -220,6 +284,10 @@ class PipelineOrchestrator:
             result.elapsed_ms = (time.monotonic() - start) * 1000
             if result.engine_used:
                 method_var.set(result.engine_used)
+            # 把 selector 决策附加到 metadata 便于审计
+            if not hasattr(result, "metadata") or result.metadata is None:
+                result.metadata = {}
+            result.metadata.setdefault("selector_decision", decision.reason)
             logger.info(
                 "Stage 完成 success=%s elapsed=%.1fms",
                 result.success,
@@ -243,6 +311,7 @@ class PipelineOrchestrator:
     async def _execute_parallel(
         self,
         stage_pairs: List[Tuple[Dict[str, Any], Any]],
+        results_so_far: Optional[Dict[str, StageResult]] = None,
     ) -> Dict[str, StageResult]:
         """并行执行一组已解析好输入的 Stage。
 
@@ -250,11 +319,15 @@ class PipelineOrchestrator:
             stage_pairs: ``[(stage_config, resolved_input), ...]``，
                 由 ``run()`` 按各 Stage 的 ``input_from`` / ``input_builder``
                 预先解析得到，避免多 Stage 共用同一 ``current_input`` 产生污染。
+            results_so_far: 截至并行组之前的所有前序 Stage 结果，用于
+                EngineSelector 读取 quick_scan 的 DocumentCharacteristics。
         """
         names = [cfg["name"] for cfg, _ in stage_pairs]
         logger.info("并行执行 Stage 组: %s", names)
 
-        tasks = [self._execute_stage(cfg, data) for cfg, data in stage_pairs]
+        tasks = [
+            self._execute_stage(cfg, data, results_so_far) for cfg, data in stage_pairs
+        ]
         raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         results: Dict[str, StageResult] = {}
@@ -268,6 +341,35 @@ class PipelineOrchestrator:
                     error=f"Stage '{name}' 并行执行异常: {raw}",
                 )
         return results
+
+    def _build_selection_context(
+        self,
+        results_so_far: Optional[Dict[str, StageResult]],
+    ) -> SelectionContext:
+        """从前序 Stage 结果构造 ``SelectionContext``。
+
+        优先从 ``quick_scan`` Stage 提取 DocumentCharacteristics；其次回退到
+        ``preprocessing`` Stage 输出中的 characteristics（``PreprocessingOutput``
+        包含此字段）。两者都缺失时 selector 会保守回退到 IdentitySelector 行为。
+        """
+        from .models import DocumentCharacteristics, PreprocessingOutput
+
+        chars: Optional[DocumentCharacteristics] = None
+
+        if results_so_far is not None:
+            quick = results_so_far.get("quick_scan")
+            if quick is not None and quick.success and quick.output is not None:
+                if isinstance(quick.output, DocumentCharacteristics):
+                    chars = quick.output
+
+            if chars is None:
+                pre = results_so_far.get("preprocessing")
+                if pre is not None and pre.success and pre.output is not None:
+                    pre_out = pre.output
+                    if isinstance(pre_out, PreprocessingOutput):
+                        chars = pre_out.characteristics
+
+        return SelectionContext(characteristics=chars, device=None)
 
     def _resolve_input(
         self,
