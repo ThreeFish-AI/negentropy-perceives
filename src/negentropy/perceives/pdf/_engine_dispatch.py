@@ -19,6 +19,7 @@ class EngineDescriptor:
     init_kwargs_attr: str  # self._docling_init_kwargs
     install_hint: str
     supports_page_range: bool = True
+    needs_embed_images: bool = False
 
 
 # 按 process_pdf 中的降级优先级排列（不含 pymupdf/pypdf，它们走独立路径）
@@ -37,6 +38,7 @@ DISPATCH_TABLE: Tuple[EngineDescriptor, ...] = (
         init_kwargs_attr="_opendataloader_init_kwargs",
         install_hint="请安装 opendataloader-pdf 依赖并确保 Java 11+ 可用",
         supports_page_range=False,
+        needs_embed_images=True,
     ),
     EngineDescriptor(
         name="mineru",
@@ -55,6 +57,7 @@ DISPATCH_TABLE: Tuple[EngineDescriptor, ...] = (
             "注意：Marker 使用 GPL-3.0 许可证。"
         ),
         supports_page_range=False,
+        needs_embed_images=True,
     ),
 )
 
@@ -69,7 +72,7 @@ def get_engine_kwargs(
     kwargs: Dict[str, Any] = {"pdf_path": pdf_path}
     if desc.supports_page_range:
         kwargs["page_range"] = page_range
-    if desc.name in ("opendataloader", "marker"):
+    if desc.needs_embed_images:
         kwargs["embed_images"] = embed_images
     return kwargs
 

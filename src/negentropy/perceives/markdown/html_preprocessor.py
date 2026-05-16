@@ -270,9 +270,8 @@ def preprocess_html(
         return html_content
 
 
-def _ensure_block_whitespace(soup: BeautifulSoup) -> None:
-    """Ensure proper whitespace around block-level elements."""
-    block_tags = {
+_BLOCK_TAGS = frozenset(
+    [
         "p",
         "div",
         "h1",
@@ -281,34 +280,33 @@ def _ensure_block_whitespace(soup: BeautifulSoup) -> None:
         "h4",
         "h5",
         "h6",
-        "ul",
-        "ol",
-        "li",
         "blockquote",
         "pre",
+        "ul",
+        "ol",
         "table",
-        "tr",
-        "td",
-        "th",
+        "hr",
         "section",
         "article",
-        "main",
-        "header",
-        "footer",
-        "aside",
         "figure",
         "figcaption",
-    }
+        "details",
+    ]
+)
 
-    for tag in soup.find_all(block_tags):
-        if tag.previous_sibling and not (
-            isinstance(tag.previous_sibling, NavigableString)
-            and tag.previous_sibling.strip() == ""
-        ):
-            tag.insert_before(NavigableString("\n"))
 
-        if tag.next_sibling and not (
-            isinstance(tag.next_sibling, NavigableString)
-            and tag.next_sibling.strip() == ""
-        ):
-            tag.insert_after(NavigableString("\n"))
+def _ensure_block_whitespace(soup: BeautifulSoup) -> None:
+    """在块级元素之间插入换行符，确保 MarkItDown 能正确识别段落边界。
+
+    MarkItDown 在处理 ``<p>A</p><p>B</p>`` 这种无空白分隔的 HTML 时，
+    会将内容合并为 ``A B``（单行）。通过在块级闭合标签后插入 ``\\n``，
+    使其输出为独立段落。
+    """
+    for tag_name in _BLOCK_TAGS:
+        for element in soup.find_all(tag_name):
+            next_sib = element.next_sibling
+            if next_sib is None:
+                continue
+            if isinstance(next_sib, str) and next_sib.strip() == "":
+                continue
+            element.insert_after("\n")
