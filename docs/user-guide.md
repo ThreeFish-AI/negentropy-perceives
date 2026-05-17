@@ -495,9 +495,14 @@ async with NegentropyPerceivesClient(
 | `NEGENTROPY_PERCEIVES_MINERU_ENABLED`                     | `bool` | `false` | -                               | 启用 MinerU（最佳 LaTeX 公式提取）                              |
 | `NEGENTROPY_PERCEIVES_MINERU_DEVICE`                      | `str`  | `auto`  | `auto` / `cpu` / `mlx` / `cuda` | MinerU 设备选择                                                 |
 | `NEGENTROPY_PERCEIVES_MINERU_BACKEND`                     | `str`  | `auto`  | `auto` / `pipeline` / `vlm`     | MinerU 后端选择                                                 |
+| `NEGENTROPY_PERCEIVES_MINERU_MPS_BACKEND`                 | `str`  | `auto`  | `auto` / `vlm-auto-engine` / `pipeline` | Apple Silicon MPS 下的 MinerU 后端策略；`auto` 探测 mlx_vlm + macOS 13.5+ 后择优 |
 | `NEGENTROPY_PERCEIVES_MARKER_ENABLED`                     | `bool` | `false` | -                               | 启用 Marker（最佳整体准确率，GPL-3.0）                          |
 | `NEGENTROPY_PERCEIVES_MARKER_LLM_ENHANCED`                | `bool` | `false` | -                               | 启用 Marker LLM 增强模式                                        |
 | `NEGENTROPY_PERCEIVES_MARKER_LICENSE_ACKNOWLEDGED`        | `bool` | `false` | -                               | 确认 GPL-3.0 许可证条款（需设为 `true` 方可启用 Marker）        |
+| `NEGENTROPY_PERCEIVES_MARKER_TORCH_DEVICE`                | `str`  | `null`  | `null` / `cpu` / `mps` / `cuda` | Marker TORCH_DEVICE 透传；`null` 维持默认 CPU 强制（最稳定）     |
+| `NEGENTROPY_PERCEIVES_MARKER_INFERENCE_RAM_GB`            | `int`  | `0`     | `>= 0`                          | Marker INFERENCE_RAM 透传（GB）；0 = 不设置，Apple Silicon 推荐设为统一内存 ~50% |
+| `NEGENTROPY_PERCEIVES_MARKER_NUM_WORKERS`                 | `int`  | `0`     | `>= 0`                          | Marker NUM_WORKERS 透传；0 = 不设置                              |
+| `NEGENTROPY_PERCEIVES_MARKER_HALF_PRECISION`              | `bool` | `false` | -                               | `marker_torch_device=mps` 时通过 monkey-patch 启用 `MODEL_DTYPE=float16` |
 | `NEGENTROPY_PERCEIVES_OPENDATALOADER_ENABLED`             | `bool` | `true`  | -                               | 启用 OpenDataLoader（Apache-2.0 / CPU-only / 全元素 bbox）      |
 | `NEGENTROPY_PERCEIVES_OPENDATALOADER_USE_STRUCT_TREE`     | `bool` | `true`  | -                               | 利用 Tagged PDF 原生结构（高质量 reading order）                 |
 | `NEGENTROPY_PERCEIVES_OPENDATALOADER_SANITIZE`            | `bool` | `false` | -                               | 启用 prompt injection / PII 过滤                                |
@@ -514,9 +519,11 @@ async with NegentropyPerceivesClient(
 | `NEGENTROPY_PERCEIVES_PDF_TABLE_QUALITY_BYPASS_WITH_TITLE` | `bool` | `true`  | -                              | 含 `Table N:` 标题的候选跳过 prose 检测信号                     |
 | `NEGENTROPY_PERCEIVES_PDF_STAGE_TIMEOUT_MULTIPLIER`       | `float`| `1.0`   | `(0.0, 10.0]`                   | Pipeline 各 Stage timeout 全局倍率；> 1 放宽，< 1 收紧           |
 | `NEGENTROPY_PERCEIVES_PDF_IMAGE_EXTRACTION_CONCURRENCY`   | `int`  | `8`     | `[1, 32]`                       | image_extraction Stage 的页级并发上限                            |
+| `NEGENTROPY_PERCEIVES_PDF_PYMUPDF_PARALLEL_PAGES`         | `int`  | `0`     | `>= 0`                          | PyMuPDF text/image Stage 内多页并行 chunk 大小；0 = 自动按 CPU 推断（`max(1, min(8, cpu//2))`，Apple Silicon E-core 不参与），>0 显式覆盖；<10 页强制串行 |
 | `NEGENTROPY_PERCEIVES_PDF_DOCLING_FORCE_CPU`              | `bool` | `false` | -                               | 强制 Docling 在 CPU 推理（诊断/MPS 兼容性回退）                  |
 | `NEGENTROPY_PERCEIVES_PDF_DOCLING_MPS_ENRICHMENT`         | `str`  | `granite_mlx` | `granite_mlx` / `disable` | Apple Silicon MPS 下 Docling code/formula enrichment 策略；`granite_mlx` 需安装 `docling-mlx` extra |
 | `NEGENTROPY_PERCEIVES_PDF_ENGINE_WARMUP_ENABLED`          | `bool` | `true`  | -                               | preprocessing/quick_scan 期间异步预热 docling/mineru/marker     |
+| `NEGENTROPY_PERCEIVES_PIPELINE_ENGINE_SELECTOR`           | `str`  | `profile_aware` | `profile_aware` / `identity` | Adaptive Engine Selection 策略；`profile_aware`（默认）基于 `DocumentCharacteristics` 动态重排 Stage tools 与短路无关 Stage，`identity` 保持 YAML 静态顺序回退 |
 | `NEGENTROPY_PERCEIVES_PIPELINE`                           | `dict` | `null`  | -                               | Pipeline Stage 编排配置（PDF/WebPage 处理管线），嵌套结构不展平 |
 
 ### 配置验证规则

@@ -157,10 +157,22 @@ class MinerUEngine:
     def _resolve_device(self) -> str:
         """解析设备类型，返回 MinerU 后端标识。
 
-        策略：
-            1. 若用户显式指定 ``backend``，直接使用。
-            2. 若用户指定 ``device``，映射到对应后端（``mps`` → ``vlm-auto-engine``）。
-            3. 自动检测：Apple Silicon → ``vlm-auto-engine``，否则 → ``pipeline``。
+        策略（Apple Silicon 优先走 MLX 路径，避免静默回退 transformers）：
+            1. 若用户显式指定 ``backend`` 且非 ``auto``，直接使用（最高优先级）。
+            2. Apple Silicon + mlx_vlm 可用 + macOS 13.5+：选择
+               ``vlm-auto-engine``（MinerU ``_select_mac_engine`` 内部命中
+               ``mlx-engine``，比 ``vlm-transformers`` 加速 100-200%[1]）。
+            3. Apple Silicon 但 mlx 资格不满足：**显式降级 pipeline**，
+               避免 ``vlm-auto-engine`` 回退 transformers 的慢路径。
+            4. 用户指定 ``device``：mps→vlm-auto-engine，其他→pipeline。
+            5. 默认非 mac：pipeline。
+
+        Settings ``pdf.mineru_mps_backend`` 提供配置覆盖（"auto" / "vlm-auto-engine" /
+        "pipeline"），默认 "auto"。
+
+        References:
+            [1] MinerU 3.x changelog & vlm-mlx-engine benchmark：
+                https://opendatalab.github.io/MinerU/reference/changelog/
 
         Returns:
             MinerU 后端标识字符串。
@@ -174,14 +186,16 @@ class MinerUEngine:
             logger.info("MinerU 后端: %s（用户指定）", self._resolved_backend)
             return self._resolved_backend
 
+        # 配置覆盖：mineru_mps_backend 直接指定（'auto' = 走探测逻辑）
+        mps_backend_pref = self._read_mps_backend_pref()
+
         # 用户指定设备类型，映射到后端
         if self._device and self._device.lower() != "auto":
             device_lower = self._device.lower()
             if device_lower == "mps":
-                # MinerU CLI 合法 backend：pipeline / vlm-http-client /
-                # hybrid-http-client / vlm-auto-engine / hybrid-auto-engine。
-                # Apple Silicon 上交由 MinerU 自动挑选最佳 VLM 后端（MLX/CPU）。
-                self._resolved_backend = "vlm-auto-engine"
+                self._resolved_backend = self._select_apple_silicon_backend(
+                    mps_backend_pref
+                )
             elif device_lower == "cuda":
                 # CUDA 暂无专用后端，使用 pipeline（GPU 自动利用）
                 self._resolved_backend = "pipeline"
@@ -194,15 +208,84 @@ class MinerUEngine:
             )
             return self._resolved_backend
 
-        # 自动检测：Apple Silicon → 交由 MinerU VLM auto-engine 内部挑 MLX
+        # 自动检测：Apple Silicon → 探测 MLX 资格择优
         if self._is_apple_silicon():
-            self._resolved_backend = "vlm-auto-engine"
-            logger.info("MinerU 后端: vlm-auto-engine（Apple Silicon 自动检测）")
+            self._resolved_backend = self._select_apple_silicon_backend(
+                mps_backend_pref
+            )
         else:
             self._resolved_backend = "pipeline"
             logger.info("MinerU 后端: pipeline（CPU 降级）")
 
         return self._resolved_backend
+
+    @staticmethod
+    def _read_mps_backend_pref() -> str:
+        """从 settings 读取 ``mineru_mps_backend`` 偏好，默认 ``auto``。"""
+        try:
+            from ...config import settings
+
+            return str(getattr(settings, "mineru_mps_backend", "auto")).lower()
+        except (ImportError, AttributeError):
+            return "auto"
+
+    def _select_apple_silicon_backend(self, pref: str) -> str:
+        """Apple Silicon 后端择优。
+
+        - pref="vlm-auto-engine" / "pipeline": 直接采用，配置覆盖探测；
+        - pref="auto": mlx 资格满足→vlm-auto-engine；不满足→pipeline。
+
+        Args:
+            pref: 来自 settings.mineru_mps_backend 的偏好（auto/vlm-auto-engine/pipeline）
+
+        Returns:
+            CLI 合法 backend 标识（pipeline / vlm-auto-engine 二选一）
+        """
+        if pref in ("vlm-auto-engine", "pipeline"):
+            logger.info(
+                "MinerU 后端: %s（配置 mineru_mps_backend=%s 强制）", pref, pref
+            )
+            return pref
+
+        if self._probe_mlx_engine_eligibility():
+            logger.info(
+                "MinerU 后端: vlm-auto-engine（Apple Silicon + mlx_vlm 可用，"
+                "MinerU 内部将启用 mlx-engine 路径）"
+            )
+            return "vlm-auto-engine"
+
+        logger.info(
+            "MinerU 后端: pipeline（Apple Silicon 但 mlx_vlm/macOS 版本不满足，"
+            "避免 vlm-auto-engine 回退 transformers 慢路径）"
+        )
+        return "pipeline"
+
+    @staticmethod
+    def _probe_mlx_engine_eligibility() -> bool:
+        """探测 MinerU ``mlx-engine`` 路径的资格条件。
+
+        MinerU ``utils/engine_utils.py:_select_mac_engine`` 走 ``mlx`` 需同时满足：
+            1. ``mlx_vlm`` 已安装；
+            2. ``is_mac_os_version_supported()``（macOS 13.5+）。
+
+        优先复用 MinerU 自身的版本判定，避免重复实现导致漂移。
+
+        Returns:
+            ``True`` 表示 mlx-engine 路径可行；否则 ``False``。
+        """
+        from importlib.util import find_spec
+
+        if find_spec("mlx_vlm") is None:
+            return False
+        try:
+            from mineru.utils.check_sys_env import (  # type: ignore[import-untyped]
+                is_mac_os_version_supported,
+            )
+
+            return bool(is_mac_os_version_supported())
+        except ImportError:
+            # MinerU 版本不暴露该工具时，保守视为合格（mlx_vlm 已装）
+            return True
 
     @staticmethod
     def _is_apple_silicon() -> bool:

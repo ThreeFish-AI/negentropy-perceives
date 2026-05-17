@@ -16,10 +16,38 @@ Supported Devices:
 
 import logging
 import platform
+import re
 from enum import Enum
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+# Apple Silicon 芯片代次解析。
+# 形如 "Apple M1 Pro" / "Apple M2 Max" / "Apple M3 Ultra" / "Apple M4"。
+# 仅捕获主代次数字（1/2/3/4/...），变体（Pro/Max/Ultra）不影响 batch 缩放策略。
+_APPLE_CHIP_RE = re.compile(r"\bApple\s+M(\d+)", re.IGNORECASE)
+
+
+def parse_apple_chip_generation(brand_string: Optional[str]) -> Optional[int]:
+    """从 ``machdep.cpu.brand_string`` 解析 Apple Silicon 芯片代次。
+
+    Args:
+        brand_string: 如 ``"Apple M3 Max"`` 的字符串。
+
+    Returns:
+        芯片代次（``1`` / ``2`` / ``3`` / ``4`` / ...），无法识别时返回 ``None``。
+    """
+    if not brand_string:
+        return None
+    match = _APPLE_CHIP_RE.search(brand_string)
+    if match is None:
+        return None
+    try:
+        generation = int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+    return generation if generation > 0 else None
 
 
 class DeviceType(str, Enum):
@@ -54,6 +82,7 @@ class HardwareInfo:
         device_count: int = 0,
         memory_gb: Optional[float] = None,
         platform_info: Optional[str] = None,
+        chip_generation: Optional[int] = None,
     ):
         self.device_type = device_type
         self.device_name = device_name
@@ -62,6 +91,9 @@ class HardwareInfo:
         self.platform_info = (
             platform_info or f"{platform.system()} {platform.machine()}"
         )
+        # Apple Silicon 芯片代次（1/2/3/4/...）。仅在 MPS 设备上有效，
+        # 用于 ``device_config._compute_gpu_batch_sizes`` 在同等内存下做代次缩放。
+        self.chip_generation = chip_generation
 
     def __repr__(self) -> str:
         details = []
@@ -71,6 +103,8 @@ class HardwareInfo:
             details.append(f"count={self.device_count}")
         if self.memory_gb:
             details.append(f"memory={self.memory_gb:.1f}GB")
+        if self.chip_generation:
+            details.append(f"gen=M{self.chip_generation}")
         detail_str = ", ".join(details) if details else "N/A"
         return f"HardwareInfo(device={self.device_type.value}, {detail_str})"
 
@@ -82,6 +116,7 @@ class HardwareInfo:
             "device_count": self.device_count,
             "memory_gb": self.memory_gb,
             "platform_info": self.platform_info,
+            "chip_generation": self.chip_generation,
             "is_gpu": self.device_type.is_gpu,
         }
 
@@ -312,6 +347,7 @@ def get_hardware_info() -> HardwareInfo:
             device_count=1,
             memory_gb=memory,
             platform_info=platform_info,
+            chip_generation=parse_apple_chip_generation(chip_name),
         )
 
     # Check XPU

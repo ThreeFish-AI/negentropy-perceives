@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from ..config import settings
 from .base import StageResult
+from .engine_selector import build_selector
 from .models import (
     AssemblyInput,
     AssemblyOutput,
@@ -457,6 +458,7 @@ async def run_pdf_pipeline(
         engine_gates=_get_engine_gates(),
         pipeline_name="pdf",
         input_builders=_PDF_INPUT_BUILDERS,
+        selector=build_selector(),
     )
 
     # 引擎预热：将 docling/mineru/marker 的 spawn + torch import + MPS first-touch
@@ -632,6 +634,7 @@ async def run_webpage_pipeline(
         stages_config=stages_config,
         defaults_config=_get_defaults_config(),
         pipeline_name="webpage",
+        selector=build_selector(),
     )
 
     # 创建初始上下文

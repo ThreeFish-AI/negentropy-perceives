@@ -178,17 +178,84 @@ class TestMarkerTorchDevice:
                 os.environ.pop("TORCH_DEVICE", None)
 
     def test_ensure_cpu_device_only_sets_once(self) -> None:
-        """多次调用只应设置一次。"""
+        """同设备多次调用幂等：第二次不再覆写已被外部修改的 env。"""
         MarkerEngine._torch_device_set = False
+        MarkerEngine._last_torch_device_value = None
         os.environ.pop("TORCH_DEVICE", None)
         try:
             MarkerEngine._ensure_cpu_device()
             os.environ["TORCH_DEVICE"] = "cuda"  # 外部修改
-            MarkerEngine._ensure_cpu_device()  # 不应覆盖
+            MarkerEngine._ensure_cpu_device()  # 同 target=cpu，不应覆写
             assert os.environ.get("TORCH_DEVICE") == "cuda"
         finally:
             MarkerEngine._torch_device_set = False
+            MarkerEngine._last_torch_device_value = None
             os.environ.pop("TORCH_DEVICE", None)
+
+    def test_ensure_torch_device_mps_opt_in(self) -> None:
+        """device='mps' 应透传到 TORCH_DEVICE 环境变量。"""
+        MarkerEngine._torch_device_set = False
+        MarkerEngine._last_torch_device_value = None
+        os.environ.pop("TORCH_DEVICE", None)
+        try:
+            MarkerEngine._ensure_torch_device("mps")
+            assert os.environ.get("TORCH_DEVICE") == "mps"
+        finally:
+            MarkerEngine._torch_device_set = False
+            MarkerEngine._last_torch_device_value = None
+            os.environ.pop("TORCH_DEVICE", None)
+
+    def test_ensure_torch_device_inference_ram(self) -> None:
+        """inference_ram_gb > 0 应写入 INFERENCE_RAM。"""
+        MarkerEngine._torch_device_set = False
+        MarkerEngine._last_torch_device_value = None
+        os.environ.pop("INFERENCE_RAM", None)
+        os.environ.pop("TORCH_DEVICE", None)
+        try:
+            MarkerEngine._ensure_torch_device("mps", inference_ram_gb=18)
+            assert os.environ.get("INFERENCE_RAM") == "18"
+        finally:
+            MarkerEngine._torch_device_set = False
+            MarkerEngine._last_torch_device_value = None
+            os.environ.pop("INFERENCE_RAM", None)
+            os.environ.pop("TORCH_DEVICE", None)
+
+    def test_ensure_torch_device_num_workers(self) -> None:
+        """num_workers > 0 应写入 NUM_WORKERS。"""
+        MarkerEngine._torch_device_set = False
+        MarkerEngine._last_torch_device_value = None
+        os.environ.pop("NUM_WORKERS", None)
+        try:
+            MarkerEngine._ensure_torch_device("mps", num_workers=4)
+            assert os.environ.get("NUM_WORKERS") == "4"
+        finally:
+            MarkerEngine._torch_device_set = False
+            MarkerEngine._last_torch_device_value = None
+            os.environ.pop("NUM_WORKERS", None)
+            os.environ.pop("TORCH_DEVICE", None)
+
+    def test_ensure_torch_device_zero_inference_ram_skipped(self) -> None:
+        """inference_ram_gb=0 不应写入 INFERENCE_RAM。"""
+        MarkerEngine._torch_device_set = False
+        MarkerEngine._last_torch_device_value = None
+        os.environ.pop("INFERENCE_RAM", None)
+        try:
+            MarkerEngine._ensure_torch_device("mps", inference_ram_gb=0)
+            assert "INFERENCE_RAM" not in os.environ
+        finally:
+            MarkerEngine._torch_device_set = False
+            MarkerEngine._last_torch_device_value = None
+            os.environ.pop("TORCH_DEVICE", None)
+
+    def test_config_key_includes_device_dimensions(self) -> None:
+        """缓存键应覆盖 device / inference_ram / num_workers / half_precision 维度。"""
+        e1 = MarkerEngine()
+        e2 = MarkerEngine(device="mps")
+        e3 = MarkerEngine(device="mps", half_precision=True)
+        e4 = MarkerEngine(device="mps", inference_ram_gb=16)
+        keys = {e1._config_key(), e2._config_key(), e3._config_key(), e4._config_key()}
+        # 四种配置应产出不同缓存键
+        assert len(keys) == 4
 
 
 # ============================================================
