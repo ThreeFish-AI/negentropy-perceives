@@ -44,7 +44,19 @@ class Stage(ABC, Generic[TInput, TOutput]):
 
     @abstractmethod
     async def execute(self, input_data: TInput) -> StageResult[TOutput]:
-        """执行 Stage 逻辑。"""
+        """执行 Stage 逻辑。
+
+        ⚠️ **Fallback-only path** ⚠️
+        主路径由 ``PipelineOrchestrator._execute_stage`` →
+        ``StageScheduler.run_stage`` 走, 经过 ``EngineSelector`` 重排
+        ``tool_configs`` 后由 scheduler 按 rank 调度。各子类 ``execute()``
+        中常见的 ``for tool_cls in _TOOLS.values(): ...`` 字典遍历降级模式
+        **仅在被外部直接调用时**(测试 / 兼容旧调用方) 生效, 绕过 selector
+        与 scheduler 的竞争机制。
+
+        生产代码请通过 ``run_pdf_pipeline`` / ``PipelineOrchestrator`` 调用,
+        避免直接 ``stage.execute(input_data)``。
+        """
 
     def is_available(self) -> bool:
         """检测此 Stage 的默认引擎是否可用。"""
