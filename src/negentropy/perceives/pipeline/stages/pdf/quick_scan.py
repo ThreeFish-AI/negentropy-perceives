@@ -96,7 +96,7 @@ class FitzQuickScanner(PDFToolBase):
                 try:
                     finder = page.find_tables()
                     native_table_count += len(getattr(finder, "tables", []) or [])
-                except Exception:  # noqa: BLE001 — find_tables 在旧版 fitz 可能不存在
+                except Exception:  # noqa: BLE001  # nosec B110 — find_tables 在旧版 fitz 可能不存在
                     pass
 
                 # 字体分析: 检测数学字体 / 等宽 (代码) 字体
