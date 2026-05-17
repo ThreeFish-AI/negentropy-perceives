@@ -235,3 +235,169 @@ class TestMarkerTextExtractorRegistered:
         instance = get_tool("text_extraction.marker")
         assert instance is not None
         assert instance.tool_name == "marker"
+
+
+# ============================================================
+# Phase C: ProfileAwareSelector 新子规则与 complex_layout 兜底
+# ============================================================
+class TestProfileAwareSelectorPhaseC:
+    def test_complex_layout_overrides_no_tables_skip(self) -> None:
+        """quick_scan 启发式误判 has_tables=False 但 complex_layout=True
+        时, table_extraction 应回退到 YAML 顺序而非短路跳过。"""
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(
+            has_tables=False,
+            has_complex_layout=True,
+        )
+        d = s.select(
+            "table_extraction",
+            [{"name": "docling"}, {"name": "pymupdf"}],
+            SelectionContext(characteristics=chars),
+        )
+        assert d.skip is False, (
+            "complex_layout=True 应阻止误判驱动的短路跳过, 保护 word_count 完整性"
+        )
+        assert "complex_layout" in d.reason
+
+    def test_complex_layout_overrides_no_code_skip(self) -> None:
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(
+            has_code_blocks=False,
+            has_complex_layout=True,
+        )
+        d = s.select(
+            "code_detection",
+            [{"name": "docling"}, {"name": "algorithm_detector"}],
+            SelectionContext(characteristics=chars),
+        )
+        assert d.skip is False
+        assert "complex_layout" in d.reason
+
+    def test_no_formulas_still_skips_even_complex(self) -> None:
+        """formula_extraction 不在 complex_layout 兜底白名单, 应正常跳过。"""
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(
+            has_formulas=False,
+            has_complex_layout=True,
+        )
+        d = s.select(
+            "formula_extraction",
+            [{"name": "docling"}, {"name": "mineru"}],
+            SelectionContext(characteristics=chars),
+        )
+        assert d.skip is True
+        assert "no_has_formulas" in d.reason
+
+    def test_formula_extraction_prefers_mineru_on_mps(self) -> None:
+        """mps + has_formulas 时, mineru 应被重排到 rank=1
+        (vlm-auto-engine 命中 mlx-engine)。"""
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(has_formulas=True)
+        tools = [
+            {"name": "docling", "rank": 1},
+            {"name": "mineru", "rank": 2},
+            {"name": "marker", "rank": 3},
+        ]
+        d = s.select(
+            "formula_extraction",
+            tools,
+            SelectionContext(characteristics=chars, device="mps"),
+        )
+        assert d.skip is False
+        assert d.tools[0]["name"] == "mineru"
+        assert d.reason == "profile:formula_mps_mineru"
+
+    def test_formula_extraction_default_on_cpu(self) -> None:
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(has_formulas=True)
+        tools = [
+            {"name": "docling", "rank": 1},
+            {"name": "mineru", "rank": 2},
+        ]
+        d = s.select(
+            "formula_extraction",
+            tools,
+            SelectionContext(characteristics=chars, device="cpu"),
+        )
+        assert d.skip is False
+        # cpu 走 YAML 默认: docling rank=1
+        assert d.tools[0]["name"] == "docling"
+        assert d.reason == "profile:formula_default"
+
+    def test_code_detection_skips_docling_when_mps_no_mlx_vlm(self) -> None:
+        """mps + 无 mlx_vlm 时, code_detection 候选剔除 docling。"""
+        from unittest.mock import patch
+
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(has_code_blocks=True)
+        tools = [
+            {"name": "docling", "rank": 1},
+            {"name": "algorithm_detector", "rank": 2},
+            {"name": "marker", "rank": 3},
+        ]
+
+        with patch("importlib.util.find_spec", return_value=None):
+            d = s.select(
+                "code_detection",
+                tools,
+                SelectionContext(characteristics=chars, device="mps"),
+            )
+            assert d.skip is False
+            assert all(t["name"] != "docling" for t in d.tools)
+            assert "no_mlx_vlm" in d.reason
+
+    def test_table_extraction_emits_reason_for_complex_layout(self) -> None:
+        from negentropy.perceives.pipeline.engine_selector import (
+            ProfileAwareSelector,
+            SelectionContext,
+        )
+        from negentropy.perceives.pipeline.models import DocumentCharacteristics
+
+        s = ProfileAwareSelector()
+        chars = DocumentCharacteristics(has_tables=True, has_complex_layout=True)
+        tools = [{"name": "docling", "rank": 1}, {"name": "camelot", "rank": 3}]
+        d = s.select(
+            "table_extraction",
+            tools,
+            SelectionContext(characteristics=chars),
+        )
+        assert d.skip is False
+        assert d.reason == "profile:table_complex_docling"
+        # 不重排, 保持 YAML 顺序
+        assert d.tools[0]["name"] == "docling"

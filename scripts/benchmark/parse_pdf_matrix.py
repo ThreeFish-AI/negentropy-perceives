@@ -348,14 +348,25 @@ async def _run_cell_in_subprocess(
             ),
             "total_elapsed_s": 0.0,
         }
+    # PyMuPDF 等三方库偶尔会向 stdout 写一行警告(如 "Consider using the
+    # pymupdf_layout package..."), 污染 JSON 解析。改为按行扫描, 取首个能解析
+    # 为 JSON 的非空行作为 cell summary。
+    text = stdout_bytes.decode("utf-8", errors="replace")
+    candidates = [line for line in text.splitlines() if line.strip().startswith("{")]
+    for line in candidates:
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    # 兜底: 整体尝试解析(向后兼容历史行为)
     try:
-        return json.loads(stdout_bytes.decode("utf-8"))
+        return json.loads(text)
     except json.JSONDecodeError as e:
         return {
             "success": False,
             "error": f"invalid JSON from subprocess: {e}",
             "total_elapsed_s": 0.0,
-            "raw_stdout": stdout_bytes.decode("utf-8", errors="replace")[:2000],
+            "raw_stdout": text[:2000],
         }
 
 
