@@ -120,14 +120,17 @@ async def _run_bench(args: argparse.Namespace) -> Dict[str, Any]:
             )
 
     start_ts = time.monotonic()
+    # 形参名是 pdf_source（见 ops/pdf.py），page_range 为 Optional[List[int]]
     result = await parse_pdf_to_markdown(
-        source=str(args.pdf_path),
+        pdf_source=str(args.pdf_path),
         method=args.method,
-        page_range=page_range,
+        page_range=list(page_range) if page_range else None,
     )
     elapsed_s = time.monotonic() - start_ts
 
-    # parse_pdf_to_markdown 返回 dict，含 markdown / metadata / stage_results
+    # parse_pdf_to_markdown 返回 PDFResponse（pydantic 模型）。
+    # enhanced_assets 内含 engines_used / images_extracted / tables_extracted 等。
+    enhanced_assets = getattr(result, "enhanced_assets", None) or {}
     summary: Dict[str, Any] = {
         "pdf_path": str(args.pdf_path),
         "method": args.method,
@@ -138,15 +141,17 @@ async def _run_bench(args: argparse.Namespace) -> Dict[str, Any]:
         "platform": f"{platform.system()} {platform.machine()}",
         "hardware": _hardware_info_dict(),
         "total_elapsed_s": round(elapsed_s, 2),
-        "word_count": result.get("word_count") if isinstance(result, dict) else None,
-        "stage_results": result.get("stage_results")
-        if isinstance(result, dict)
+        "word_count": getattr(result, "word_count", 0),
+        "page_count": getattr(result, "page_count", 0),
+        "conversion_time": getattr(result, "conversion_time", None),
+        "metadata": getattr(result, "metadata", None),
+        "enhanced_assets": enhanced_assets or None,
+        "engines_used": enhanced_assets.get("engines_used")
+        if isinstance(enhanced_assets, dict)
         else None,
-        "metadata": result.get("metadata") if isinstance(result, dict) else None,
-        "engines_used": result.get("engines_used")
-        if isinstance(result, dict)
-        else None,
-        "success": bool(result.get("markdown")) if isinstance(result, dict) else False,
+        "method_used": getattr(result, "method", args.method),
+        "error": getattr(result, "error", None),
+        "success": bool(getattr(result, "success", False)),
     }
     return summary
 
