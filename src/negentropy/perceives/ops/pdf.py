@@ -96,18 +96,18 @@ async def parse_pdf_to_markdown(
                         output_dir=output_dir,
                     )
                     if pipeline_result is not None:
-                        enhanced_assets = None
-                        if (
-                            pipeline_result.images_count > 0
-                            or pipeline_result.tables_count > 0
-                        ):
-                            enhanced_assets = {
-                                "images_extracted": pipeline_result.images_count,
-                                "tables_extracted": pipeline_result.tables_count,
-                                "formulas_extracted": pipeline_result.formulas_count,
-                                "code_blocks_detected": pipeline_result.code_blocks_count,
-                                "engines_used": pipeline_result.engines_used,
-                            }
+                        # 始终透出 enhanced_assets, 即便纯文本 PDF 也保留 engines_used /
+                        # stage_breakdown, 让基准脚本与 MCP 调用方观测到 Pipeline 端到端
+                        # 的引擎选择与 stage 时延分布 (PR #163 之前的条件门控会让纯文本
+                        # PDF 永远拿不到这些观测信号, 阻碍严格循证调优)。
+                        enhanced_assets = {
+                            "images_extracted": pipeline_result.images_count,
+                            "tables_extracted": pipeline_result.tables_count,
+                            "formulas_extracted": pipeline_result.formulas_count,
+                            "code_blocks_detected": pipeline_result.code_blocks_count,
+                            "engines_used": pipeline_result.engines_used,
+                            "stage_breakdown": pipeline_result.stage_results,
+                        }
                         # 将 pipeline 层的 dataclass ImageAsset 映射为响应层
                         # 的 Pydantic ImageAssetModel；空列表统一回落为 None，
                         # 以便客户端用 `is None` 判断“无图片 vs 有图但未透出”。

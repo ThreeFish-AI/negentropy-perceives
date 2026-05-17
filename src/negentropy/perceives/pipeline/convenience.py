@@ -62,11 +62,44 @@ def _get_defaults_config() -> dict[str, Any]:
 
 
 def _get_engine_gates() -> dict[str, bool]:
-    """根据引擎级 enabled 配置构建门控映射。"""
+    """根据引擎级 enabled 配置构建门控映射。
+
+    覆盖 4 个可受配置门控的引擎（``opendataloader`` 在 PR #163 之后引入,
+    此前遗漏会导致 ``settings.opendataloader_enabled=False`` 不生效:
+    ``EngineSelector`` 重排时仍会把 ODL 列入候选）。
+
+    ``pymupdf`` / ``pypdf`` 视为强制兜底引擎,不暴露 gate, 永远视为可用。
+    """
     return {
         "docling": settings.docling_enabled,
         "mineru": settings.mineru_enabled,
         "marker": settings.marker_enabled,
+        "opendataloader": settings.opendataloader_enabled,
+    }
+
+
+def _serialize_stage_result(result: StageResult) -> Dict[str, Any]:
+    """把 ``StageResult`` 序列化为 ``PipelineResult.stage_results`` 字典项。
+
+    透出 stage 级的可观测信号:
+        - ``success`` / ``error`` / ``engine`` (原有字段)
+        - ``elapsed_ms``: 由 ``PipelineOrchestrator._execute_stage`` 在 Stage
+          完成时自动写入 (orchestrator.py 第 ~287 行)
+        - ``selector_decision``: 由 orchestrator 透传 ``EngineSelector`` 的决策
+          原因 (如 ``profile:no_tables`` / ``profile:scanned``)
+        - ``selector_skipped``: True 表示该 Stage 被 selector 短路跳过
+
+    供基准脚本 (``scripts/benchmark/parse_pdf_*``) 与 MCP 调用方观测 Pipeline
+    端到端的时延分布与路由决策, 实现严格循证的性能调优。
+    """
+    metadata = getattr(result, "metadata", None) or {}
+    return {
+        "success": result.success,
+        "engine": result.engine_used,
+        "elapsed_ms": round(getattr(result, "elapsed_ms", 0.0) or 0.0, 2),
+        "selector_decision": metadata.get("selector_decision"),
+        "selector_skipped": bool(metadata.get("selector_skipped", False)),
+        "error": result.error,
     }
 
 
@@ -555,8 +588,7 @@ async def run_pdf_pipeline(
                 if hasattr(r, "engine_used") and r.engine_used
             ],
             stage_results={
-                k: {"success": v.success, "engine": v.engine_used}
-                for k, v in stage_results.items()
+                k: _serialize_stage_result(v) for k, v in stage_results.items()
             },
             metadata=assembly_output.metadata,
             image_assets=image_assets,
@@ -582,18 +614,14 @@ async def run_pdf_pipeline(
                 if hasattr(r, "engine_used") and r.engine_used
             ],
             stage_results={
-                k: {"success": v.success, "engine": v.engine_used}
-                for k, v in stage_results.items()
+                k: _serialize_stage_result(v) for k, v in stage_results.items()
             },
         )
 
     return PipelineResult(
         success=False,
         error="Pipeline 未能生成有效输出",
-        stage_results={
-            k: {"success": v.success, "error": v.error}
-            for k, v in stage_results.items()
-        },
+        stage_results={k: _serialize_stage_result(v) for k, v in stage_results.items()},
     )
 
 

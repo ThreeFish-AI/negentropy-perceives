@@ -372,7 +372,31 @@ class PipelineOrchestrator:
                     if isinstance(pre_out, PreprocessingOutput):
                         chars = pre_out.characteristics
 
-        return SelectionContext(characteristics=chars, device=None)
+        # 激活 device 信号 (PR #164): 让 ProfileAwareSelector 的
+        # _select_formula_extraction / _select_code_detection 等子规则可消费
+        # 当前运行设备 (mps / cuda / cpu / xpu)。失败时回退 None, selector 视为
+        # 设备未知, 走 YAML 默认。
+        #
+        # 选用 ``get_device_for_docling(settings.accelerator_device)`` 而非裸
+        # ``detect_device()``: 前者会先尊重 ``settings.accelerator_device`` (背后
+        # 接 ``NEGENTROPY_PERCEIVES_ACCELERATOR_DEVICE`` 环境变量)、``force_cpu``
+        # 开关等用户层覆盖, 再回落到硬件探测。这样基准矩阵脚本通过环境变量切换
+        # device 时, selector 这边能真正感知到, 不再只是 MinerU 引擎内部 device
+        # 切换而 selector 侧分支恒等于物理硬件。返回的是纯小写字符串
+        # ("mps"/"cpu"/"cuda"/"xpu"), 与 ``SelectionContext.device`` 的字符串协议
+        # 一致, 避免 enum/str 类型混用带来的下游隐患。
+        device: Optional[str] = None
+        try:
+            from ..config import settings as _settings
+            from ..pdf.hardware.detection import get_device_for_docling
+
+            device = get_device_for_docling(
+                getattr(_settings, "accelerator_device", None)
+            )
+        except Exception:  # noqa: BLE001
+            device = None
+
+        return SelectionContext(characteristics=chars, device=device)
 
     def _resolve_input(
         self,

@@ -235,6 +235,9 @@ pipeline:
           early_win_grace_seconds: 5 # 给其它工具最后 5s 机会
 
       # S3: 文本内容提取（稳定，降级模式即可）
+      # marker 加入 fallback 末位（rank=5），让 ProfileAwareSelector 在扫描版
+      # PDF 上能通过 _reorder_by_name 把 marker 重排到 rank=1（Surya OCR 路径）。
+      # 数字版 PDF 默认顺序不变（pymupdf rank=1 仍最快）。
       - name: text_extraction
         description: "从各文本区域中提取纯文本，保留段落结构与标题层级"
         input_from: preprocessing
@@ -250,6 +253,9 @@ pipeline:
             enabled: true
           - name: pypdf
             rank: 4
+            enabled: true
+          - name: marker
+            rank: 5
             enabled: true
         competition_mode: false
 
