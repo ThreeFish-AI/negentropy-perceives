@@ -274,7 +274,6 @@ def _reorder_by_name(
 ) -> List[Dict[str, Any]]:
     """根据偏好顺序重排 tools；缺失的 tool 按原顺序追加在末尾。"""
     name_to_tool: Dict[str, Dict[str, Any]] = {}
-    leftovers: List[Dict[str, Any]] = []
     for tool in tools:
         name = tool.get("name", "")
         if name and name not in name_to_tool:
@@ -292,7 +291,6 @@ def _reorder_by_name(
         name = tool.get("name", "")
         if name and name not in placed:
             reordered.append(tool)
-            leftovers.append(tool)
 
     return reordered
 
