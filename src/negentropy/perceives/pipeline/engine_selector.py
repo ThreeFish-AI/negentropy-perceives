@@ -67,8 +67,14 @@ class SelectionContext:
     Attributes:
         characteristics: 来自 ``quick_scan`` 的 DocumentCharacteristics；
             ``None`` 表示 quick_scan 未执行/失败，selector 必须**保守**回退默认。
-        device: 来自 ``hardware/detection.detect_device`` 的设备字符串
-            （``"cpu"`` / ``"mps"`` / ``"cuda"`` / ``"xpu"``），可选。
+        device: 通过 ``hardware/detection.get_device_for_docling`` 解析得到的
+            设备字符串（``"cpu"`` / ``"mps"`` / ``"cuda"`` / ``"xpu"``）。该解析
+            会优先尊重 ``settings.accelerator_device`` /
+            ``NEGENTROPY_PERCEIVES_ACCELERATOR_DEVICE`` 与 ``force_cpu`` 开关,
+            未指定时回落到 ``detect_device()`` 自动探测。值统一为小写字符串,
+            避免 ``str``-mixin Enum 在 Python 3.13 上 ``__str__`` 返回
+            ``'DeviceType.MPS'`` 这类陷阱。``None`` 表示设备未知, selector 应
+            保守走 YAML 默认。
     """
 
     characteristics: Optional[DocumentCharacteristics] = None

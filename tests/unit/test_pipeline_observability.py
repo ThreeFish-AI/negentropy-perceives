@@ -116,6 +116,12 @@ class TestStageResultSerialization:
 # ============================================================
 class TestDoclingCodeDetectorMlxFallback:
     def test_disabled_when_mps_and_no_mlx_vlm(self) -> None:
+        """Mock 必须用 ``DeviceType`` 枚举忠实模拟 ``detect_device`` 的真实返回类型,
+        避免裸字符串 fixture 掩盖 ``str``-mixin Enum 的 ``__str__`` 陷阱
+        (Python 3.13 上 ``str(DeviceType.MPS)`` 仍是 ``'DeviceType.MPS'`` 而非
+        ``'mps'``, 一旦源码改回 ``str(detect_device())`` 这一类形态本测试就该挂)。
+        """
+        from negentropy.perceives.pdf.hardware.detection import DeviceType
         from negentropy.perceives.pipeline.stages.pdf.code_detection import (
             _docling_code_enrichment_disabled,
         )
@@ -126,13 +132,14 @@ class TestDoclingCodeDetectorMlxFallback:
             ) as mock_find,
             patch(
                 "negentropy.perceives.pdf.hardware.detection.detect_device",
-                return_value="mps",
+                return_value=DeviceType.MPS,
             ),
         ):
             mock_find.return_value = None  # mlx_vlm 不可用
             assert _docling_code_enrichment_disabled() is True
 
     def test_enabled_when_mps_with_mlx_vlm(self) -> None:
+        from negentropy.perceives.pdf.hardware.detection import DeviceType
         from negentropy.perceives.pipeline.stages.pdf.code_detection import (
             _docling_code_enrichment_disabled,
         )
@@ -143,7 +150,7 @@ class TestDoclingCodeDetectorMlxFallback:
             ) as mock_find,
             patch(
                 "negentropy.perceives.pdf.hardware.detection.detect_device",
-                return_value="mps",
+                return_value=DeviceType.MPS,
             ),
         ):
             mock_find.return_value = object()  # mlx_vlm 可用
@@ -151,6 +158,7 @@ class TestDoclingCodeDetectorMlxFallback:
 
     def test_enabled_when_cpu_regardless_of_mlx_vlm(self) -> None:
         """非 mps 设备走 default preset, 不依赖 mlx_vlm。"""
+        from negentropy.perceives.pdf.hardware.detection import DeviceType
         from negentropy.perceives.pipeline.stages.pdf.code_detection import (
             _docling_code_enrichment_disabled,
         )
@@ -162,7 +170,7 @@ class TestDoclingCodeDetectorMlxFallback:
             ),
             patch(
                 "negentropy.perceives.pdf.hardware.detection.detect_device",
-                return_value="cpu",
+                return_value=DeviceType.CPU,
             ),
         ):
             assert _docling_code_enrichment_disabled() is False

@@ -58,13 +58,18 @@ def _docling_code_enrichment_disabled() -> bool:
         return True
 
     try:
-        from ....pdf.hardware.detection import detect_device
+        from ....pdf.hardware.detection import DeviceType, detect_device
 
-        device = str(detect_device() or "cpu").lower()
+        # 直接持有 ``DeviceType`` 枚举: 不能用 ``str(DeviceType.MPS)`` —— 在 Python
+        # 3.13 上 ``str``-mixin Enum 的 ``__str__`` 仍返回 ``'DeviceType.MPS'``
+        # (只有 ``enum.StrEnum`` 才会回退到 ``.value``), 经 ``.lower()`` 后
+        # ``'devicetype.mps' != 'mps'``, 会让本函数在真实 MPS 硬件上恒返回
+        # False, mps + no-mlx_vlm 安全网失效。
+        device = detect_device() or DeviceType.CPU
     except Exception:  # noqa: BLE001 — 探测失败保守认为未禁用
         return False
 
-    if device != "mps":
+    if device != DeviceType.MPS:
         return False
 
     return find_spec("mlx_vlm") is None

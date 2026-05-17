@@ -734,6 +734,23 @@ async def _run_matrix(args: argparse.Namespace) -> int:
         print("ERROR: 矩阵为空（methods/selectors/devices 至少有一项为空）")
         return 2
 
+    # ``--no-process-isolation`` + 多轴会让矩阵静默退化:
+    # pydantic-settings 在首个 ``from negentropy.perceives.config import settings``
+    # 时已把所有字段 freeze 为常量, 后续 mutate ``os.environ`` 对
+    # ``settings.pipeline_engine_selector`` / ``settings.mineru_device`` /
+    # ``settings.accelerator_device`` 完全没有作用 —— 不同 cell 实际跑的是
+    # 第一个 cell 的取值的 N 次重复。此处硬阻断, 避免基准数据看似变化实则不变。
+    if args.no_process_isolation and (len(selectors) > 1 or len(devices) > 1):
+        print(
+            "ERROR: ``--no-process-isolation`` 与多 ``--selectors``/``--devices`` 不兼容。\n"
+            "       pydantic-settings 在首次导入即缓存所有字段, 后续 os.environ "
+            "修改无效, 矩阵轴会被静默退化为第一个 cell 的取值。\n"
+            "       请去掉 ``--no-process-isolation``(走子进程隔离, 默认), "
+            "或将 ``--selectors``/``--devices`` 收敛到单值。",
+            file=sys.stderr,
+        )
+        return 2
+
     # 归档目录
     timestamp = time.strftime("%Y%m%dT%H%M%S")
     run_dir = Path(args.archive_dir) / timestamp
