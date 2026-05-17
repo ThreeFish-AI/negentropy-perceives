@@ -372,7 +372,19 @@ class PipelineOrchestrator:
                     if isinstance(pre_out, PreprocessingOutput):
                         chars = pre_out.characteristics
 
-        return SelectionContext(characteristics=chars, device=None)
+        # 激活 device 信号 (PR #164): 让 ProfileAwareSelector 的
+        # _select_formula_extraction / _select_code_detection 等子规则可消费
+        # 当前运行设备 (mps / cuda / cpu / xpu)。失败时回退 None, selector 视为
+        # 设备未知, 走 YAML 默认。
+        device: Optional[str] = None
+        try:
+            from ..pdf.hardware.detection import detect_device
+
+            device = detect_device()
+        except Exception:  # noqa: BLE001
+            device = None
+
+        return SelectionContext(characteristics=chars, device=device)
 
     def _resolve_input(
         self,
