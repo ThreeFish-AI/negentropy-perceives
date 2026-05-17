@@ -68,7 +68,10 @@ class FitzQuickScanner(PDFToolBase):
             image_count = 0
             math_font_count = 0
             table_indicator_count = 0
+            native_table_count = 0
             code_indicator_count = 0
+            code_font_count = 0
+            inline_math_hits = 0
 
             # 仅扫描前 5 页（或指定范围内的前 5 页）
             scan_pages = min(5, end_page - start_page)
@@ -85,7 +88,18 @@ class FitzQuickScanner(PDFToolBase):
                 # 图片数量
                 image_count += len(page.get_images())
 
-                # 字体分析：检测数学字体
+                # 表格原生检测: PyMuPDF 1.23+ 内置 find_tables 比纯文本启发式准确得多
+                # (尤其对数字版 PDF 用 ruling lines 与 column alignment 分析,
+                # 而非依赖 markdown pipe 字符)。PR #163 矩阵实测显示纯 pipe-line
+                # 启发式在 Context Engineering 2.0 上漏报 3 个真表格, 导致
+                # ``ProfileAwareSelector`` 错误跳过 ``table_extraction``。
+                try:
+                    finder = page.find_tables()
+                    native_table_count += len(getattr(finder, "tables", []) or [])
+                except Exception:  # noqa: BLE001 — find_tables 在旧版 fitz 可能不存在
+                    pass
+
+                # 字体分析: 检测数学字体 / 等宽 (代码) 字体
                 for block in text_dict.get("blocks", []):
                     for line in block.get("lines", []):
                         for span in line.get("spans", []):
@@ -101,8 +115,22 @@ class FitzQuickScanner(PDFToolBase):
                                 )
                             ):
                                 math_font_count += 1
+                            # 等宽 / 代码字体: 提升 code_blocks 召回率
+                            if any(
+                                kw in font_name
+                                for kw in (
+                                    "mono",
+                                    "courier",
+                                    "consolas",
+                                    "menlo",
+                                    "code",
+                                    "fira",
+                                    "source code",
+                                )
+                            ):
+                                code_font_count += 1
 
-                # 表格指示器：查找管道符号行
+                # 文本级启发式: pipe-line 表格 + 代码 indent + inline math
                 for line in page_text.split("\n"):
                     stripped = line.strip()
                     if (
@@ -115,13 +143,20 @@ class FitzQuickScanner(PDFToolBase):
                     if re.match(r"^    \S", line) or "def " in line or "class " in line:
                         code_indicator_count += 1
 
+                # inline math (避免漏报无数学字体但用 $...$ / \(...\) 的论文)
+                inline_math_hits += len(re.findall(r"\$[^\$\n]{1,80}\$", page_text))
+                inline_math_hits += len(re.findall(r"\\\([^)]{1,80}\\\)", page_text))
+
             doc.close()
 
-            # 综合判断
+            # 综合判断 (PR #164: 启发式从 OR 多源降低漏报):
+            # - has_tables: 原生 find_tables 命中 ≥ 1 || pipe-line ≥ 3
+            # - has_formulas: math 字体 ≥ 4 || inline math ≥ 3
+            # - has_code_blocks: indent/def/class ≥ 5 || 等宽字体 ≥ 30 (代码块通常有大量等宽字符)
             chars.has_images = image_count > 0
-            chars.has_formulas = math_font_count > 3
-            chars.has_tables = table_indicator_count > 2
-            chars.has_code_blocks = code_indicator_count > 5
+            chars.has_formulas = math_font_count > 3 or inline_math_hits >= 3
+            chars.has_tables = native_table_count >= 1 or table_indicator_count > 2
+            chars.has_code_blocks = code_indicator_count > 5 or code_font_count >= 30
             chars.sample_text = "\n".join(sample_texts)[:500]
 
             # 文本密度
@@ -160,6 +195,11 @@ class FitzQuickScanner(PDFToolBase):
                     "total_chars": total_chars,
                     "image_count": image_count,
                     "math_font_count": math_font_count,
+                    "inline_math_hits": inline_math_hits,
+                    "native_table_count": native_table_count,
+                    "table_indicator_count": table_indicator_count,
+                    "code_indicator_count": code_indicator_count,
+                    "code_font_count": code_font_count,
                 },
             )
 
