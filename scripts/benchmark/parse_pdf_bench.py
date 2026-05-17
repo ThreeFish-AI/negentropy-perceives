@@ -129,7 +129,8 @@ async def _run_bench(args: argparse.Namespace) -> Dict[str, Any]:
     elapsed_s = time.monotonic() - start_ts
 
     # parse_pdf_to_markdown 返回 PDFResponse（pydantic 模型）。
-    # enhanced_assets 内含 engines_used / images_extracted / tables_extracted 等。
+    # enhanced_assets 内含 engines_used / images_extracted / tables_extracted /
+    # stage_breakdown（PR #164 起恒填充，承载 stage 级时延与 selector_decision）。
     enhanced_assets = getattr(result, "enhanced_assets", None) or {}
     summary: Dict[str, Any] = {
         "pdf_path": str(args.pdf_path),
@@ -149,6 +150,12 @@ async def _run_bench(args: argparse.Namespace) -> Dict[str, Any]:
         "engines_used": enhanced_assets.get("engines_used")
         if isinstance(enhanced_assets, dict)
         else None,
+        # stage 级时延、selector 决策、skip 标志（基准矩阵脚本核心消费字段）
+        "stage_breakdown": (
+            enhanced_assets.get("stage_breakdown")
+            if isinstance(enhanced_assets, dict)
+            else None
+        ),
         "method_used": getattr(result, "method", args.method),
         "error": getattr(result, "error", None),
         "success": bool(getattr(result, "success", False)),
