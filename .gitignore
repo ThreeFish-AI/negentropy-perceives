@@ -69,3 +69,6 @@ bandit-report.json
 2206.01062v1.md
 .python-version
 output/
+
+# Benchmark runs (单元产物体积大, 不入库; 沉淀基线可手动 checkin 到 docs/)
+benchmarks/runs/
