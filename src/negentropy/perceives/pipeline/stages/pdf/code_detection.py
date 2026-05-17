@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from importlib.util import find_spec
 from typing import Dict, List
 
 from ...base import Stage, StageResult
@@ -23,6 +24,50 @@ from ...registry import register_tool
 from .._base import PDFToolBase
 
 logger = logging.getLogger(__name__)
+
+
+def _docling_code_enrichment_disabled() -> bool:
+    """检测当前运行环境下 docling 是否会静默禁用 ``do_code_enrichment``。
+
+    与 ``pdf/engines/docling.py::_configure_mps_code_formula_options`` 的判定
+    对齐:
+
+    - device != ``mps`` (CPU / CUDA / XPU): docling 走 default preset, 不依赖
+      mlx_vlm, code enrichment 正常启用 → 返回 False
+    - device == ``mps`` 且 ``mlx_vlm`` 不可用: docling 主动 ``do_code_enrichment
+      = False`` 避免 pipeline 退回 CPU → 返回 True
+    - device == ``mps`` 且 ``mlx_vlm`` 可用: 走 granite_mlx preset → 返回 False
+    - ``pdf_docling_mps_enrichment == "disable"``: 用户显式关闭 → 返回 True
+
+    Returns:
+        True 表示当前环境下 docling 不会输出 code_blocks, ``DoclingCodeDetector``
+        应主动返回 ``success=False`` 触发 scheduler 降级到 ``algorithm_detector``,
+        避免"空 code_blocks 假成功"造成有代码 PDF 被静默漏检 (PR #163 留下的边界
+        情况, 修复见本文件 ``DoclingCodeDetector._run`` 的 early-return)。
+    """
+    try:
+        from ....config import settings
+
+        policy = str(
+            getattr(settings, "pdf_docling_mps_enrichment", "granite_mlx")
+        ).lower()
+    except (ImportError, AttributeError):
+        policy = "granite_mlx"
+
+    if policy == "disable":
+        return True
+
+    try:
+        from ....pdf.hardware.detection import detect_device
+
+        device = str(detect_device() or "cpu").lower()
+    except Exception:  # noqa: BLE001 — 探测失败保守认为未禁用
+        return False
+
+    if device != "mps":
+        return False
+
+    return find_spec("mlx_vlm") is None
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +92,29 @@ class DoclingCodeDetector(PDFToolBase):
     async def _run(
         self, input_data: PreprocessingOutput
     ) -> StageResult[CodeDetectionOutput]:
-        """使用 Docling 检测代码块。"""
+        """使用 Docling 检测代码块。
+
+        Early-return: 若当前运行环境下 docling 会静默禁用 code enrichment
+        (mps + mlx_vlm 缺失, 或 ``pdf_docling_mps_enrichment=disable``),
+        直接返回 ``success=False`` 触发 scheduler 降级到 ``algorithm_detector``,
+        避免"空 code_blocks 假成功"导致有代码 PDF 被静默漏检, 同时省去 docling
+        冷启动开销。
+        """
+        if _docling_code_enrichment_disabled():
+            logger.info(
+                "Docling code enrichment 在当前运行环境下被静默禁用 "
+                "(mps + mlx_vlm 缺失 或 policy=disable); "
+                "code_detection Stage 已转交 scheduler 降级至 algorithm_detector"
+            )
+            return StageResult(
+                success=False,
+                error=(
+                    "docling code enrichment disabled "
+                    "(mlx_vlm unavailable on mps or policy=disable); "
+                    "降级至 algorithm_detector"
+                ),
+            )
+
         try:
             from ....core.cancellation import current_cancel_scope
             from ....infra import get_engine_pool
