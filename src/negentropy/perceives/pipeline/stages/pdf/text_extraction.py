@@ -459,6 +459,86 @@ class PyPDFTextExtractor(PDFToolBase):
             return StageResult(success=False, error=f"pypdf 文本提取失败: {e}")
 
 
+@register_tool("text_extraction.marker")
+class MarkerTextExtractor(PDFToolBase):
+    """基于 Marker 的文本提取工具（GPL-3.0 / 扫描版 OCR 路径最佳）。
+
+    设计目的:
+        ``EngineSelector._select_text_extraction`` 在扫描版 PDF 上把 ``marker``
+        列为 rank=1, 但 PR #163 之前 ``text_extraction.marker`` 适配器从未注册,
+        ``_reorder_by_name`` 对缺失 tool 是 no-op, 偏好实际上**不会生效**(死引用)。
+        本适配器补齐该缺失, 让 selector 的扫描版偏好真正命中 Marker (Surya OCR
+        路径), 由 Phase B 矩阵实测验证其在扫描版 PDF 上是否优于 docling+OCR。
+
+    与 ``MarkerCodeDetector`` / ``MarkerTableExtractor`` 等同 stage 适配器对齐
+    复用同一 worker pool 与 init_kwargs (跨 stage 共享 marker converter 缓存)。
+
+    GPL-3.0 风险:
+        与 ``marker_enabled`` 引擎级 gate 行为一致, 未额外检查
+        ``marker_license_acknowledged``; 商业用户需自行通过设置
+        ``NEGENTROPY_PERCEIVES_MARKER_ENABLED=false`` 显式禁用整个 Marker 路径。
+    """
+
+    tool_name = "marker"
+
+    def is_available(self) -> bool:
+        try:
+            from ....pdf.engines.marker import MarkerEngine
+
+            return MarkerEngine.is_available()
+        except ImportError:
+            return False
+
+    async def _run(
+        self, input_data: PreprocessingOutput
+    ) -> StageResult[TextExtractionOutput]:
+        """使用 Marker 提取文本。
+
+        Marker 返回的 ``MarkerConversionResult.markdown`` 是聚合的全文字符串,
+        不携带逐段 ``page_number`` / ``bbox`` 信息; 与 ``OpenDataLoaderTextExtractor``
+        采用相同的"按 ``\\n\\n`` 拆段、``page_number`` 缺省为 0"降级路径。
+        """
+        try:
+            from ....core.cancellation import current_cancel_scope
+            from ....infra import get_engine_pool
+            from ....pdf.engines._marker_kwargs import build_marker_init_kwargs
+
+            _scope = current_cancel_scope()
+            result = await get_engine_pool().run(
+                "marker",
+                kwargs={"pdf_path": str(input_data.local_path)},
+                init_kwargs=build_marker_init_kwargs(),
+                deadline_monotonic=_scope.deadline_monotonic if _scope else None,
+            )
+            if result is None or not getattr(result, "markdown", None):
+                return StageResult(success=False, error="Marker 返回空结果")
+
+            full_text = result.markdown
+            blocks: List[TextBlock] = [
+                TextBlock(text=seg, page_number=0)
+                for seg in full_text.split("\n\n")
+                if seg.strip()
+            ]
+            word_count = len(full_text.split())
+
+            output = TextExtractionOutput(
+                blocks=blocks,
+                full_text=full_text,
+                word_count=word_count,
+                metadata={"engine": "marker"},
+            )
+
+            return StageResult(
+                success=True,
+                output=output,
+                engine_used=self.tool_name,
+            )
+
+        except Exception as e:
+            logger.warning("Marker 文本提取失败: %s", e)
+            return StageResult(success=False, error=f"Marker 文本提取失败: {e}")
+
+
 @register_tool("text_extraction.opendataloader")
 class OpenDataLoaderTextExtractor(PDFToolBase):
     """基于 OpenDataLoader 的文本提取工具（Apache-2.0 / CPU-only / 全元素 bbox）。"""
@@ -530,8 +610,9 @@ class OpenDataLoaderTextExtractor(PDFToolBase):
 _TOOLS: Dict[str, type] = {
     "pymupdf": FitzTextExtractor,
     "docling": DoclingTextExtractor,
-    "pypdf": PyPDFTextExtractor,
+    "marker": MarkerTextExtractor,
     "opendataloader": OpenDataLoaderTextExtractor,
+    "pypdf": PyPDFTextExtractor,
 }
 
 
